@@ -1,0 +1,76 @@
+# Compila o Strato (APK "mainline" release) no GitHub Actions.
+# Dispara a cada push em main/master e também manualmente (aba Actions > Build > Run workflow).
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v4
+        # As bibliotecas (app/libraries) já estão dentro do repositório,
+        # então NÃO usamos "submodules: recursive".
+
+      - name: Restore symlinks (perdidos ao copiar o projeto pelo armazenamento do Android)
+        run: |
+          cd app/libraries
+          rm -f audio-core/include/audio_core audio-core/include/core shader-compiler/include/shader_compiler
+          ln -s ..     audio-core/include/audio_core
+          ln -s ../core audio-core/include/core
+          ln -s ..     shader-compiler/include/shader_compiler
+          ls -la audio-core/include shader-compiler/include
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Restore CCache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 3Gi
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-
+            ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-
+            ${{ runner.os }}-gradle-
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Ninja Build
+        run: |
+          sudo apt-get install -y ninja-build
+          ln -sf /usr/bin/ninja .
+
+      - name: Install NDK 26.1.10909125 and CMake 3.22.1
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;26.1.10909125" "cmake;3.22.1" || echo "sdkmanager falhou; o Gradle tentará baixar sozinho"
+
+      - name: Android Assemble
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: "ccache"
+          CMAKE_CXX_COMPILER_LAUNCHER: "ccache"
+          CCACHE_COMPILERCHECK: "string:26.1.10909125"
+        run: ./gradlew --no-daemon --stacktrace --build-cache --parallel --configure-on-demand assembleMainlineRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: strato-mainline-release
+          path: app/build/outputs/apk/mainline/release/*.apk
+          if-no-files-found: error
