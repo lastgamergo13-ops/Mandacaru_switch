@@ -106,7 +106,10 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
         void Clear(engine::ClearSurface &clearSurface);
 
-        void Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance);
+        /**
+         * @param hostIndices If non-empty the draw is indexed using these 32-bit indices (supplied by the CPU, e.g. by inline index methods) instead of the guest index buffer; `indexed`, `first` and `count` are overridden accordingly (count must equal hostIndices.size())
+         */
+        void Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices = {});
 
         void DrawIndirect(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, span<u8> indirectBuffer, u32 count, u32 stride);
 

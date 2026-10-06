@@ -75,6 +75,13 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
 
         void FlushDeferredDraw();
 
+        std::vector<u32> inlineIndices; //!< Indices accumulated by the drawInlineIndex* methods, they are drawn when `end` is received
+
+        /**
+         * @brief Draws using the supplied host-side 32-bit indices with the topology/base state currently set by `begin`
+         */
+        void DrawHostIndices(span<u32> indices);
+
         /**
          * @brief Calls the appropriate function corresponding to a certain method with the supplied argument
          */

@@ -114,6 +114,15 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         InitializeRegisters();
     }
 
+    void Maxwell3D::DrawHostIndices(span<u32> indices) {
+        if (indices.empty())
+            return;
+
+        if (CheckRenderEnable())
+            interconnect.Draw(ApplyTopologyOverride(registers.begin->op), *registers.streamOutputEnable, true, static_cast<u32>(indices.size()), 0, 1,
+                              *registers.globalBaseVertexIndex, *registers.globalBaseInstanceIndex, indices);
+    }
+
     __attribute__((always_inline)) void Maxwell3D::FlushDeferredDraw() {
         if (batchEnableState.drawActive) {
             batchEnableState.drawActive = false;
@@ -310,24 +319,44 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
                 batchEnableState.drawActive = true;
             })
 
-            ENGINE_STRUCT_CASE(drawInlineIndex4X8, index0, {
-                throw exception("drawInlineIndex4X8 not implemented!");
+            // Inline index draws: the indices are sent through the method stream between `begin` and `end`, we gather them as 32-bit indices and draw on `end`
+            // NOTE: The inlineIndex*Align registers (start offset/count of valid indices) are currently ignored, which matches the behaviour of other emulators
+            ENGINE_CASE(drawInlineIndex4X8, {
+                inlineIndices.insert(inlineIndices.end(), {drawInlineIndex4X8.index0, drawInlineIndex4X8.index1, drawInlineIndex4X8.index2, drawInlineIndex4X8.index3});
             })
 
-            ENGINE_STRUCT_CASE(drawInlineIndex2X16, even, {
-                throw exception("drawInlineIndex2X16 not implemented!");
-            })
-
-            ENGINE_STRUCT_CASE(drawZeroIndex, count, {
-                throw exception("drawZeroIndex not implemented!");
-            })
-
-            ENGINE_STRUCT_CASE(drawAuto, byteCount, {
-                throw exception("drawAuto not implemented!");
+            ENGINE_CASE(drawInlineIndex2X16, {
+                inlineIndices.insert(inlineIndices.end(), {drawInlineIndex2X16.even, drawInlineIndex2X16.odd});
             })
 
             ENGINE_CASE(drawInlineIndex, {
-                throw exception("drawInlineIndex not implemented!");
+                inlineIndices.push_back(drawInlineIndex);
+            })
+
+            ENGINE_CASE(end, {
+                if (!inlineIndices.empty()) {
+                    DrawHostIndices(span<u32>(inlineIndices));
+                    inlineIndices.clear();
+                }
+            })
+
+            ENGINE_STRUCT_CASE(drawZeroIndex, count, {
+                constexpr u32 MaxZeroIndexCount{1U << 24}; // Sanity limit to avoid huge host allocations from corrupt command streams
+                if (count > MaxZeroIndexCount) {
+                    LOGW("drawZeroIndex count 0x{:X} exceeds the supported maximum, skipping draw", count);
+                } else {
+                    std::vector<u32> zeroIndices(count, 0);
+                    DrawHostIndices(span<u32>(zeroIndices));
+                }
+            })
+
+            ENGINE_STRUCT_CASE(drawAuto, byteCount, {
+                // Needs transform feedback counter buffers (vkCmdDrawIndirectByteCountEXT) which aren't emulated yet, skip the draw instead of crashing
+                static bool warned{};
+                if (!warned) {
+                    LOGW("drawAuto is unimplemented (requires transform feedback counters), draws using it are skipped");
+                    warned = true;
+                }
             })
 
             ENGINE_STRUCT_CASE(drawIndexBuffer, count, {

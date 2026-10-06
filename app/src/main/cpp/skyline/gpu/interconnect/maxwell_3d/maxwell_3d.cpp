@@ -294,15 +294,35 @@ namespace skyline::gpu::interconnect::maxwell3d {
         ctx.executor.AddCheckpoint("After clear");
     }
 
-    void Maxwell3D::Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance) {
+    void Maxwell3D::Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices) {
         TRACE_EVENT("gpu", "Draw", "indexed", indexed, "count", count, "instanceCount", instanceCount);
 
         StateUpdateBuilder builder{*ctx.executor.allocator};
         vk::PipelineStageFlags srcStageMask{}, dstStageMask{};
 
-        PrepareDraw(builder, topology, indexed, false, first, count, srcStageMask, dstStageMask);
+        const bool hostIndexed{!hostIndices.empty()};
 
-        if (directState.inputAssembly.NeedsQuadConversion()) {
+        // Host supplied indices don't use the guest index buffer so it must not be bound/flushed by PrepareDraw
+        PrepareDraw(builder, topology, indexed && !hostIndexed, false, first, count, srcStageMask, dstStageMask);
+
+        if (hostIndexed) {
+            // Upload the CPU-supplied indices to the megabuffer and bind them as a 32-bit index buffer, this mirrors the quad conversion path below
+            u32 indexCount{static_cast<u32>(hostIndices.size())};
+            first = 0;
+            indexed = true;
+
+            if (directState.inputAssembly.NeedsQuadConversion()) {
+                vk::DeviceSize indexBufferSize{conversion::quads::GetRequiredBufferSize(indexCount, sizeof(u32))};
+                auto allocation{ctx.gpu.megaBufferAllocator.Allocate(ctx.executor.cycle, indexBufferSize)};
+                conversion::quads::GenerateIndexedQuadConversionBuffer(allocation.region.data(), reinterpret_cast<u8 *>(hostIndices.data()), indexCount, vk::IndexType::eUint32);
+                builder.SetIndexBuffer(BufferBinding{allocation.buffer, allocation.offset, indexBufferSize}, vk::IndexType::eUint32);
+                count = conversion::quads::GetIndexCount(indexCount);
+            } else {
+                auto allocation{ctx.gpu.megaBufferAllocator.Push(ctx.executor.cycle, hostIndices.cast<u8>())};
+                builder.SetIndexBuffer(BufferBinding{allocation.buffer, allocation.offset, hostIndices.size_bytes()}, vk::IndexType::eUint32);
+                count = indexCount;
+            }
+        } else if (directState.inputAssembly.NeedsQuadConversion()) {
             count = conversion::quads::GetIndexCount(count);
             first = 0;
 

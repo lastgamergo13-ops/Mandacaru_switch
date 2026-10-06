@@ -14,13 +14,13 @@ idea.module {
 
 android {
     namespace 'org.stratoemu.strato'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "org.stratoemu.strato"
 
         minSdk 29
-        targetSdk 33
+        targetSdk 34
 
         versionCode getGitVersionCode()
         versionName getGitVersionName()
@@ -52,8 +52,10 @@ android {
         targetCompatibility javaVersion
     }
 
-    packagingOptions {
-        jniLibs.useLegacyPackaging = true
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildTypes {
@@ -109,7 +111,7 @@ android {
     }
 
     /* NDK and CMake */
-    ndkVersion '26.1.10909125'
+    ndkVersion '27.2.12479018'
     externalNativeBuild {
         cmake {
             version '3.22.1+'

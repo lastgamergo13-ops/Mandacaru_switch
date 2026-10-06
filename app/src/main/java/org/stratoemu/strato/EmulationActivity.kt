@@ -30,6 +30,7 @@ import android.view.*
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
@@ -486,7 +487,8 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                 addAction(ActionPause)
                 addAction(ActionMute)
             }.also {
-                registerReceiver(pictureInPictureReceiver, it)
+                // Android 14+ (targetSdk 34) exige declarar se o receiver é exportado; as ações Pause/Mute são só do próprio app
+                ContextCompat.registerReceiver(this, pictureInPictureReceiver, it, ContextCompat.RECEIVER_NOT_EXPORTED)
             }
 
             binding.onScreenControllerView.isGone = true

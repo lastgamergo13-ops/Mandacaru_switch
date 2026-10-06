@@ -55,17 +55,17 @@ jobs:
           sudo apt-get install -y ninja-build
           ln -sf /usr/bin/ninja .
 
-      - name: Install NDK 26.1.10909125 and CMake 3.22.1
+      - name: Install NDK 27.2.12479018 and CMake 3.22.1
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
-          "$SDKMANAGER" "ndk;26.1.10909125" "cmake;3.22.1" || echo "sdkmanager falhou; o Gradle tentará baixar sozinho"
+          "$SDKMANAGER" "ndk;27.2.12479018" "cmake;3.22.1" || echo "sdkmanager falhou; o Gradle tentará baixar sozinho"
 
       - name: Android Assemble
         env:
           CMAKE_C_COMPILER_LAUNCHER: "ccache"
           CMAKE_CXX_COMPILER_LAUNCHER: "ccache"
-          CCACHE_COMPILERCHECK: "string:26.1.10909125"
+          CCACHE_COMPILERCHECK: "string:27.2.12479018"
         run: ./gradlew --no-daemon --stacktrace --build-cache --parallel --configure-on-demand assembleMainlineRelease
 
       - name: Upload APK
