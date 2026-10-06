@@ -76,7 +76,12 @@ namespace skyline::gpu {
         try {
             choreographerLooper = ALooper_prepare(0);
             AChoreographer_postFrameCallback64(AChoreographer_getInstance(), reinterpret_cast<AChoreographer_frameCallback64>(&ChoreographerCallback), this);
-            while (ALooper_pollAll(-1, nullptr, nullptr, nullptr) == ALOOPER_POLL_WAKE && !choreographerStop); // Will block and process callbacks till ALooper_wake() is called with choreographerStop set
+            // Will block and process callbacks till ALooper_wake() is called with choreographerStop set
+            // NOTE: ALooper_pollAll is obsoleted in NDK 27+, ALooper_pollOnce returns after each handled callback (ALOOPER_POLL_CALLBACK) so we keep looping in that case too
+            int pollResult;
+            do {
+                pollResult = ALooper_pollOnce(-1, nullptr, nullptr, nullptr);
+            } while ((pollResult == ALOOPER_POLL_CALLBACK || pollResult == ALOOPER_POLL_WAKE) && !choreographerStop);
         } catch (const signal::SignalException &e) {
             LOGE("{}\nStack Trace:{}", e.what(), state.loader->GetStackTrace(e.frames));
             if (state.process)
