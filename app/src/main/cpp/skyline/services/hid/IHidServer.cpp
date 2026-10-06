@@ -33,6 +33,10 @@ namespace skyline::service::hid {
         return {};
     }
 
+    Result IHidServer::ActivateGesture(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
+
     Result IHidServer::StartSixAxisSensor(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
     }
@@ -110,6 +114,10 @@ namespace skyline::service::hid {
 
         LOGD("Npad {} Style Set Update Event Handle: 0x{:X}", id, handle);
         response.copyHandles.push_back(handle);
+        return {};
+    }
+
+    Result IHidServer::DisconnectNpad(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
     }
 
@@ -307,6 +315,10 @@ namespace skyline::service::hid {
 
     Result IHidServer::ResetSevenSixAxisSensorTimestamp(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         auto appletResourceUserId{request.Pop<u64>()};
+        return {};
+    }
+
+    Result IHidServer::SetIsPalmaAllConnectable(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
     }
 

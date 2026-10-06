@@ -46,6 +46,12 @@ namespace skyline::service::hid {
         Result ActivateKeyboard(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
+         * @brief Activates the gesture recognition, currently a stub as gestures aren't emulated
+         * @url https://switchbrew.org/wiki/HID_services#ActivateGesture
+         */
+        Result ActivateGesture(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
          * @brief Starts the Six Axis Sensor for a specific Npad
          * @url https://switchbrew.org/wiki/HID_services#StartSixAxisSensor
          */
@@ -115,6 +121,12 @@ namespace skyline::service::hid {
          * @url https://switchbrew.org/wiki/HID_services#AcquireNpadStyleSetUpdateEventHandle
          */
         Result AcquireNpadStyleSetUpdateEventHandle(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Disconnects an Npad, currently a stub as the host controls the controller connection state
+         * @url https://switchbrew.org/wiki/HID_services#DisconnectNpad
+         */
+        Result DisconnectNpad(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
          * @brief Requests the LED pattern which represents a particular Player
@@ -227,6 +239,12 @@ namespace skyline::service::hid {
         Result ResetSevenSixAxisSensorTimestamp(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
+         * @brief Sets whether any Palma (Poké Ball Plus) can connect, a stub as Palma devices aren't emulated
+         * @url https://switchbrew.org/wiki/HID_services#SetIsPalmaAllConnectable
+         */
+        Result SetIsPalmaAllConnectable(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
          * @brief Sets boost mode to a Palma device
          * @url https://switchbrew.org/wiki/HID_services#SetPalmaBoostMode
          */
@@ -244,12 +262,14 @@ namespace skyline::service::hid {
             SFUNC(0x50, IHidServer, GetGyroscopeZeroDriftMode),
             SFUNC(0x51, IHidServer, ResetGyroscopeZeroDriftMode),
             SFUNC(0x52, IHidServer, IsSixAxisSensorAtRest),
+            SFUNC(0x5B, IHidServer, ActivateGesture),
             SFUNC(0x64, IHidServer, SetSupportedNpadStyleSet),
             SFUNC(0x65, IHidServer, GetSupportedNpadStyleSet),
             SFUNC(0x66, IHidServer, SetSupportedNpadIdType),
             SFUNC(0x67, IHidServer, ActivateNpad),
             SFUNC(0x68, IHidServer, DeactivateNpad),
             SFUNC(0x6A, IHidServer, AcquireNpadStyleSetUpdateEventHandle),
+            SFUNC(0x6B, IHidServer, DisconnectNpad),
             SFUNC(0x6C, IHidServer, GetPlayerLedPattern),
             SFUNC(0x6D, IHidServer, ActivateNpadWithRevision),
             SFUNC(0x78, IHidServer, SetNpadJoyHoldType),
@@ -270,6 +290,7 @@ namespace skyline::service::hid {
             SFUNC(0x12C, IHidServer, ActivateConsoleSixAxisSensor),
             SFUNC(0x132, IHidServer, InitializeSevenSixAxisSensor),
             SFUNC(0x136, IHidServer, ResetSevenSixAxisSensorTimestamp),
+            SFUNC(0x20A, IHidServer, SetIsPalmaAllConnectable),
             SFUNC(0x20D, IHidServer, SetPalmaBoostMode)
         )
     };

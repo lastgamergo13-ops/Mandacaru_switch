@@ -40,7 +40,7 @@ namespace skyline::gpu {
             auto extensionVersion{extension.specVersion};
             switch (util::Hash(extensionName)) {
                 EXT_SET("VK_EXT_index_type_uint8", hasUint8IndicesExt);
-                EXT_SET("VK_EXT_sampler_mirror_clamp_to_edge", supportsSamplerMirrorClampToEdge);
+                EXT_SET("VK_KHR_sampler_mirror_clamp_to_edge", supportsSamplerMirrorClampToEdge);
                 EXT_SET("VK_EXT_sampler_filter_minmax", supportsSamplerReductionMode);
                 EXT_SET("VK_EXT_custom_border_color", hasCustomBorderColorExt);
                 EXT_SET("VK_EXT_provoking_vertex", hasProvokingVertexExt);

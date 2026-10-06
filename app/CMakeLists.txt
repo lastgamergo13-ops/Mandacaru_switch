@@ -69,10 +69,13 @@ add_subdirectory("libraries/opus")
 target_compile_definitions(opus PRIVATE OPUS_WILL_BE_SLOW=1) # libopus will warn when built without optimizations
 
 # Cubeb
+# AAudio is disabled by default (upstream Strato/Skyline behaviour), so cubeb falls back to OpenSL ES which doesn't implement get_min_latency (hence the "Error getting minimum latency, error: -4" log)
+# Configure with -DMANDACARU_USE_AAUDIO=ON to also build the AAudio backend; cubeb tries it before OpenSL ES and falls back to OpenSL ES if it fails to initialise
+option(MANDACARU_USE_AAUDIO "Build the AAudio cubeb backend" OFF)
 set(USE_OPENSL ON)
 set(USE_SANITIZERS OFF)
 set(USE_LAZY_LOAD_LIBS OFF)
-set(USE_AAUDIO OFF)
+set(USE_AAUDIO ${MANDACARU_USE_AAUDIO})
 set(BUNDLE_SPEEX ON)
 set(BUILD_TOOLS OFF)
 add_subdirectory("libraries/cubeb")
