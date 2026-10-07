@@ -44,6 +44,18 @@ namespace skyline::service::fssrv {
         Result DeleteDirectoryRecursively(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
+         * @brief Renames a file, the old path is in the first input buffer and the new path in the second
+         * @url https://switchbrew.org/wiki/Filesystem_services#RenameFile
+         */
+        Result RenameFile(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Renames a directory, the old path is in the first input buffer and the new path in the second
+         * @url https://switchbrew.org/wiki/Filesystem_services#RenameDirectory
+         */
+        Result RenameDirectory(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
          * @brief Queries the DirectoryEntryType of the given path
          * @url https://switchbrew.org/wiki/Filesystem_services#GetEntryType
          */
@@ -95,6 +107,8 @@ namespace skyline::service::fssrv {
             SFUNC(0x2, IFileSystem, CreateDirectory),
             SFUNC(0x3, IFileSystem, DeleteDirectory),
             SFUNC(0x4, IFileSystem, DeleteDirectoryRecursively),
+            SFUNC(0x5, IFileSystem, RenameFile),
+            SFUNC(0x6, IFileSystem, RenameDirectory),
             SFUNC(0x7, IFileSystem, GetEntryType),
             SFUNC(0x8, IFileSystem, OpenFile),
             SFUNC(0x9, IFileSystem, OpenDirectory),

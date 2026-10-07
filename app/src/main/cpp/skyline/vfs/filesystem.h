@@ -24,6 +24,14 @@ namespace skyline::vfs {
             throw exception("This filesystem does not support deleting directories");
         }
 
+        virtual bool RenameFileImpl(const std::string &oldPath, const std::string &newPath) {
+            throw exception("This filesystem does not support renaming files");
+        }
+
+        virtual bool RenameDirectoryImpl(const std::string &oldPath, const std::string &newPath) {
+            throw exception("This filesystem does not support renaming directories");
+        }
+
         virtual bool CreateDirectoryImpl(const std::string &path, bool parents) {
             throw exception("This filesystem does not support creating directories");
         };
@@ -62,6 +70,22 @@ namespace skyline::vfs {
 
         void DeleteDirectory(const std::string &path) {
             DeleteDirectoryImpl(path);
+        }
+
+        /**
+         * @brief Renames/moves a file in the filesystem
+         * @return Whether renaming the file succeeded
+         */
+        bool RenameFile(const std::string &oldPath, const std::string &newPath) {
+            return RenameFileImpl(oldPath, newPath);
+        }
+
+        /**
+         * @brief Renames/moves a directory in the filesystem
+         * @return Whether renaming the directory succeeded
+         */
+        bool RenameDirectory(const std::string &oldPath, const std::string &newPath) {
+            return RenameDirectoryImpl(oldPath, newPath);
         }
 
         /**

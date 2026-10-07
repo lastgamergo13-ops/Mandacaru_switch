@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <cstdio>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
@@ -48,6 +49,14 @@ namespace skyline::vfs {
     void OsFileSystem::DeleteDirectoryImpl(const std::string &path) {
         auto fullPath{basePath + path};
         std::filesystem::remove_all(fullPath.c_str());
+    }
+
+    bool OsFileSystem::RenameFileImpl(const std::string &oldPath, const std::string &newPath) {
+        return rename((basePath + oldPath).c_str(), (basePath + newPath).c_str()) == 0;
+    }
+
+    bool OsFileSystem::RenameDirectoryImpl(const std::string &oldPath, const std::string &newPath) {
+        return rename((basePath + oldPath).c_str(), (basePath + newPath).c_str()) == 0;
     }
 
     bool OsFileSystem::CreateDirectoryImpl(const std::string &path, bool parents) {

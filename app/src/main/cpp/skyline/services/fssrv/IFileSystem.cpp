@@ -25,6 +25,20 @@ namespace skyline::service::fssrv {
         return backing->CreateDirectory(path, true) ? Result{} : result::PathDoesNotExist;
     }
 
+    Result IFileSystem::RenameFile(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        std::string oldPath{request.inputBuf.at(0).as_string(true)};
+        std::string newPath{request.inputBuf.at(1).as_string(true)};
+
+        return backing->RenameFile(oldPath, newPath) ? Result{} : result::PathDoesNotExist;
+    }
+
+    Result IFileSystem::RenameDirectory(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        std::string oldPath{request.inputBuf.at(0).as_string(true)};
+        std::string newPath{request.inputBuf.at(1).as_string(true)};
+
+        return backing->RenameDirectory(oldPath, newPath) ? Result{} : result::PathDoesNotExist;
+    }
+
     Result IFileSystem::GetEntryType(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         std::string path(request.inputBuf.at(0).as_string(true));
 
@@ -71,7 +85,7 @@ namespace skyline::service::fssrv {
 
     Result IFileSystem::DeleteDirectoryRecursively(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         std::string path{request.inputBuf.at(0).as_string(true)};
-        std::filesystem::remove_all(path);
+        backing->DeleteDirectory(path); // The path is relative to the guest filesystem, not the host root
         return {};
     }
 
@@ -107,7 +121,7 @@ namespace skyline::service::fssrv {
 
     Result IFileSystem::CleanDirectoryRecursively(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         std::string path{request.inputBuf.at(0).as_string(true)};
-        std::filesystem::remove_all(path);
+        backing->DeleteDirectory(path); // The path is relative to the guest filesystem, not the host root
         backing->CreateDirectory(path, true);
         return {};
     }
