@@ -45,15 +45,21 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
                 var messageToShow : Int
 
                 try {
+                    // A previous attempt that crashed or was killed may have left partial files behind, they would make the contents check fail randomly
+                    cacheFirmwareDir.deleteRecursively()
+
                     // Unzip in cache dir to not delete previous firmware in case the zip given doesn't contain a valid one
                     ZipUtils.unzip(inputZip, cacheFirmwareDir)
 
-                    val firmware = isFirmwareValid(cacheFirmwareDir)
+                    // Some firmware zips store the NCAs inside a top-level folder, use it as the firmware directory in that case
+                    val firmwareDir = findFirmwareDirectory(cacheFirmwareDir)
+
+                    val firmware = isFirmwareValid(firmwareDir)
                     messageToShow = if (!firmware.valid) {
                         R.string.import_firmware_invalid_contents
                     } else {
                         firmwarePath.deleteRecursively()
-                        cacheFirmwareDir.copyRecursively(firmwarePath, true)
+                        firmwareDir.copyRecursively(firmwarePath, true)
                         persistString(firmware.version)
                         extractFonts(firmwarePath.path, keysPath, fontsPath)
                         CoroutineScope(Dispatchers.Main).launch {
@@ -61,13 +67,18 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
                         }
                         R.string.import_firmware_success
                     }
-                } catch (e : IOException) {
+                } catch (e : Exception) {
+                    // Any failure (not only IOException) must be reported instead of crashing the app from the background thread
                     messageToShow = R.string.error
                 } finally {
                     cacheFirmwareDir.deleteRecursively()
                 }
 
-                Snackbar.make((context as SettingsActivity).binding.root, messageToShow, Snackbar.LENGTH_LONG).show()
+                // Views must only be touched from the main thread
+                val finalMessage = messageToShow
+                CoroutineScope(Dispatchers.Main).launch {
+                    Snackbar.make((context as SettingsActivity).binding.root, finalMessage, Snackbar.LENGTH_LONG).show()
+                }
             }
 
             IndeterminateProgressDialogFragment.newInstance(context as SettingsActivity, R.string.import_firmware_in_progress, task)
@@ -90,6 +101,22 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
     }
 
     override fun onClick() = documentPicker.launch(arrayOf("application/zip"))
+
+    /**
+     * Firmware zips sometimes wrap all the NCAs in a single top-level folder, this descends into it (up to 3 levels)
+     * @return The directory that directly contains the firmware files
+     */
+    private fun findFirmwareDirectory(dir : File) : File {
+        var current = dir
+        repeat(3) {
+            val children = current.listFiles() ?: return current
+            val subDirectories = children.filter { it.isDirectory }
+            if (children.any { it.isFile } || subDirectories.size != 1)
+                return current
+            current = subDirectories[0]
+        }
+        return current
+    }
 
     /**
      * Checks if the given directory stores a valid firmware. For that, all files must be NCAs and

@@ -22,6 +22,11 @@ namespace skyline::vfs {
             throw exception("This backing does not support being resized");
         }
 
+        /**
+         * @brief Persists any buffered writes to the underlying storage, backings that aren't writable have nothing to persist
+         */
+        virtual void SyncImpl() {}
+
       public:
         union Mode {
             struct {
@@ -138,6 +143,13 @@ namespace skyline::vfs {
          */
         void Resize(size_t pSize) {
             ResizeImpl(pSize);
+        }
+
+        /**
+         * @brief Persists any buffered writes to the underlying storage
+         */
+        void Sync() {
+            SyncImpl();
         }
     };
 }

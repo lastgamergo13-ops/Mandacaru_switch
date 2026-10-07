@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <vfs/os_filesystem.h>
+#include <cstdlib>
 #include "key_store.h"
 
 namespace skyline::crypto {
@@ -55,7 +56,12 @@ namespace skyline::crypto {
         if (keyName.size() > 2) {
             auto it{indexedKey128Names.find(keyName.substr(0, keyName.size() - 2))};
             if (it != indexedKey128Names.end()) {
-                size_t index{std::stoul(std::string(keyName.substr(it->first.size())), nullptr, 16)};
+                std::string indexString{keyName.substr(it->first.size())};
+                char *indexEnd{};
+                size_t index{std::strtoul(indexString.c_str(), &indexEnd, 16)};
+                // Ignore malformed indices and key generations we can't store, writing out of bounds here used to corrupt neighbouring keys and the title key map
+                if (indexString.empty() || *indexEnd != '\0' || index >= it->second.size())
+                    return;
                 it->second[index] = util::HexStringToArray<16>(value);
             }
         }

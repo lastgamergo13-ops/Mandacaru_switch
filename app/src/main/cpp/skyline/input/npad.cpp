@@ -72,6 +72,17 @@ namespace skyline::input {
             if (!ranges::any_of(controllers, [&](auto &controller) { return controller.device == &device; }))
                 device.Disconnect();
         }
+
+        // Diagnostics: only log when the mapping changes, this makes intermittent "controller not recognised" reports debuggable from Info level logs
+        static std::string lastSummary;
+        std::string summary;
+        for (size_t i{}; i < controllers.size(); i++)
+            summary += fmt::format("{}:{}{} ", i, static_cast<int>(controllers[i].type), controllers[i].device ? "+" : "-");
+        summary = fmt::format("styles=0x{:X} supportedIds={} guestControllers=[{}]", styles.raw, supportedIds.size(), summary);
+        if (summary != lastSummary) {
+            LOGI("Npad mapping updated: {}", summary);
+            lastSummary = std::move(summary);
+        }
     }
 
     void NpadManager::Activate() {

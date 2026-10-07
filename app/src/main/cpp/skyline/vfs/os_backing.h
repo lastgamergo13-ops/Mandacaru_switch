@@ -21,6 +21,8 @@ namespace skyline::vfs {
 
         void ResizeImpl(size_t size) override;
 
+        void SyncImpl() override;
+
       public:
         /**
          * @param fd The file descriptor of the backing

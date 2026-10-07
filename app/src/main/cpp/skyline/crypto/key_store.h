@@ -16,7 +16,8 @@ namespace skyline::crypto {
 
         using Key128 = std::array<u8, 16>;
         using Key256 = std::array<u8, 32>;
-        using IndexedKeys128 = std::array<std::optional<Key128>, 20>;
+        static constexpr size_t MaxKeyGenerations{32}; //!< The amount of key generations that can be stored, prod.keys from recent firmwares have indices above 0x13
+        using IndexedKeys128 = std::array<std::optional<Key128>, MaxKeyGenerations>;
 
         std::optional<Key256> headerKey;
 

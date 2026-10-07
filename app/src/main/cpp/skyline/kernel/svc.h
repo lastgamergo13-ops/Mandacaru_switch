@@ -200,6 +200,18 @@ namespace skyline::kernel::svc {
     void GetThreadId(const DeviceState &state, SvcContext &ctx);
 
     /**
+     * @brief Flushes the entire data cache, this is a no-op as the guest runs natively on a coherent host CPU
+     * @url https://switchbrew.org/wiki/SVC#FlushEntireDataCache
+     */
+    void FlushEntireDataCache(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Flushes a range of the data cache, this is a no-op as the guest runs natively on a coherent host CPU
+     * @url https://switchbrew.org/wiki/SVC#FlushDataCache
+     */
+    void FlushDataCache(const DeviceState &state, SvcContext &ctx);
+
+    /**
      * @brief Causes the debugger to be engaged or the program to end if it isn't being debugged
      * @url https://switchbrew.org/wiki/SVC#Break
      */

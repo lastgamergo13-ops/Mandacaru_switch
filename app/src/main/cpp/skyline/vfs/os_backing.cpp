@@ -55,6 +55,11 @@ namespace skyline::vfs {
         return static_cast<size_t>(ret);
     }
 
+    void OsBacking::SyncImpl() {
+        if (mode.write)
+            fsync(fd); // Best effort, some filesystems don't support it and the result isn't actionable by the guest
+    }
+
     void OsBacking::ResizeImpl(size_t pSize) {
         int ret{ftruncate(fd, static_cast<off_t>(pSize))};
         if (ret < 0)

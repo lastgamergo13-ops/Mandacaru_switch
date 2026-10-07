@@ -906,6 +906,14 @@ namespace skyline::kernel::svc {
         ctx.w0 = Result{};
     }
 
+    void FlushEntireDataCache(const DeviceState &state, SvcContext &ctx) {
+        ctx.w0 = Result{};
+    }
+
+    void FlushDataCache(const DeviceState &state, SvcContext &ctx) {
+        ctx.w0 = Result{};
+    }
+
     void Break(const DeviceState &state, SvcContext &ctx) {
         auto reason{ctx.x0};
         if (reason & (1ULL << 31)) {
@@ -1380,8 +1388,8 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(OutputDebugString), // 0x27
         SVC_NONE, // 0x28
         SVC_ENTRY(GetInfo), // 0x29
-        SVC_NONE, // 0x2A
-        SVC_NONE, // 0x2B
+        SVC_ENTRY(FlushEntireDataCache), // 0x2A
+        SVC_ENTRY(FlushDataCache), // 0x2B
         SVC_ENTRY(MapPhysicalMemory), // 0x2C
         SVC_ENTRY(UnmapPhysicalMemory), // 0x2D
         SVC_NONE, // 0x2E

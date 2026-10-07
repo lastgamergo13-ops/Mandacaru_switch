@@ -90,21 +90,29 @@ extern "C" JNIEXPORT jstring Java_org_stratoemu_strato_preference_FirmwareImport
 
     constexpr skyline::u64 systemVersionProgramId{0x0100000000000809};
 
-    auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
-    auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
-    auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
+    // C++ exceptions must never escape a JNI function (they abort the whole app), NCAs that can't be parsed (e.g. missing keys) are skipped
+    try {
+        auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
+        auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
+        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
 
-    for (const auto &entry : systemArchives->Read()) {
-        std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
-        auto nca{skyline::vfs::NCA(backing, keyStore)};
+        for (const auto &entry : systemArchives->Read()) {
+            try {
+                std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+                auto nca{skyline::vfs::NCA(backing, keyStore)};
 
-        if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
-            auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
-            auto file{controlRomFs->OpenFile("file")};
-            SystemVersion systemVersion;
-            file->Read<SystemVersion>(systemVersion);
-            return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
+                if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
+                    auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
+                    auto file{controlRomFs->OpenFile("file")};
+                    SystemVersion systemVersion;
+                    file->Read<SystemVersion>(systemVersion);
+                    return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
+                }
+            } catch (const std::exception &) {
+                continue;
+            }
         }
+    } catch (const std::exception &) {
     }
 
     return env->NewStringUTF("");
@@ -156,35 +164,48 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_preference_FirmwareImportPre
         {"nintendo_udsg-r_ext_zh-cn_003.bfttf", "FontExtendedChineseSimplified"}
     };
 
-    auto fontsFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, fontsPath))};
-    auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
-    auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
-    auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
+    // C++ exceptions must never escape a JNI function (they abort the whole app)
+    try {
+        auto fontsFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, fontsPath))};
+        auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
+        auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
+        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
 
-    for (const auto &entry : systemArchives->Read()) {
-        std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
-        auto nca{skyline::vfs::NCA(backing, keyStore)};
+        for (const auto &entry : systemArchives->Read()) {
+            try {
+                std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+                auto nca{skyline::vfs::NCA(backing, keyStore)};
 
-        if (nca.header.programId >= firstFontProgramId && nca.header.programId <= lastFontProgramId && nca.romFs != nullptr) {
-            auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
+                if (nca.header.programId >= firstFontProgramId && nca.header.programId <= lastFontProgramId && nca.romFs != nullptr) {
+                    auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
 
-            for (auto fileEntry = controlRomFs->fileMap.begin(); fileEntry != controlRomFs->fileMap.end(); fileEntry++) {
-                auto fileName{fileEntry->first};
-                auto bfttfFile{controlRomFs->OpenFile(fileName)};
+                    for (auto fileEntry = controlRomFs->fileMap.begin(); fileEntry != controlRomFs->fileMap.end(); fileEntry++) {
+                        auto fileName{fileEntry->first};
+                        auto bfttfFile{controlRomFs->OpenFile(fileName)};
 
-                auto decodedFont{decodeBfttfFont(bfttfFile)};
-                if (decodedFont.empty())
-                    continue;
+                        auto decodedFont{decodeBfttfFont(bfttfFile)};
+                        if (decodedFont.empty())
+                            continue;
 
-                auto ttfFileName{sharedFontFilenameDictionary.at(fileName) + ".ttf"};
-                if (fontsFileSystem->FileExists(ttfFileName))
-                    fontsFileSystem->DeleteFile(ttfFileName);
+                        // Newer firmwares may ship fonts that aren't in the dictionary, skip them instead of throwing
+                        auto fontName{sharedFontFilenameDictionary.find(fileName)};
+                        if (fontName == sharedFontFilenameDictionary.end())
+                            continue;
 
-                fontsFileSystem->CreateFile(ttfFileName, decodedFont.size());
-                std::shared_ptr<skyline::vfs::Backing> ttfFile{fontsFileSystem->OpenFile(ttfFileName, {true, true, false})};
+                        auto ttfFileName{fontName->second + ".ttf"};
+                        if (fontsFileSystem->FileExists(ttfFileName))
+                            fontsFileSystem->DeleteFile(ttfFileName);
 
-                ttfFile->Write(decodedFont);
+                        fontsFileSystem->CreateFile(ttfFileName, decodedFont.size());
+                        std::shared_ptr<skyline::vfs::Backing> ttfFile{fontsFileSystem->OpenFile(ttfFileName, {true, true, false})};
+
+                        ttfFile->Write(decodedFont);
+                    }
+                }
+            } catch (const std::exception &) {
+                continue;
             }
         }
+    } catch (const std::exception &) {
     }
 }

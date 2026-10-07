@@ -10,6 +10,7 @@
 #include "jvm.h"
 #include "kernel/types/KProcess.h"
 #include "kernel/svc.h"
+#include "kernel/results.h"
 #include "nce/guest.h"
 #include "nce/instructions.h"
 #include "nce.h"
@@ -32,7 +33,9 @@ namespace skyline::nce {
                 auto &svcContext{*reinterpret_cast<kernel::svc::SvcContext *>(ctx)};
                 (svc.function)(state, svcContext);
             } else {
-                throw exception("Unimplemented SVC 0x{:X}", svcId);
+                // Real hardware returns an error to the guest for SVCs it doesn't implement, killing the whole emulator here made any unimplemented SVC fatal
+                LOGW("Unimplemented SVC 0x{:X}, returning NotImplemented to the guest", svcId);
+                reinterpret_cast<kernel::svc::SvcContext *>(ctx)->w0 = kernel::result::NotImplemented;
             }
 
             while (kernel::Scheduler::YieldPending) [[unlikely]] {

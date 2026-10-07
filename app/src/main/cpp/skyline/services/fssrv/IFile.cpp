@@ -59,6 +59,7 @@ namespace skyline::service::fssrv {
     }
 
     Result IFile::Flush(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        backing->Sync();
         return {};
     }
 
