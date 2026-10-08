@@ -11,22 +11,33 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: 3G
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Fixo: o rótulo ubuntu-latest migra para o Ubuntu 26 em 19/10/2026
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
+      - name: Install ccache
+        run: sudo apt-get install -y ccache
+
+      # actions/cache restore/save em passos separados: o cache do ccache é salvo mesmo quando o build falha, assim a próxima tentativa não recompila tudo
       - name: Restore CCache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: actions/cache/restore@v5
         with:
-          max-size: 3Gi
+          path: /home/runner/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
 
       - name: Restore Gradle Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.gradle/
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
@@ -36,7 +47,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Install Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin' # Temurin should come pre-installed on GitHub-hosted runners
           java-version: '17'
@@ -62,14 +73,14 @@ jobs:
 
       - name: Upload Release APK
         if: ${{ vars.UPLOAD_PR_ARTIFACTS == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: strato-pr${{ github.event.number }}-release.apk
           path: strato-pr${{ github.event.number }}-release.apk
 
       - name: Upload Debug APK
         if: ${{ vars.UPLOAD_PR_ARTIFACTS == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: strato-pr${{ github.event.number }}-reldebug.apk
           path: strato-pr${{ github.event.number }}-reldebug.apk

@@ -86,7 +86,8 @@ namespace skyline::signal {
         SignalException signalException;
         signalException.signal = signal;
         signalException.pc = reinterpret_cast<void *>(context->uc_mcontext.pc);
-        if (signal == SIGSEGV)
+        signalException.code = info->si_code;
+        if (signal == SIGSEGV || signal == SIGBUS)
             signalException.fault = info->si_addr;
 
         signalException.frames.push_back(reinterpret_cast<void *>(context->uc_mcontext.pc));

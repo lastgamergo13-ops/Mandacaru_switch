@@ -131,8 +131,8 @@ namespace skyline::applet::swkbd {
             InlineReplyBase base;
             std::array<u8, InlineUtf16TextBytes> chars;
             u32 length;
-            s32 _unk0_;
-            s32 _unk1_;
+            i32 _unk0_;
+            i32 _unk1_;
             u32 cursorPos;
         };
         static_assert(sizeof(InlineReplyChangedStringUtf16) == 0x8 + 0x3FC);
@@ -141,8 +141,8 @@ namespace skyline::applet::swkbd {
             InlineReplyBase base;
             std::array<u8, InlineUtf8TextBytes> chars;
             u32 length;
-            s32 _unk0_;
-            s32 _unk1_;
+            i32 _unk0_;
+            i32 _unk1_;
             u32 cursorPos;
         };
         static_assert(sizeof(InlineReplyChangedStringUtf8) == 0x8 + 0x7E4);

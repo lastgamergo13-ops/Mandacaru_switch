@@ -47,13 +47,14 @@ namespace skyline::signal {
         int signal{};
         void *pc{};
         void *fault{};
+        int code{}; //!< The si_code of the signal, e.g. for SIGBUS: 1 is BUS_ADRALN (misaligned access), 2 is BUS_ADRERR (no backing memory for the page) and 3 is BUS_OBJERR
         std::vector<void *> frames; //!< A vector of all stack frame entries prior to the signal occuring
 
         std::string what() const {
             if (!fault)
-                return fmt::format("Signal: {} (PC: 0x{:X})", strsignal(signal), reinterpret_cast<uintptr_t>(pc));
+                return fmt::format("Signal: {} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(pc), code);
             else
-                return fmt::format("Signal: {} @ 0x{:X} (PC: 0x{:X})", strsignal(signal), reinterpret_cast<uintptr_t>(fault), reinterpret_cast<uintptr_t>(pc));
+                return fmt::format("Signal: {} @ 0x{:X} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(fault), reinterpret_cast<uintptr_t>(pc), code);
         }
     };
 

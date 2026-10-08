@@ -7,13 +7,17 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: 3G
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Fixo: o rótulo ubuntu-latest migra para o Ubuntu 26 em 19/10/2026
     timeout-minutes: 300
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         # As bibliotecas (app/libraries) já estão dentro do repositório,
         # então NÃO usamos "submodules: recursive".
 
@@ -29,13 +33,20 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      - name: Install ccache
+        run: sudo apt-get install -y ccache
+
+      # actions/cache restore/save em passos separados: o cache do ccache é salvo mesmo quando o build falha, assim a próxima tentativa não recompila tudo
       - name: Restore CCache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: actions/cache/restore@v5
         with:
-          max-size: 3Gi
+          path: /home/runner/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
 
       - name: Restore Gradle Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.gradle/
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle') }}-${{ hashFiles('app/**/*.xml') }}-${{ hashFiles('app/**.kt', 'app/**.java') }}
@@ -45,7 +56,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Install Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -68,8 +79,19 @@ jobs:
           CCACHE_COMPILERCHECK: "string:27.2.12479018"
         run: ./gradlew --no-daemon --stacktrace --build-cache --parallel --configure-on-demand assembleMainlineRelease
 
+      - name: Show CCache statistics
+        if: always()
+        run: ccache -s || true
+
+      - name: Save CCache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: /home/runner/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: strato-mainline-release
           path: app/build/outputs/apk/mainline/release/*.apk

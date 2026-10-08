@@ -329,10 +329,10 @@ namespace skyline::applet::swkbd {
         if (type == InlineReply::FinishedInitialize) {
             InlineReplyFinishedInitialize reply{};
             reply.base = {static_cast<u32>(replyState), static_cast<u32>(type)};
-            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyFinishedInitialize>>(state, manager, reply));
+            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyFinishedInitialize>>(state, manager, std::move(reply)));
         } else {
             InlineReplyBase reply{static_cast<u32>(replyState), static_cast<u32>(type)};
-            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyBase>>(state, manager, reply));
+            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyBase>>(state, manager, std::move(reply)));
         }
     }
 
@@ -352,13 +352,13 @@ namespace skyline::applet::swkbd {
                 reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::ChangedStringUtf8)};
                 reply = write(reply, InlineUtf8TextBytes);
                 reply.cursorPos = reply.length;
-                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf8>>(state, manager, reply));
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf8>>(state, manager, std::move(reply)));
             } else {
                 InlineReplyChangedStringUtf16 reply{};
                 reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::ChangedString)};
                 reply = write(reply, InlineUtf16TextBytes);
                 reply.cursorPos = reply.length;
-                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf16>>(state, manager, reply));
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf16>>(state, manager, std::move(reply)));
             }
         } else {
             if (inlineUtf8) {
@@ -369,13 +369,13 @@ namespace skyline::applet::swkbd {
                     return static_cast<u32>(strnlen(reinterpret_cast<const char *>(reply.chars.data()), InlineUtf8TextBytes));
                 }()};
                 reply.length = written;
-                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf8>>(state, manager, reply));
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf8>>(state, manager, std::move(reply)));
             } else {
                 InlineReplyDecidedEnterUtf16 reply{};
                 reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::DecidedEnter)};
                 WriteStringToSpan(span<u8>(reply.chars).first(InlineUtf16TextBytes - sizeof(char16_t)), text, false);
                 reply.length = static_cast<u32>(std::min<size_t>(text.size(), InlineUtf16TextBytes / sizeof(char16_t) - 1));
-                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf16>>(state, manager, reply));
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf16>>(state, manager, std::move(reply)));
             }
         }
     }
