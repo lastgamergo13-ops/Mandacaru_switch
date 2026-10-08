@@ -73,8 +73,8 @@ namespace skyline::applet::swkbd {
 
     Result SoftwareKeyboardApplet::Start() {
         if (mode != service::applet::LibraryAppletMode::AllForeground) {
-            LOGW("Stubbing out InlineKeyboard!");
-            SendResult();
+            // The InlineKeyboard is driven entirely through requests the guest pushes later, nothing is sent until then
+            inlineState = InlineState::Uninitialized;
             return {};
         }
 
@@ -143,6 +143,11 @@ namespace skyline::applet::swkbd {
     }
 
     void SoftwareKeyboardApplet::PushInteractiveDataToApplet(std::shared_ptr<service::am::IStorage> data) {
+        if (mode != service::applet::LibraryAppletMode::AllForeground) {
+            ProcessInlineRequest(data->GetSpan());
+            return;
+        }
+
         if (validationPending) {
             auto dataSpan{data->GetSpan()};
             auto validationResult{dataSpan.as<ValidationResult>()};
@@ -176,6 +181,201 @@ namespace skyline::applet::swkbd {
                         LOGD("Guest asked to confirm default text with message: \"{}\"", message);
                     PushNormalDataAndSignal(std::make_shared<service::am::ObjIStorage<OutputResult>>(state, manager, OutputResult{CloseResult::Enter, currentText, config.commonConfig.isUseUtf8}));
                 }
+            }
+        }
+    }
+
+    static std::u16string Utf8ToUtf16(std::string_view in) {
+        std::u16string out;
+        for (size_t i{}; i < in.size();) {
+            u8 c{static_cast<u8>(in[i])};
+            u32 codePoint;
+            size_t length;
+            if (c < 0x80) {
+                codePoint = c;
+                length = 1;
+            } else if ((c >> 5) == 0x6) {
+                codePoint = c & 0x1F;
+                length = 2;
+            } else if ((c >> 4) == 0xE) {
+                codePoint = c & 0xF;
+                length = 3;
+            } else if ((c >> 3) == 0x1E) {
+                codePoint = c & 0x7;
+                length = 4;
+            } else {
+                i++; // Invalid lead byte
+                continue;
+            }
+
+            if (i + length > in.size())
+                break;
+            for (size_t k{1}; k < length; k++)
+                codePoint = (codePoint << 6) | (static_cast<u8>(in[i + k]) & 0x3F);
+            i += length;
+
+            if (codePoint >= 0x10000) {
+                codePoint -= 0x10000;
+                out += static_cast<char16_t>(0xD800 + (codePoint >> 10));
+                out += static_cast<char16_t>(0xDC00 + (codePoint & 0x3FF));
+            } else {
+                out += static_cast<char16_t>(codePoint);
+            }
+        }
+        return out;
+    }
+
+    void SoftwareKeyboardApplet::ProcessInlineRequest(span<u8> request) {
+        if (request.size() < sizeof(u32))
+            return;
+
+        switch (static_cast<InlineRequest>(request.as<u32>())) {
+            case InlineRequest::Finalize:
+                // The guest is done with the keyboard, this makes the applet exit
+                inlineState = InlineState::Uninitialized;
+                if (dialog) {
+                    state.jvm->CloseKeyboard(dialog);
+                    dialog = nullptr;
+                }
+                onAppletStateChanged->Signal();
+                break;
+
+            case InlineRequest::Calc:
+                ProcessInlineCalc(request.subspan(sizeof(u32)));
+                break;
+
+            default:
+                LOGD("Ignoring InlineKeyboard request 0x{:X}", request.as<u32>());
+                break;
+        }
+    }
+
+    void SoftwareKeyboardApplet::ProcessInlineCalc(span<u8> calc) {
+        if (calc.size() < InlineCalcSize)
+            return;
+
+        // Offsets are relative to the CalcArg, see https://switchbrew.org/wiki/Software_Keyboard#CalcArg
+        u64 flags{calc.subspan(0x8).as<u64>()};
+        constexpr u64 InitializeFlag{0x1}, AppearFlag{0x4}, SetInputTextFlag{0x8}, SetUtf8ModeFlag{0x20};
+
+        if (flags & SetUtf8ModeFlag)
+            inlineUtf8 = calc[0x45C] != 0;
+
+        if (flags & SetInputTextFlag) {
+            auto textSpan{calc.subspan(0x68, 0x3F4)};
+            if (inlineUtf8) {
+                std::string_view utf8{reinterpret_cast<const char *>(textSpan.data()), textSpan.size()};
+                currentText = Utf8ToUtf16(utf8.substr(0, utf8.find('\0')));
+            } else {
+                auto chars{textSpan.cast<char16_t>()};
+                size_t length{};
+                while (length < chars.size() && chars[length] != u'\0')
+                    length++;
+                currentText.assign(chars.data(), length);
+            }
+        }
+
+        if ((flags & InitializeFlag) && inlineState == InlineState::Uninitialized) {
+            inlineState = InlineState::Initialized;
+            SendInlineReply(InlineReply::FinishedInitialize, inlineState);
+        }
+
+        if (flags & AppearFlag)
+            ShowInlineKeyboard();
+    }
+
+    void SoftwareKeyboardApplet::ShowInlineKeyboard() {
+        inlineState = InlineState::Ready;
+        SendInlineReply(InlineReply::Default, inlineState);
+
+        // The guest doesn't tell us the limits so use the biggest text an inline reply can carry, the guest rejects what it can't use
+        KeyboardConfigVB inlineConfig{};
+        inlineConfig.commonConfig.keyboardMode = KeyboardMode::Full;
+        inlineConfig.commonConfig.textMaxLength = 250;
+        inlineConfig.commonConfig.textMinLength = 0;
+        inlineConfig.commonConfig.passwordMode = PasswordMode::Show;
+        inlineConfig.commonConfig.inputFormMode = InputFormMode::OneLine;
+        inlineConfig.commonConfig.isUseUtf8 = inlineUtf8;
+        inlineConfig.commonConfig.isUseNewLine = false;
+
+        CloseResult result;
+        std::u16string text{currentText};
+        dialog = state.jvm->ShowKeyboard(*reinterpret_cast<JvmManager::KeyboardConfig *>(&inlineConfig), currentText);
+        if (!dialog) {
+            LOGW("Couldn't show the InlineKeyboard dialog, accepting the initial text");
+            result = CloseResult::Enter;
+        } else {
+            auto dialogResult{state.jvm->WaitForSubmitOrCancel(dialog)};
+            result = static_cast<CloseResult>(dialogResult.first);
+            text = dialogResult.second;
+            state.jvm->CloseKeyboard(dialog);
+            dialog = nullptr;
+        }
+
+        if (result == CloseResult::Enter) {
+            currentText = text;
+            SendInlineText(InlineReply::ChangedString, text, InlineState::DataAvailable);
+            inlineState = InlineState::Completed;
+            SendInlineText(InlineReply::DecidedEnter, text, inlineState);
+        } else {
+            inlineState = InlineState::Completed;
+            SendInlineReply(InlineReply::DecidedCancel, inlineState);
+        }
+
+        inlineState = InlineState::Ready;
+    }
+
+    void SoftwareKeyboardApplet::SendInlineReply(InlineReply type, InlineState replyState) {
+        if (type == InlineReply::FinishedInitialize) {
+            InlineReplyFinishedInitialize reply{};
+            reply.base = {static_cast<u32>(replyState), static_cast<u32>(type)};
+            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyFinishedInitialize>>(state, manager, reply));
+        } else {
+            InlineReplyBase reply{static_cast<u32>(replyState), static_cast<u32>(type)};
+            PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyBase>>(state, manager, reply));
+        }
+    }
+
+    void SoftwareKeyboardApplet::SendInlineText(InlineReply type, std::u16string_view text, InlineState replyState) {
+        auto write{[&](auto reply, u32 textBytes) {
+            WriteStringToSpan(span<u8>(reply.chars).first(textBytes - sizeof(char16_t)), text, inlineUtf8);
+            // Length in characters without the terminator
+            reply.length = inlineUtf8 ? static_cast<u32>(strnlen(reinterpret_cast<const char *>(reply.chars.data()), textBytes)) : static_cast<u32>(std::min<size_t>(text.size(), textBytes / sizeof(char16_t) - 1));
+            reply.cursorPos = 0;
+            return reply;
+        }};
+
+        // Both replies carry the cursor position/length after the string, DecidedEnter only has the length
+        if (type == InlineReply::ChangedString) {
+            if (inlineUtf8) {
+                InlineReplyChangedStringUtf8 reply{};
+                reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::ChangedStringUtf8)};
+                reply = write(reply, InlineUtf8TextBytes);
+                reply.cursorPos = reply.length;
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf8>>(state, manager, reply));
+            } else {
+                InlineReplyChangedStringUtf16 reply{};
+                reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::ChangedString)};
+                reply = write(reply, InlineUtf16TextBytes);
+                reply.cursorPos = reply.length;
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyChangedStringUtf16>>(state, manager, reply));
+            }
+        } else {
+            if (inlineUtf8) {
+                InlineReplyDecidedEnterUtf8 reply{};
+                reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::DecidedEnterUtf8)};
+                auto written{[&] {
+                    WriteStringToSpan(span<u8>(reply.chars).first(InlineUtf8TextBytes - 1), text, true);
+                    return static_cast<u32>(strnlen(reinterpret_cast<const char *>(reply.chars.data()), InlineUtf8TextBytes));
+                }()};
+                reply.length = written;
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf8>>(state, manager, reply));
+            } else {
+                InlineReplyDecidedEnterUtf16 reply{};
+                reply.base = {static_cast<u32>(replyState), static_cast<u32>(InlineReply::DecidedEnter)};
+                WriteStringToSpan(span<u8>(reply.chars).first(InlineUtf16TextBytes - sizeof(char16_t)), text, false);
+                reply.length = static_cast<u32>(std::min<size_t>(text.size(), InlineUtf16TextBytes / sizeof(char16_t) - 1));
+                PushInteractiveDataAndSignal(std::make_shared<service::am::ObjIStorage<InlineReplyDecidedEnterUtf16>>(state, manager, reply));
             }
         }
     }

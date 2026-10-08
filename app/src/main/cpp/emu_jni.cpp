@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <android/asset_manager_jni.h>
 #include <sys/system_properties.h>
+#include <unistd.h>
 #include "skyline/common.h"
 #include "skyline/common/language.h"
 #include "skyline/common/signal.h"
@@ -80,6 +81,10 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_EmulationActivity_executeApp
     skyline::JniString publicAppFilesPath(env, publicAppFilesPathJstring);
 
     skyline::AsyncLogger::Initialize(*settings->logLevel, publicAppFilesPath + "logs/emulation.log");
+
+    // The guest memory manager and the NCE assume the host uses the same 4 KB pages as the guest, make a mismatch obvious in the log (16 KB page devices aren't supported yet)
+    if (sysconf(_SC_PAGESIZE) != static_cast<long>(skyline::constant::PageSize))
+        LOGE("Host page size is {} bytes but 4096 bytes is required, memory mapping will likely fail on this device", sysconf(_SC_PAGESIZE));
 
     auto start{std::chrono::steady_clock::now()};
 

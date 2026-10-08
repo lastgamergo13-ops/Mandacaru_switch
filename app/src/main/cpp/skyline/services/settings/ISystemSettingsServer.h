@@ -10,7 +10,7 @@ namespace skyline::service::settings {
      * @brief ISystemSettingsServer or set:sys service provides access to system settings
      */
     class ISystemSettingsServer : public BaseService {
-      private:
+      public:
         /**
          * @brief Encapsulates the system version, this is sent to the application in GetFirmwareVersion
          * @url https://switchbrew.org/wiki/System_Version_Title

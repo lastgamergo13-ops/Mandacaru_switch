@@ -109,12 +109,16 @@ namespace skyline::service::fssrv {
         auto keyStore{std::make_shared<skyline::crypto::KeyStore>(state.os->privateAppFilesPath + "keys")};
 
         for (const auto &entry : systemArchives->Read()) {
-            std::shared_ptr<vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
-            auto nca{vfs::NCA(backing, keyStore)};
+            try {
+                std::shared_ptr<vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+                auto nca{vfs::NCA(backing, keyStore)};
 
-            if (nca.header.programId == dataId && nca.romFs != nullptr) {
-                manager.RegisterService(std::make_shared<IStorage>(nca.romFs, state, manager), session, response);
-                return {};
+                if (nca.header.programId == dataId && nca.romFs != nullptr) {
+                    manager.RegisterService(std::make_shared<IStorage>(nca.romFs, state, manager), session, response);
+                    return {};
+                }
+            } catch (const std::exception &) {
+                continue; // An NCA we can't open (e.g. missing keys for a newer key generation) must not make the whole lookup fail
             }
         }
 
