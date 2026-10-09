@@ -3,6 +3,8 @@
 
 #include <poll.h>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 #include <cerrno>
 #include <cstring>
 #include <mutex>
@@ -15,11 +17,10 @@
 
 namespace skyline::service::socket {
     namespace {
-        // The guest uses BSD constants/layouts, so descriptors, errno values, flags and socket addresses all need translating to the Linux host ones
+        // The guest uses BSD constants/layouts (but Linux errno values), so descriptors, flags and socket addresses need translating to the host ones
 
-        constexpr i32 BsdEbadf{9};
-        constexpr i32 BsdEafnosupport{47};
-        constexpr i32 BsdEnosys{78};
+        constexpr i32 BsdEbadf{EBADF};
+        constexpr i32 BsdEafnosupport{EAFNOSUPPORT};
 
         constexpr size_t MaxGuestFds{1024};
         std::mutex fdMutex;
@@ -68,44 +69,11 @@ namespace skyline::service::socket {
         }
 
         /**
-         * @brief Translates a Linux errno value to the BSD one the guest expects
+         * @brief Converts a host errno to the value the guest expects
+         * @note Even though the Switch uses the FreeBSD network stack its errno values are the Linux ones (https://switchbrew.org/wiki/Sockets_services), so the host value is passed through unchanged
          */
         i32 ToBsdErrno(i32 hostErrno) {
-            switch (hostErrno) {
-                case EAGAIN: return 35;
-                case EINPROGRESS: return 36;
-                case EALREADY: return 37;
-                case ENOTSOCK: return 38;
-                case EDESTADDRREQ: return 39;
-                case EMSGSIZE: return 40;
-                case EPROTOTYPE: return 41;
-                case ENOPROTOOPT: return 42;
-                case EPROTONOSUPPORT: return 43;
-                case ESOCKTNOSUPPORT: return 44;
-                case EOPNOTSUPP: return 45;
-                case EPFNOSUPPORT: return 46;
-                case EAFNOSUPPORT: return BsdEafnosupport;
-                case EADDRINUSE: return 48;
-                case EADDRNOTAVAIL: return 49;
-                case ENETDOWN: return 50;
-                case ENETUNREACH: return 51;
-                case ENETRESET: return 52;
-                case ECONNABORTED: return 53;
-                case ECONNRESET: return 54;
-                case ENOBUFS: return 55;
-                case EISCONN: return 56;
-                case ENOTCONN: return 57;
-                case ESHUTDOWN: return 58;
-                case ETOOMANYREFS: return 59;
-                case ETIMEDOUT: return 60;
-                case ECONNREFUSED: return 61;
-                case ELOOP: return 62;
-                case ENAMETOOLONG: return 63;
-                case EHOSTDOWN: return 64;
-                case EHOSTUNREACH: return 65;
-                case ENOSYS: return BsdEnosys;
-                default: return hostErrno; // The low errno values (EPERM, ENOENT, EINTR, EBADF, EINVAL...) are identical
-            }
+            return hostErrno;
         }
 
         i32 ToHostMsgFlags(i32 bsdFlags) {
@@ -187,6 +155,12 @@ namespace skyline::service::socket {
 
         LOGI("File Descriptor {} (host {}) with Domain {}, Type {}, Protocol {}", guestFd, hostFd, domain, type, protocol);
         return PushBsdResult(response, guestFd, 0);
+    }
+
+    Result IClient::Select(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        // Not implemented: report that no descriptor is ready and sleep briefly so a guest that calls this in a loop doesn't make a host core spin at 100%
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return PushBsdResult(response, 0, 0);
     }
 
     Result IClient::Poll(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {

@@ -2,6 +2,7 @@
 // Copyright © 2022 Ryujinx Team and Contributors (https://github.com/ryujinx/)
 // Copyright © 2022 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <algorithm>
 #include <gpu/texture/format.h>
 #include <gpu/texture/texture.h>
 #include <gpu/texture_manager.h>
@@ -134,6 +135,16 @@ namespace skyline::gpu::interconnect {
             centredSrcRectX = 0.0f;
 
         auto [dstGuestTexture, dstWentOob]{GetGuestTexture(dstSurface)};
+
+        // A surface whose GPU address isn't mapped resolves to a null host mapping, creating a texture from it used to throw and kill the whole emulator, hardware just ignores the access
+        auto isUnmapped{[](const GuestTexture &texture) {
+            return texture.mappings.empty() || std::ranges::any_of(texture.mappings, [](const auto &mapping) { return mapping.data() == nullptr; });
+        }};
+        if (isUnmapped(srcGuestTexture) || isUnmapped(dstGuestTexture)) {
+            LOGW("Skipping a 2D blit that uses an unmapped surface");
+            return;
+        }
+
         auto srcTextureView{gpu.texture.FindOrCreate(srcGuestTexture, executor.tag)};
         executor.AttachDependency(srcTextureView);
         executor.AttachTexture(srcTextureView.get());

@@ -54,6 +54,10 @@
     <string name="import_firmware_invalid_contents">The supplied firmware package does not contain a valid firmware</string>
     <string name="firmware_keys_needed">Valid keys are required for firmware installation</string>
     <string name="firmware_not_installed">No firmware installed</string>
+    <string name="patches">Patches and translations</string>
+    <string name="patches_installed">%d patch file(s) installed. Select .pchtxt or .ips files to add more</string>
+    <string name="import_patches_success">%d patch file(s) installed, they are applied the next time a game starts</string>
+    <string name="import_patches_none">No .pchtxt or .ips files were imported</string>
     <!-- Settings - Appearance -->
     <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>

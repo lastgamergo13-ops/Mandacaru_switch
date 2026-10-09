@@ -24,6 +24,9 @@
         <org.stratoemu.strato.preference.FirmwareImportPreference
             app:key="firmware"
             app:title="@string/firmware" />
+        <org.stratoemu.strato.preference.PatchImportPreference
+            app:key="patches"
+            app:title="@string/patches" />
     </PreferenceCategory>
     <PreferenceCategory
         android:key="category_appearance"

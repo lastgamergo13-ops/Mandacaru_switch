@@ -555,8 +555,12 @@ namespace skyline::kernel {
         u8 *alignedEnd{util::AlignDown(memory.end().base(), constant::PageSize)};
 
         if (alignedStart < alignedEnd) [[likely]]
-            if (madvise(alignedStart, static_cast<size_t>(alignedEnd - alignedStart), MADV_REMOVE) == -1) [[unlikely]]
-                LOGE("Failed to free memory: {}", strerror(errno));
+            if (madvise(alignedStart, static_cast<size_t>(alignedEnd - alignedStart), MADV_REMOVE) == -1) [[unlikely]] {
+                if (errno == EACCES)
+                    LOGD("Couldn't free read-only memory"); // MADV_REMOVE needs a writable mapping, this is expected for memory that is currently protected
+                else
+                    LOGE("Failed to free memory: {}", strerror(errno));
+            }
     }
 
     void MemoryManager::SvcMapMemory(span<u8> source, span<u8> destination) {

@@ -38,6 +38,12 @@ namespace skyline::service::socket {
         Result Socket(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
+         * @brief Waits for descriptors to become ready, currently a stub that reports that none are
+         * @url https://switchbrew.org/wiki/Sockets_services
+         */
+        Result Select(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
          * @brief Polls the socket for events
          */
         Result Poll(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
@@ -148,6 +154,7 @@ namespace skyline::service::socket {
             SFUNC(0x0, IClient, RegisterClient),
             SFUNC(0x1, IClient, StartMonitoring),
             SFUNC(0x2, IClient, Socket),
+            SFUNC(0x5, IClient, Select),
             SFUNC(0x6, IClient, Poll),
             SFUNC(0x8, IClient, Recv),
             SFUNC(0x9, IClient, RecvFrom),

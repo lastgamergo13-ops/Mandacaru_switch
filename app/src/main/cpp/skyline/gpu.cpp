@@ -251,7 +251,11 @@ namespace skyline::gpu {
             throw exception("Vulkan device doesn't support required feature: " #feature)
 
         FEAT_REQ(vk::PhysicalDeviceFeatures2, features.independentBlend);
-        FEAT_REQ(vk::PhysicalDeviceFeatures2, features.shaderImageGatherExtended);
+        // Not every GPU supports this (e.g. Mali-G57 in the Moto G54), failing to start because of it made every game close instantly, shaders that need it just won't work there
+        if (deviceFeatures2.get<vk::PhysicalDeviceFeatures2>().features.shaderImageGatherExtended)
+            enabledFeatures2.get<vk::PhysicalDeviceFeatures2>().features.shaderImageGatherExtended = true;
+        else
+            LOGW("Vulkan device doesn't support shaderImageGatherExtended, shaders using gathers with non-constant offsets may not work");
         FEAT_REQ(vk::PhysicalDeviceFeatures2, features.depthBiasClamp);
         FEAT_REQ(vk::PhysicalDeviceShaderDrawParametersFeatures, shaderDrawParameters);
 
