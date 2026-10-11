@@ -8,6 +8,7 @@
 #include <lz4.h>
 #include <nce.h>
 #include <os.h>
+#include <vfs/installed_content.h>
 #include <kernel/types/KProcess.h>
 #include <boost/regex/v5/regex.hpp>
 #include "nso.h"
@@ -191,36 +192,50 @@ namespace skyline::loader {
          */
         void ApplyExecutablePatches(const DeviceState &state, const std::array<u64, 4> &buildId, Executable &executable, const std::string &name) {
             std::error_code error;
-            std::filesystem::path patchesDirectory{state.os->publicAppFilesPath + "/patches/"};
-            if (!std::filesystem::is_directory(patchesDirectory, error))
-                return;
+
+            // Patches can be imported on their own (patches/) or be part of a mod (mods/<title id>/<mod>/exefs/)
+            std::vector<std::filesystem::path> patchDirectories;
+            patchDirectories.emplace_back(state.os->publicAppFilesPath + "/patches/");
+
+            auto modsDirectory{vfs::GetModsDirectory(state)};
+            if (!modsDirectory.empty() && std::filesystem::is_directory(modsDirectory, error)) {
+                for (auto it{std::filesystem::directory_iterator(modsDirectory, error)}; !error && it != std::filesystem::directory_iterator(); it.increment(error))
+                    if (it->is_directory(error) && std::filesystem::is_directory(it->path() / "exefs", error))
+                        patchDirectories.push_back(it->path() / "exefs");
+            }
 
             std::string moduleIdHex{ToHexString(buildId)};
             LOGI("Build ID of '{}': {}", name, moduleIdHex.substr(0, 32)); // This is what patches target (@nsobid- in .pchtxt files, the file name of .ips files)
-            for (auto it{std::filesystem::recursive_directory_iterator(patchesDirectory, error)}; !error && it != std::filesystem::recursive_directory_iterator(); it.increment(error)) {
-                if (!it->is_regular_file(error))
+
+            for (const auto &patchesDirectory : patchDirectories) {
+                if (!std::filesystem::is_directory(patchesDirectory, error))
                     continue;
 
-                std::string extension{ToUpper(it->path().extension().string())};
-                try {
-                    size_t applied{};
-                    if (extension == ".PCHTXT" || extension == ".IPS") {
-                        std::ifstream file{it->path(), std::ios::binary};
-                        std::vector<u8> contents{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+                for (auto it{std::filesystem::recursive_directory_iterator(patchesDirectory, error)}; !error && it != std::filesystem::recursive_directory_iterator(); it.increment(error)) {
+                    if (!it->is_regular_file(error))
+                        continue;
 
-                        if (extension == ".PCHTXT") {
-                            applied = ApplyPchtxt(std::string(contents.begin(), contents.end()), moduleIdHex, executable);
-                        } else {
-                            std::string stem{ToUpper(it->path().stem().string())};
-                            if (!stem.empty() && moduleIdHex.rfind(stem, 0) == 0)
-                                applied = ApplyIps(contents, executable);
+                    std::string extension{ToUpper(it->path().extension().string())};
+                    try {
+                        size_t applied{};
+                        if (extension == ".PCHTXT" || extension == ".IPS") {
+                            std::ifstream file{it->path(), std::ios::binary};
+                            std::vector<u8> contents{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+
+                            if (extension == ".PCHTXT") {
+                                applied = ApplyPchtxt(std::string(contents.begin(), contents.end()), moduleIdHex, executable);
+                            } else {
+                                std::string stem{ToUpper(it->path().stem().string())};
+                                if (!stem.empty() && moduleIdHex.rfind(stem, 0) == 0)
+                                    applied = ApplyIps(contents, executable);
+                            }
                         }
-                    }
 
-                    if (applied)
-                        LOGI("Applied {} write(s) from patch '{}' to '{}'", applied, it->path().filename().string(), name);
-                } catch (const std::exception &e) {
-                    LOGW("Failed to apply patch '{}': {}", it->path().filename().string(), e.what());
+                        if (applied)
+                            LOGI("Applied {} write(s) from patch '{}' to '{}'", applied, it->path().filename().string(), name);
+                    } catch (const std::exception &e) {
+                        LOGW("Failed to apply patch '{}': {}", it->path().filename().string(), e.what());
+                    }
                 }
             }
         }

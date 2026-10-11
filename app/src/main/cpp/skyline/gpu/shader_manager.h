@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include <unordered_map>
 #include <vulkan/vulkan.hpp>
 #include <shader_compiler/object_pool.h>
@@ -17,6 +19,8 @@
 #include <common.h>
 
 namespace skyline::gpu {
+    extern std::atomic<u32> ShaderCompileCount; //!< The amount of shaders that have been compiled since the game started
+
     /**
      * @brief The Shader Manager is responsible for caching and looking up shaders alongside handling compilation of shaders when not found in any cache
      */

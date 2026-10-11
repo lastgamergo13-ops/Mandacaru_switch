@@ -239,6 +239,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/vfs/partition_filesystem.cpp
         ${source_DIR}/skyline/vfs/ctr_encrypted_backing.cpp
         ${source_DIR}/skyline/vfs/rom_filesystem.cpp
+        ${source_DIR}/skyline/vfs/layered_romfs.cpp
         ${source_DIR}/skyline/vfs/os_filesystem.cpp
         ${source_DIR}/skyline/vfs/os_backing.cpp
         ${source_DIR}/skyline/vfs/android_asset_filesystem.cpp

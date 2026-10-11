@@ -17,7 +17,10 @@ import android.content.pm.ActivityInfo
 import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.app.Dialog
+import android.graphics.Color
 import android.graphics.PointF
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Icon
 import android.hardware.display.DisplayManager
 import android.net.DhcpInfo
@@ -27,6 +30,7 @@ import android.util.Log
 import android.util.Rational
 import android.util.TypedValue
 import android.view.*
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -40,9 +44,11 @@ import androidx.fragment.app.FragmentTransaction
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.preference.PreferenceManager
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import androidx.window.layout.WindowLayoutInfo
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -337,17 +343,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
             if (emulationSettings.disableFrameThrottling)
                 binding.perfStats.setTextColor(getColor(R.color.colorPerfStatsSecondary))
 
-            binding.perfStats.apply {
-                postDelayed(object : Runnable {
-                    override fun run() {
-                        updatePerformanceStatistics()
-                        // We read the `VmRSS` value from the kernel
-                        ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
-                        text = "$fps FPS • $ramUsage MB"
-                        postDelayed(this, 250)
-                    }
-                }, 250)
-            }
+            startPerfStats()
         }
 
         force60HzRefreshRate(!emulationSettings.maxRefreshRate)
@@ -417,12 +413,178 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         pauseEmulator()
     }
 
+    private var gameMenuDialog : Dialog? = null
+
+    /**
+     * If the game information (FPS, memory, battery temperature, GPU driver, firmware, shaders) is always shown, this is toggled from the game menu
+     */
+    private var showGameInfo = false
+
+    private var perfStatsRunning = false
+
+    /**
+     * @return The amount of shaders that have been compiled since the game started
+     */
+    private external fun getShaderCompileCount() : Int
+
+    /**
+     * Starts the loop that updates the text in the top left corner, it shows the FPS and memory usage when that's enabled in the settings and the full game information when it's toggled in the game menu
+     */
+    private fun startPerfStats() {
+        if (perfStatsRunning)
+            return
+        perfStatsRunning = true
+
+        binding.perfStats.apply {
+            postDelayed(object : Runnable {
+                override fun run() {
+                    if (emulationSettings.perfStats || showGameInfo) {
+                        updatePerformanceStatistics()
+                        // We read the `VmRSS` value from the kernel
+                        ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
+                        text = if (showGameInfo) buildGameInfoText() else "$fps FPS • $ramUsage MB"
+                    } else {
+                        text = ""
+                    }
+                    postDelayed(this, 250)
+                }
+            }, 250)
+        }
+    }
+
+    private fun buildGameInfoText() : String {
+        val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val temperature = (batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10f
+
+        val driver = if (emulationSettings.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER)
+            getString(R.string.system_driver)
+        else
+            emulationSettings.gpuDriver
+
+        val firmware = PreferenceManager.getDefaultSharedPreferences(this).getString("firmware", null) ?: getString(R.string.firmware_not_installed)
+
+        return "$fps FPS • ${"%.1f".format(averageFrametime)} ms\n" +
+            "RAM: $ramUsage MB\n" +
+            "${getString(R.string.game_info_battery)}: $temperature °C\n" +
+            "${getString(R.string.game_info_driver)}: $driver\n" +
+            "${getString(R.string.game_info_firmware)}: $firmware\n" +
+            "${getString(R.string.game_info_shaders)}: ${getShaderCompileCount()}"
+    }
+
+    private fun addMenuButton(menu : LinearLayout, label : String, onClick : () -> Unit) {
+        val button = MaterialButton(this).apply {
+            setText(label)
+            isAllCaps = false
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            setOnClickListener { onClick() }
+        }
+
+        val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        params.bottomMargin = (8 * resources.displayMetrics.density).toInt()
+        menu.addView(button, params)
+    }
+
+    /**
+     * Shows the game menu as a panel on the left side of the screen, it is opened by the back button
+     */
+    private fun showGameMenu() {
+        val openDialog = gameMenuDialog
+        if (openDialog != null && openDialog.isShowing) {
+            openDialog.dismiss()
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        val padding = (16 * density).toInt()
+        val menu = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding)
+            setBackgroundColor(Color.argb(235, 24, 24, 28))
+        }
+
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(menu)
+
+        addMenuButton(menu, getString(if (isEmulatorPaused) R.string.game_menu_resume else R.string.game_menu_pause)) {
+            dialog.dismiss()
+            if (isEmulatorPaused)
+                resumeEmulator()
+            else
+                pauseEmulator()
+        }
+
+        addMenuButton(menu, getString(R.string.game_menu_settings)) {
+            dialog.dismiss()
+            // These are the settings of this game only, they don't change the settings of the other games and are used the next time the game starts
+            startActivity(Intent(this, org.stratoemu.strato.settings.SettingsActivity::class.java).putExtra(AppItemTag, item))
+        }
+
+        addMenuButton(menu, getString(R.string.game_menu_controller)) {
+            dialog.dismiss()
+            showControllerOptions()
+        }
+
+        addMenuButton(menu, getString(if (showGameInfo) R.string.game_menu_info_on else R.string.game_menu_info_off)) {
+            dialog.dismiss()
+            showGameInfo = !showGameInfo
+            startPerfStats()
+        }
+
+        addMenuButton(menu, getString(R.string.game_menu_exit)) {
+            dialog.dismiss()
+            returnFromEmulation()
+        }
+
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setGravity(Gravity.START or Gravity.CENTER_VERTICAL)
+            setLayout((300 * density).toInt(), WindowManager.LayoutParams.MATCH_PARENT)
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
+
+        gameMenuDialog = dialog
+        dialog.show()
+    }
+
+    /**
+     * Lets the user change the type of the controller of the first player while the game runs, this isn't saved so it doesn't change the controls of the other games
+     */
+    private fun showControllerOptions() {
+        val types = arrayOf(ControllerType.HandheldProController, ControllerType.ProController)
+        val typeNames = types.map { getString(it.stringRes) }.toTypedArray()
+        val current = inputManager.controllers[0]?.type ?: ControllerType.None
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.game_menu_controller_title)
+            .setSingleChoiceItems(typeNames, types.indexOf(current)) { dialog, index ->
+                val selectedType = types[index]
+                if (current != selectedType) {
+                    inputManager.controllers[0] = when (selectedType) {
+                        ControllerType.ProController -> ProController(0)
+                        else -> HandheldController(0)
+                    }
+
+                    // The game is told about the new controller and the on-screen controls are redrawn for it
+                    inputHandler.initializeControllers()
+                    binding.onScreenControllerView.apply {
+                        controllerType = inputHandler.getFirstControllerType()
+                        isGone = controllerType == ControllerType.None || !appSettings.onScreenControl
+                    }
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     override fun onStart() {
         super.onStart()
 
         onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                returnFromEmulation()
+                // The back button opens the game menu instead of closing the game
+                showGameMenu()
             }
         })
     }

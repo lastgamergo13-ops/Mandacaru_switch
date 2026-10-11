@@ -348,9 +348,13 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
     void LineWidthState::Flush(InterconnectContext &ctx, StateUpdateBuilder &builder) {
         float width{engine->aliasedLineWidthEnable ? engine->lineWidthAliased : engine->lineWidth};
-        if (width != 1.0f && !ctx.gpu.traits.supportsWideLines)
-            LOGW("Wide lines used on guest but unsupported on host!");
-        else
+        if (width != 1.0f && !ctx.gpu.traits.supportsWideLines) {
+            static bool warned{};
+            if (!warned) { // This is checked for every draw so it would flood the log
+                LOGW("Wide lines used on guest but unsupported on host!");
+                warned = true;
+            }
+        } else
             builder.SetLineWidth(width);
     }
 

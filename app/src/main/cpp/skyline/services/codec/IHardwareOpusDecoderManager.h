@@ -56,6 +56,7 @@ namespace skyline::service::codec {
             SFUNC(0x1, IHardwareOpusDecoderManager, GetWorkBufferSize),
             SFUNC(0x4, IHardwareOpusDecoderManager, OpenHardwareOpusDecoderEx),
             SFUNC(0x5, IHardwareOpusDecoderManager, GetWorkBufferSizeEx),
+            SFUNC(0x8, IHardwareOpusDecoderManager, GetWorkBufferSizeEx), // GetWorkBufferSizeExEx (17.0.0+) takes the same parameters and returns the same size, without it games get a size of 0 and abort
         )
     };
 }

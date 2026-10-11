@@ -6,6 +6,7 @@
 #include <android/asset_manager_jni.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
+#include "skyline/gpu/shader_manager.h"
 #include "skyline/common.h"
 #include "skyline/common/language.h"
 #include "skyline/common/signal.h"
@@ -167,7 +168,19 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_EmulationActivity_changeAudi
             audio->Pause();
 }
 
+extern "C" JNIEXPORT jint Java_org_stratoemu_strato_EmulationActivity_getShaderCompileCount(JNIEnv *, jobject) {
+    return static_cast<jint>(skyline::gpu::ShaderCompileCount.load());
+}
+
 extern "C" JNIEXPORT void Java_org_stratoemu_strato_EmulationActivity_updatePerformanceStatistics(JNIEnv *env, jobject thiz) {
+    // The memory usage is logged every minute so a game that is killed after a long time (e.g. by the system running out of memory) leaves a trail in the log
+    static auto lastMemoryLog{std::chrono::steady_clock::now()};
+    auto now{std::chrono::steady_clock::now()};
+    if (now - lastMemoryLog >= std::chrono::seconds(60)) {
+        lastMemoryLog = now;
+        LOGI("Memory usage: {}", skyline::signal::GetMemorySummary());
+    }
+
     static jclass clazz{};
     if (!clazz)
         clazz = env->GetObjectClass(thiz);

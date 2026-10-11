@@ -422,7 +422,10 @@ namespace skyline::gpu {
         return Shader::Maxwell::TranslateProgram(instructionPool, blockPool, environment, cfg, hostTranslateInfo);
     }
 
+    std::atomic<u32> ShaderCompileCount{}; //!< The amount of shaders that have been compiled since the game started, shown in the game information overlay
+
     vk::ShaderModule ShaderManager::CompileShader(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings, u64 hash) {
+        ShaderCompileCount++;
         std::scoped_lock lock{poolMutex};
 
         if (program.info.loads.Legacy() || program.info.stores.Legacy())

@@ -24,9 +24,36 @@
         <org.stratoemu.strato.preference.FirmwareImportPreference
             app:key="firmware"
             app:title="@string/firmware" />
+    </PreferenceCategory>
+    <PreferenceCategory
+        android:key="category_dlc"
+        android:title="@string/dlc_updates">
+        <org.stratoemu.strato.preference.DlcImportPreference
+            app:key="dlc_install"
+            app:title="@string/dlc_install" />
+        <org.stratoemu.strato.preference.ClearContentPreference
+            app:key="clear_dlc"
+            app:title="@string/dlc_clear" />
+    </PreferenceCategory>
+    <PreferenceCategory
+        android:key="category_mods"
+        android:title="@string/mods">
+        <org.stratoemu.strato.preference.ModImportPreference
+            app:key="mod_install"
+            app:title="@string/mod_install" />
+        <org.stratoemu.strato.preference.ClearContentPreference
+            app:key="clear_mods"
+            app:title="@string/mods_clear" />
+    </PreferenceCategory>
+    <PreferenceCategory
+        android:key="category_translations"
+        android:title="@string/translations">
         <org.stratoemu.strato.preference.PatchImportPreference
             app:key="patches"
             app:title="@string/patches" />
+        <org.stratoemu.strato.preference.ClearContentPreference
+            app:key="clear_patches"
+            app:title="@string/patches_clear" />
     </PreferenceCategory>
     <PreferenceCategory
         android:key="category_appearance"

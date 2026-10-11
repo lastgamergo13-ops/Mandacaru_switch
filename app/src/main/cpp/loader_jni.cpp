@@ -5,6 +5,13 @@
 #include "skyline/vfs/nca.h"
 #include "skyline/vfs/os_backing.h"
 #include "skyline/vfs/os_filesystem.h"
+#include "skyline/vfs/partition_filesystem.h"
+#include "skyline/vfs/ticket.h"
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
+#include <set>
+#include <unistd.h>
 #include "skyline/loader/nro.h"
 #include "skyline/loader/nso.h"
 #include "skyline/loader/nca.h"
@@ -207,5 +214,81 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_preference_FirmwareImportPre
             }
         }
     } catch (const std::exception &) {
+    }
+}
+
+/**
+ * @brief Installs the content of an NSP (DLC, updates) so games can use it
+ * @param fd A file descriptor of the NSP, this function takes ownership of it and closes it
+ * @param contentsPathJstring The directory the NCAs are copied to
+ * @param titleKeysPathJstring The file the title keys of the tickets in the NSP are added to ('rights id=title key' lines)
+ * @return The number of NCAs that were copied, -1 if the NSP couldn't be read
+ */
+extern "C" JNIEXPORT jint Java_org_stratoemu_strato_preference_DlcImportPreference_installNsp(JNIEnv *env, jobject thiz, jint fd, jstring contentsPathJstring, jstring titleKeysPathJstring) {
+    // C++ exceptions must never escape a JNI function (they abort the whole app)
+    try {
+        std::string contentsPath{skyline::JniString(env, contentsPathJstring)};
+        std::string titleKeysPath{skyline::JniString(env, titleKeysPathJstring)};
+
+        if (fd < 0)
+            return -1;
+
+        auto backing{std::make_shared<skyline::vfs::OsBacking>(fd, true)};
+        auto nsp{std::make_shared<skyline::vfs::PartitionFileSystem>(backing)};
+        std::filesystem::create_directories(contentsPath);
+
+        auto hex{[](const auto &bytes) {
+            std::string out;
+            for (auto byte : bytes)
+                out += fmt::format("{:02X}", byte);
+            return out;
+        }};
+
+        // The keys that are already known aren't added twice
+        std::set<std::string> knownKeys;
+        {
+            std::ifstream known{titleKeysPath};
+            std::string line;
+            while (std::getline(known, line))
+                knownKeys.insert(line);
+        }
+
+        jint copied{};
+        std::vector<skyline::u8> buffer(4 * 1024 * 1024);
+        for (const auto &entry : nsp->OpenDirectory("", {false, true})->Read()) {
+            std::string extension{entry.name.substr(entry.name.find_last_of('.') + 1)};
+            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
+
+            if (extension == "nca") {
+                auto nca{nsp->OpenFile(entry.name)};
+                std::string target{contentsPath + "/" + std::filesystem::path(entry.name).filename().string()};
+                std::ofstream output{target, std::ios::binary | std::ios::trunc};
+                if (!output)
+                    return -1;
+
+                for (size_t offset{}; offset < nca->size; offset += buffer.size()) {
+                    size_t length{std::min(buffer.size(), nca->size - offset)};
+                    nca->ReadUnchecked(skyline::span<skyline::u8>(buffer.data(), length), offset);
+                    output.write(reinterpret_cast<const char *>(buffer.data()), static_cast<std::streamsize>(length));
+                }
+                copied++;
+            } else if (extension == "tik") {
+                try {
+                    skyline::vfs::Ticket ticket{nsp->OpenFile(entry.name)};
+                    std::string line{hex(ticket.rightsId) + "=" + hex(std::span<const skyline::u8>(ticket.titleKeyBlock.data(), 16))};
+                    if (knownKeys.insert(line).second) {
+                        std::filesystem::create_directories(std::filesystem::path(titleKeysPath).parent_path());
+                        std::ofstream keys{titleKeysPath, std::ios::app};
+                        keys << line << "\n";
+                    }
+                } catch (const std::exception &) {
+                    // A ticket that can't be read only affects the content that needs it
+                }
+            }
+        }
+
+        return copied;
+    } catch (const std::exception &) {
+        return -1;
     }
 }

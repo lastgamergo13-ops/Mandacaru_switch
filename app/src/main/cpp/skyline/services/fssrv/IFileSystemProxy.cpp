@@ -4,6 +4,8 @@
 #include <os.h>
 #include <vfs/os_filesystem.h>
 #include <vfs/nca.h>
+#include <vfs/layered_romfs.h>
+#include <vfs/installed_content.h>
 #include <loader/loader.h>
 #include "results.h"
 #include "IStorage.h"
@@ -91,11 +93,36 @@ namespace skyline::service::fssrv {
         return {};
     }
 
+    /**
+     * @return The RomFS of the game with the RomFS mods (dubs, translations...) from the mods directory applied, it's only built once
+     */
+    static std::shared_ptr<vfs::Backing> GetModdedRomFs(const DeviceState &state) {
+        static std::mutex mutex;
+        static const loader::Loader *cachedLoader{};
+        static std::shared_ptr<vfs::Backing> cachedRomFs;
+
+        std::scoped_lock lock{mutex};
+        if (cachedLoader != state.loader.get() || !cachedRomFs) {
+            cachedLoader = state.loader.get();
+            cachedRomFs = state.loader->romFs;
+
+            auto modsDirectory{vfs::GetModsDirectory(state)};
+            if (!modsDirectory.empty()) {
+                try {
+                    cachedRomFs = vfs::LayeredRomFsBacking::Create(state.loader->romFs, modsDirectory);
+                } catch (const std::exception &e) {
+                    LOGW("Failed to apply the RomFS mods, using the original RomFS: {}", e.what());
+                }
+            }
+        }
+        return cachedRomFs;
+    }
+
     Result IFileSystemProxy::OpenDataStorageByCurrentProcess(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         if (!state.loader->romFs)
             return result::NoRomFsAvailable;
 
-        manager.RegisterService(std::make_shared<IStorage>(state.loader->romFs, state, manager), session, response);
+        manager.RegisterService(std::make_shared<IStorage>(GetModdedRomFs(state), state, manager), session, response);
         return {};
     }
 
@@ -103,6 +130,26 @@ namespace skyline::service::fssrv {
         auto storageId{request.Pop<StorageId>()};
         request.Skip<std::array<u8, 7>>(); // 7-bytes padding
         auto dataId{request.Pop<u64>()};
+
+        // Add-on content (DLC) installed by the user is mounted by its title id
+        try {
+            auto contentFileSystem{std::make_shared<vfs::OsFileSystem>(vfs::GetInstalledContentsPath(state))};
+            auto contents{contentFileSystem->OpenDirectory("")};
+            auto contentKeyStore{std::make_shared<skyline::crypto::KeyStore>(state.os->privateAppFilesPath + "keys")};
+            vfs::LoadInstalledTitleKeys(*contentKeyStore, state);
+
+            for (const auto &entry : contents->Read()) {
+                try {
+                    auto nca{vfs::NCA(contentFileSystem->OpenFile(entry.name), contentKeyStore)};
+                    if (nca.header.programId == dataId && nca.romFs != nullptr) {
+                        manager.RegisterService(std::make_shared<IStorage>(nca.romFs, state, manager), session, response);
+                        return {};
+                    }
+                } catch (const std::exception &) {
+                    continue;
+                }
+            }
+        } catch (const std::exception &) {}
 
         auto systemArchivesFileSystem{std::make_shared<vfs::OsFileSystem>(state.os->publicAppFilesPath + "/switch/nand/system/Contents/registered/")};
         auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};

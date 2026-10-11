@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <fstream>
 #include <common.h>
 
 namespace skyline::signal {
@@ -38,6 +39,38 @@ namespace skyline::signal {
     };
 
     /**
+     * @return A summary of the memory usage of the process and the system (read from /proc, so it must not be called from a signal handler)
+     */
+    inline std::string GetMemorySummary() {
+        std::string summary;
+        for (const char *path : {"/proc/self/status", "/proc/meminfo"}) {
+            std::ifstream file{path};
+            std::string line;
+            while (std::getline(file, line)) {
+                for (const char *key : {"VmRSS", "RssAnon", "RssFile", "RssShmem", "VmSwap", "MemTotal", "MemAvailable", "SwapFree", "Shmem:"}) {
+                    if (line.rfind(key, 0) == 0) {
+                        std::string compact;
+                        bool space{};
+                        for (char c : line) {
+                            if (c == ' ' || c == '\t') {
+                                space = true;
+                            } else {
+                                if (space && !compact.empty())
+                                    compact += ' ';
+                                space = false;
+                                compact += c;
+                            }
+                        }
+                        summary += compact + "; ";
+                        break;
+                    }
+                }
+            }
+        }
+        return summary;
+    }
+
+    /**
      * @brief An exception object that is designed specifically to hold Linux signals
      * @note This doesn't inherit std::exception as it shouldn't be caught as such
      * @note Refer to the manpage siginfo(3) for information on members
@@ -51,10 +84,16 @@ namespace skyline::signal {
         std::vector<void *> frames; //!< A vector of all stack frame entries prior to the signal occuring
 
         std::string what() const {
+            std::string message;
             if (!fault)
-                return fmt::format("Signal: {} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(pc), code);
+                message = fmt::format("Signal: {} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(pc), code);
             else
-                return fmt::format("Signal: {} @ 0x{:X} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(fault), reinterpret_cast<uintptr_t>(pc), code);
+                message = fmt::format("Signal: {} @ 0x{:X} (PC: 0x{:X}, code: {})", strsignal(signal), reinterpret_cast<uintptr_t>(fault), reinterpret_cast<uintptr_t>(pc), code);
+
+            // A bus error is usually the system failing to back a page of memory, so the memory usage helps finding out if the device was running out of it
+            if (signal == SIGBUS)
+                message += " [" + GetMemorySummary() + "]";
+            return message;
         }
     };
 
