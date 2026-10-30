@@ -69,7 +69,7 @@ class AppDialog : BottomSheetDialogFragment() {
         startForResultExportSave = SaveManagementUtils.registerStartForResultExportSave(requireActivity())
 
         // The DLC, mods and patches are managed per game, they're stored with the game's title id so they never affect other games
-        contentManager = GameContentManager(requireActivity() as AppCompatActivity, item.titleId) {
+        contentManager = GameContentManager(requireActivity() as AppCompatActivity, item.titleId ?: item.key()) {
             if (isAdded)
                 updateContentSummaries()
         }
