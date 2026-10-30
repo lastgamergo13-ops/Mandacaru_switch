@@ -3,6 +3,7 @@ package org.stratoemu.strato
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.stratoemu.strato.loader.AppEntry
@@ -24,7 +25,12 @@ class RomProvider @Inject constructor(@ApplicationContext private val context : 
                 addEntries(fileFormats, file, entries, systemLanguage)
             } else {
                 fileFormats[file.name?.substringAfterLast(".")?.lowercase()]?.let { romFormat->
-                    entries.add(RomFile(context, romFormat, file.uri, systemLanguage).appEntry)
+                    // A single file that can't be opened or parsed must not make the whole library empty, it's skipped and the rest are still listed
+                    try {
+                        entries.add(RomFile(context, romFormat, file.uri, systemLanguage).appEntry)
+                    } catch (e : Exception) {
+                        Log.w("RomProvider", "Skipping ${file.name}: ${e.message}")
+                    }
                 }
             }
         }

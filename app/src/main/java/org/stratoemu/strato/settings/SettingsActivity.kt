@@ -73,7 +73,6 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         val keys = File(filesDir, "keys")
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
         return File(keys, "prod.keys").exists() &&
-            File(keys, "title.keys").exists() &&
             !preferences.getString("firmware", null).isNullOrBlank() &&
             getSettings().searchLocation.isNotBlank()
     }

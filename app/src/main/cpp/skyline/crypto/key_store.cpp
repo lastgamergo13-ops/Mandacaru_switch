@@ -18,18 +18,32 @@ namespace skyline::crypto {
         std::vector<char> fileContent(backing->size);
         backing->Read(span(fileContent));
 
+        // A key file from outside the app can have Windows line endings, blank lines, comments, no newline after the last line or a malformed line: none of these should stop every other key from loading (an exception here used to escape into the game scan and take the whole app down)
         auto lineStart{fileContent.begin()};
-        std::vector<char>::iterator lineEnd;
-        while ((lineEnd = std::find(lineStart, fileContent.end(), '\n')) != fileContent.end()) {
+        while (lineStart != fileContent.end()) {
+            auto lineEnd{std::find(lineStart, fileContent.end(), '\n')};
+            auto next{lineEnd == fileContent.end() ? lineEnd : lineEnd + 1};
+
+            while (lineEnd != lineStart && (*(lineEnd - 1) == '\r' || *(lineEnd - 1) == ' ' || *(lineEnd - 1) == '\t'))
+                lineEnd--;
+
             auto keyEnd{std::find(lineStart, lineEnd, '=')};
-            if (keyEnd == lineEnd)
-                throw exception("Invalid key file");
+            if (keyEnd != lineEnd && *lineStart != ';') {
+                std::string_view key(&*lineStart, static_cast<size_t>(keyEnd - lineStart));
+                std::string_view value(&*(keyEnd + 1), static_cast<size_t>(lineEnd - keyEnd - 1));
+                while (!key.empty() && (key.back() == ' ' || key.back() == '\t'))
+                    key.remove_suffix(1);
+                while (!value.empty() && (value.front() == ' ' || value.front() == '\t'))
+                    value.remove_prefix(1);
 
-            std::string_view key(&*lineStart, static_cast<size_t>(keyEnd - lineStart));
-            std::string_view value(&*(keyEnd + 1), static_cast<size_t>(lineEnd - keyEnd - 1));
-            (this->*callback)(key, value);
+                try {
+                    (this->*callback)(key, value);
+                } catch (const std::exception &e) {
+                    // Skip just this line
+                }
+            }
 
-            lineStart = lineEnd + 1;
+            lineStart = next;
         }
     }
 

@@ -75,10 +75,8 @@ object KeyReader {
                         val value = pair[1].trim()
                         when (keyType) {
                             KeyType.Title -> {
-                                if (key.length != 32 && !isHexString(key))
-                                    return@useLines false
-                                if (value.length != 32 && !isHexString(value))
-                                    return@useLines false
+                                if (key.length != 32 || !isHexString(key) || value.length != 32 || !isHexString(value))
+                                    continue // Skip the line, the native parser expects exactly 16 bytes in both
                             }
                             KeyType.Prod -> {
                                 if (!key.contains("_"))

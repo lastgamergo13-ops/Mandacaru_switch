@@ -24,9 +24,10 @@ extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_popul
 
     skyline::loader::RomFormat format{static_cast<skyline::loader::RomFormat>(jformat)};
 
-    auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, appFilesPathJstring))};
+    std::shared_ptr<skyline::crypto::KeyStore> keyStore;
     std::unique_ptr<skyline::loader::Loader> loader;
     try {
+        keyStore = std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, appFilesPathJstring));
         auto backing{std::make_shared<skyline::vfs::OsBacking>(fd)};
 
         switch (format) {
@@ -54,6 +55,7 @@ extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_popul
         return static_cast<jint>(skyline::loader::LoaderResult::ParsingError);
     }
 
+    try {
     jclass clazz{env->GetObjectClass(thiz)};
     jfieldID applicationNameField{env->GetFieldID(clazz, "applicationName", "Ljava/lang/String;")};
     jfieldID applicationTitleIdField{env->GetFieldID(clazz, "applicationTitleId", "Ljava/lang/String;")};
@@ -75,6 +77,10 @@ extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_popul
         jbyteArray iconByteArray{env->NewByteArray(static_cast<jsize>(icon.size()))};
         env->SetByteArrayRegion(iconByteArray, 0, static_cast<jsize>(icon.size()), reinterpret_cast<const jbyte *>(icon.data()));
         env->SetObjectField(thiz, rawIconField, iconByteArray);
+    }
+    } catch (const std::exception &e) {
+        // Reading the metadata (NACP strings, icon) failed, the file is listed as invalid instead of an exception escaping into the JVM and killing the app
+        return static_cast<jint>(skyline::loader::LoaderResult::ParsingError);
     }
 
     return static_cast<jint>(skyline::loader::LoaderResult::Success);

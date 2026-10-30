@@ -56,7 +56,7 @@ enum class LoaderResult(val value : Int) {
     MissingKeyArea(5);
 
     companion object {
-        fun get(value : Int) = values().first { value == it.value }
+        fun get(value : Int) = values().firstOrNull { value == it.value } ?: ParsingError
     }
 }
 
@@ -163,7 +163,10 @@ internal class RomFile(context : Context, format : RomFormat, uri : Uri, systemL
         get() = result == LoaderResult.Success
 
     init {
-        context.contentResolver.openFileDescriptor(uri, "r")!!.use {
+        val descriptor = context.contentResolver.openFileDescriptor(uri, "r")
+        if (descriptor == null)
+            result = LoaderResult.ParsingError
+        else descriptor.use {
             result = LoaderResult.get(populate(format.ordinal, it.fd, "${context.filesDir.canonicalPath}/keys/", systemLanguage))
         }
 

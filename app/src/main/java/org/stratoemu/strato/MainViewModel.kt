@@ -94,12 +94,16 @@ class MainViewModel @Inject constructor(@ApplicationContext context : Context, p
                 is MainState.Loaded -> currentState.items.hashCode()
                 else -> 0
             }
-            val romElements = romProvider.loadRoms(searchLocation, systemLanguage)
-            val newHash = romElements.hashCode()
-            if (newHash != currentHash)
-                state = MainState.Loaded(romElements)
-
-            isAutoRefreshingRoms = false
+            try {
+                val romElements = romProvider.loadRoms(searchLocation, systemLanguage)
+                val newHash = romElements.hashCode()
+                if (newHash != currentHash)
+                    state = MainState.Loaded(romElements)
+            } catch (e : Exception) {
+                Log.w(TAG, "Ran into exception while refreshing: ${e.message}")
+            } finally {
+                isAutoRefreshingRoms = false
+            }
         }
     }
 }
