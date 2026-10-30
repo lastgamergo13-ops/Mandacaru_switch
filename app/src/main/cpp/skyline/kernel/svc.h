@@ -200,6 +200,37 @@ namespace skyline::kernel::svc {
     void GetThreadId(const DeviceState &state, SvcContext &ctx);
 
     /**
+     * @brief Signals a KEvent, waking up everything waiting on it
+     * @url https://switchbrew.org/wiki/SVC#SignalEvent
+     */
+    void SignalEvent(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Retrieves the ID of a process or of the process that owns a thread
+     * @url https://switchbrew.org/wiki/SVC#GetProcessId
+     */
+    void GetProcessId(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Creates a KEvent and returns two handles to it, one used to signal it and one used to wait on/clear it
+     * @note Both handles refer to the same object, the emulator doesn't model the writable/readable event split
+     * @url https://switchbrew.org/wiki/SVC#CreateEvent
+     */
+    void CreateEvent(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Retrieves the limit of a resource from the (single, fake) resource limit of the process
+     * @url https://switchbrew.org/wiki/SVC#GetResourceLimitLimitValue
+     */
+    void GetResourceLimitLimitValue(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Retrieves how much of a resource is currently used according to the (single, fake) resource limit of the process
+     * @url https://switchbrew.org/wiki/SVC#GetResourceLimitCurrentValue
+     */
+    void GetResourceLimitCurrentValue(const DeviceState &state, SvcContext &ctx);
+
+    /**
      * @brief Flushes the entire data cache, this is a no-op as the guest runs natively on a coherent host CPU
      * @url https://switchbrew.org/wiki/SVC#FlushEntireDataCache
      */

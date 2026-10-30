@@ -16,6 +16,10 @@ namespace skyline::service::fssrv {
         auto mode{request.Pop<u64>()};
         auto size{request.Pop<u32>()};
 
+        // The real filesystem refuses to create over an existing entry, creating it anyway would truncate the file (and so wipe a save) when a game calls this without checking first
+        if (backing->GetEntryType(path))
+            return result::PathAlreadyExists;
+
         return backing->CreateFile(path, size) ? Result{} : result::PathDoesNotExist;
     }
 

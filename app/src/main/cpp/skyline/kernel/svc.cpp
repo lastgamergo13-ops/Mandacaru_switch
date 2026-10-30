@@ -10,6 +10,8 @@
 #include "svc.h"
 
 namespace skyline::kernel::svc {
+    constexpr KHandle ResourceLimitPseudoHandle{0xFFFF8003}; //!< The handle GetInfo returns for the resource limit, there is only one and it isn't a real kernel object (next to the thread and process self handles)
+
     void SetHeapSize(const DeviceState &state, SvcContext &ctx) {
         u32 size{ctx.w1};
 
@@ -906,6 +908,109 @@ namespace skyline::kernel::svc {
         ctx.w0 = Result{};
     }
 
+    void SignalEvent(const DeviceState &state, SvcContext &ctx) {
+        KHandle handle{ctx.w0};
+        try {
+            state.process->GetHandle<type::KEvent>(handle)->Signal();
+            LOGD("Signalling 0x{:X}", handle);
+            ctx.w0 = Result{};
+        } catch (const std::out_of_range &) {
+            LOGW("'handle' invalid: 0x{:X}", handle);
+            ctx.w0 = result::InvalidHandle;
+        }
+    }
+
+    void GetProcessId(const DeviceState &state, SvcContext &ctx) {
+        constexpr u64 ApplicationProcessId{0x51}; //!< The emulated application is the only process, any non-zero ID is fine for guests that only compare or print it
+        KHandle handle{ctx.w1};
+
+        try {
+            auto object{state.process->GetHandle<type::KObject>(handle)};
+            if (object->objectType != type::KType::KProcess && object->objectType != type::KType::KThread) {
+                LOGW("'handle' type invalid: 0x{:X} ({})", handle, object->objectType);
+                ctx.w0 = result::InvalidHandle;
+                return;
+            }
+        } catch (const std::out_of_range &) {
+            if (handle != 0xFFFF8000 && handle != 0xFFFF8001) { // The thread/process pseudo handles aren't in the handle table
+                LOGW("'handle' invalid: 0x{:X}", handle);
+                ctx.w0 = result::InvalidHandle;
+                return;
+            }
+        }
+
+        LOGD("0x{:X} -> 0x{:X}", handle, ApplicationProcessId);
+        ctx.x1 = ApplicationProcessId;
+        ctx.w0 = Result{};
+    }
+
+    void CreateEvent(const DeviceState &state, SvcContext &ctx) {
+        auto [event, writeHandle]{state.process->NewHandle<type::KEvent>(false)};
+        KHandle readHandle{state.process->InsertItem(event)};
+
+        LOGD("Write handle: 0x{:X}, read handle: 0x{:X}", writeHandle, readHandle);
+        ctx.w1 = writeHandle;
+        ctx.w2 = readHandle;
+        ctx.w0 = Result{};
+    }
+
+    /**
+     * @brief The values reported for the limit of each resource in the fake resource limit
+     * @note These are not taken from real hardware, they're generous enough for games that only check there is room left
+     */
+    static bool GetResourceLimitValue(const DeviceState &state, SvcContext &ctx, bool current) {
+        KHandle handle{ctx.w1};
+        u32 which{static_cast<u32>(ctx.w2)};
+
+        if (handle != ResourceLimitPseudoHandle) {
+            LOGW("'handle' invalid: 0x{:X}", handle);
+            ctx.w0 = result::InvalidHandle;
+            return false;
+        }
+
+        enum class LimitableResource : u32 {
+            PhysicalMemory = 0,
+            Threads = 1,
+            Events = 2,
+            TransferMemories = 3,
+            Sessions = 4,
+        };
+
+        switch (static_cast<LimitableResource>(which)) {
+            case LimitableResource::PhysicalMemory:
+                ctx.x1 = current ? state.process->memory.GetUserMemoryUsage() : 0xF8000000;
+                break;
+            case LimitableResource::Threads:
+                ctx.x1 = current ? 0 : 0x200;
+                break;
+            case LimitableResource::Events:
+                ctx.x1 = current ? 0 : 0x900;
+                break;
+            case LimitableResource::TransferMemories:
+                ctx.x1 = current ? 0 : 0x80;
+                break;
+            case LimitableResource::Sessions:
+                ctx.x1 = current ? 0 : 0x800;
+                break;
+            default:
+                LOGW("'which' invalid: {}", which);
+                ctx.w0 = result::InvalidEnumValue;
+                return false;
+        }
+
+        LOGD("0x{:X}: resource {} -> 0x{:X}", handle, which, ctx.x1);
+        ctx.w0 = Result{};
+        return true;
+    }
+
+    void GetResourceLimitLimitValue(const DeviceState &state, SvcContext &ctx) {
+        GetResourceLimitValue(state, ctx, false);
+    }
+
+    void GetResourceLimitCurrentValue(const DeviceState &state, SvcContext &ctx) {
+        GetResourceLimitValue(state, ctx, true);
+    }
+
     void FlushEntireDataCache(const DeviceState &state, SvcContext &ctx) {
         ctx.w0 = Result{};
     }
@@ -1060,6 +1165,10 @@ namespace skyline::kernel::svc {
 
             case InfoState::UserExceptionContextAddr:
                 out = reinterpret_cast<u64>(state.process->tlsExceptionContext);
+                break;
+
+            case InfoState::ResourceLimit:
+                out = ResourceLimitPseudoHandle;
                 break;
 
             default:
@@ -1363,7 +1472,7 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(GetThreadCoreMask), // 0x0E
         SVC_ENTRY(SetThreadCoreMask), // 0x0F
         SVC_ENTRY(GetCurrentProcessorNumber), // 0x10
-        SVC_NONE, // 0x11
+        SVC_ENTRY(SignalEvent), // 0x11
         SVC_ENTRY(ClearEvent), // 0x12
         SVC_ENTRY(MapSharedMemory), // 0x13
         SVC_ENTRY(UnmapSharedMemory), // 0x14
@@ -1382,7 +1491,7 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(SendSyncRequest), // 0x21
         SVC_NONE, // 0x22
         SVC_NONE, // 0x23
-        SVC_NONE, // 0x24
+        SVC_ENTRY(GetProcessId), // 0x24
         SVC_ENTRY(GetThreadId), // 0x25
         SVC_ENTRY(Break), // 0x26
         SVC_ENTRY(OutputDebugString), // 0x27
@@ -1394,8 +1503,8 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(UnmapPhysicalMemory), // 0x2D
         SVC_NONE, // 0x2E
         SVC_NONE, // 0x2F
-        SVC_NONE, // 0x30
-        SVC_NONE, // 0x31
+        SVC_ENTRY(GetResourceLimitLimitValue), // 0x30
+        SVC_ENTRY(GetResourceLimitCurrentValue), // 0x31
         SVC_ENTRY(SetThreadActivity), // 0x32
         SVC_ENTRY(GetThreadContext3), // 0x33
         SVC_ENTRY(WaitForAddress), // 0x34
@@ -1415,7 +1524,7 @@ namespace skyline::kernel::svc {
         SVC_NONE, // 0x42
         SVC_NONE, // 0x43
         SVC_NONE, // 0x44
-        SVC_NONE, // 0x45
+        SVC_ENTRY(CreateEvent), // 0x45
         SVC_NONE, // 0x46
         SVC_NONE, // 0x47
         SVC_NONE, // 0x48
