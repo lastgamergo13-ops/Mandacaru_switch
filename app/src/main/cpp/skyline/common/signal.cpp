@@ -6,6 +6,9 @@
 #include <unwind.h>
 #include <fcntl.h>
 #include <cxxabi.h>
+#include <cstdio>
+#include <atomic>
+#include <sys/prctl.h>
 #include "signal.h"
 
 namespace skyline::signal {
@@ -15,7 +18,21 @@ namespace skyline::signal {
         std::rethrow_exception(SignalExceptionPtr);
     }
 
+    /**
+     * @brief Writes the current thread's name and a reason straight into the log (see AsyncLogger::LogEmergency)
+     */
+    static void ReportEmergency(const char *what, const char *detail = "") noexcept {
+        char threadName[17]{};
+        prctl(PR_GET_NAME, threadName);
+
+        char message[640];
+        snprintf(message, sizeof(message), "%s (thread '%s') %s", what, threadName, detail);
+        AsyncLogger::LogEmergency(message);
+    }
+
     void SleepTillExit() {
+        // Without this the log just stops and nothing says why: this path is reached by every crash nothing is waiting to catch
+        ReportEmergency("The thread has hit an unrecoverable crash and is being parked forever, the emulator will look frozen");
         // We don't want to actually exit the process ourselves as it'll automatically be restarted gracefully due to a timeout after being unable to exit within a fixed duration
         while (true)
             sleep(std::numeric_limits<int>::max()); // We just trigger the timeout wait by sleeping forever
@@ -78,11 +95,42 @@ namespace skyline::signal {
 
             __builtin_unreachable();
         } else {
+            if (exception) {
+                try {
+                    std::rethrow_exception(exception);
+                } catch (const std::exception &e) {
+                    ReportEmergency("Unhandled C++ exception reached std::terminate", e.what());
+                } catch (...) {
+                    ReportEmergency("Unhandled non-standard C++ exception reached std::terminate");
+                }
+            } else {
+                ReportEmergency("std::terminate was called without an active exception");
+            }
             SleepTillExit(); // We don't want to delegate to the older terminate handler as it might cause an exit
         }
     }
 
     void ExceptionalSignalHandler(int signal, siginfo *info, ucontext *context) {
+        // Report the signal right away: if the code that is going to receive the exception is missing or the unwinding fails, the process just hangs and this is the only record left
+        static std::atomic<int> reportCount{};
+        if (reportCount.fetch_add(1, std::memory_order_relaxed) < 8) {
+            char detail[256];
+            snprintf(detail, sizeof(detail), "Host signal %d (si_code %d) at PC 0x%llx, fault address 0x%llx",
+                     signal, info->si_code,
+                     static_cast<unsigned long long>(context->uc_mcontext.pc),
+                     static_cast<unsigned long long>(context->uc_mcontext.fault_address));
+            ReportEmergency("Fatal-looking signal", detail);
+
+            // Resolve which library the PC is in (the PowerVR/Turnip driver, libskyline...), done after the line above as dladdr takes a loader lock
+            Dl_info dlInfo{};
+            if (dladdr(reinterpret_cast<void *>(context->uc_mcontext.pc), &dlInfo) != 0 && dlInfo.dli_fname) {
+                snprintf(detail, sizeof(detail), "PC is in %s + 0x%llx (symbol: %s)", dlInfo.dli_fname,
+                         static_cast<unsigned long long>(context->uc_mcontext.pc - reinterpret_cast<uintptr_t>(dlInfo.dli_fbase)),
+                         dlInfo.dli_sname ? dlInfo.dli_sname : "?");
+                ReportEmergency("Crash location", detail);
+            }
+        }
+
         SignalException signalException;
         signalException.signal = signal;
         signalException.pc = reinterpret_cast<void *>(context->uc_mcontext.pc);

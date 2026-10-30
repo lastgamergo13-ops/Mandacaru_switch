@@ -6,6 +6,10 @@
 #include <mutex>
 #include <fstream>
 #include <pthread.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstring>
+#include <tuple>
 #include <thread>
 #include <common/base.h>
 #include <common/circular_queue.h>
@@ -43,6 +47,8 @@ namespace skyline {
     } threadContext;
 
     using LogLevel = AsyncLogger::LogLevel;
+
+    static std::atomic<int> EmergencyLogFd{-1}; //!< A second descriptor on the log file, used only by LogEmergency (O_APPEND keeps it from clobbering the writer thread)
 
     using clock = std::chrono::steady_clock;
     using microseconds = std::chrono::microseconds;
@@ -97,6 +103,7 @@ namespace skyline {
             start = clock::now();
             std::filesystem::create_directories(path.parent_path());
             logFile.open(path, std::ios::trunc);
+            EmergencyLogFd.store(open(path.c_str(), O_WRONLY | O_APPEND | O_CLOEXEC), std::memory_order_release);
             thread = std::thread{&Impl::WriterThread, this};
         }
 
@@ -109,6 +116,9 @@ namespace skyline {
             running.store(false, std::memory_order_release);
             if (wait)
                 thread.join();
+
+            if (int fd{EmergencyLogFd.exchange(-1, std::memory_order_acq_rel)}; fd >= 0)
+                close(fd);
 
             std::scoped_lock lock{fileMutex};
             logFile.close();
@@ -226,6 +236,19 @@ namespace skyline {
             clock::now(),
             &threadContext
         });
+    }
+
+    void AsyncLogger::LogEmergency(const char *message) noexcept {
+        __android_log_write(ANDROID_LOG_FATAL, "emu-cpp-crash", message);
+
+        int fd{EmergencyLogFd.load(std::memory_order_acquire)};
+        if (fd < 0)
+            return;
+
+        constexpr const char *Prefix{"ERROR   |          0 |      CRASH      | "};
+        std::ignore = write(fd, Prefix, strlen(Prefix));
+        std::ignore = write(fd, message, strlen(message));
+        std::ignore = write(fd, "\n", 1);
     }
 
     void AsyncLogger::LogSync(LogLevel level, std::string &&str, const char *function) {

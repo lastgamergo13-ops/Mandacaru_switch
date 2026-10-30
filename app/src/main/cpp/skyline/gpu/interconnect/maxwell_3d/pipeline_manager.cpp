@@ -952,6 +952,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         auto [stream, totalPipelineCount]{gpu.graphicsPipelineCacheManager->OpenReadStream()};
         i64 lastKnownGoodOffset{stream.tellg()};
 
+        LOGI("Loading {} graphics pipelines from the cache", totalPipelineCount);
         jvm.ShowPipelineLoadingScreen(totalPipelineCount);
         gpu.graphicsPipelineAssembler->RegisterCompilationCallback([&]() {
             jvm.UpdatePipelineLoadingProgress(++compiledCount);

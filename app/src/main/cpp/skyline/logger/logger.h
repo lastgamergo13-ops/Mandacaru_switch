@@ -66,6 +66,12 @@ namespace skyline {
          */
         static void LogSync(LogLevel level, std::string &&str, const char *function = nullptr);
 
+        /**
+         * @brief Writes a line straight to the log file and logcat, bypassing the queue, the writer thread and every lock
+         * @note Meant for fatal signal handlers and std::terminate, where the writer thread may never get to run again. Does not allocate.
+         */
+        static void LogEmergency(const char *message) noexcept;
+
       private:
         AsyncLogger() = default;
     };

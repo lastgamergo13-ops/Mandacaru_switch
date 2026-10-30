@@ -270,6 +270,12 @@ namespace skyline::gpu {
                 break;
             }
 
+            case vk::DriverId::eImaginationProprietary: {
+                // Precaution, not a confirmed bug: the crashes seen on a PowerVR BXM-8-256 (Moto G54) die silently while pipelines are being built on several threads
+                brokenMultithreadedPipelineCompilation = true;
+                break;
+            }
+
             case vk::DriverId::eNvidiaProprietary: {
                 relaxedRenderPassCompatibility = true;
                 break;
