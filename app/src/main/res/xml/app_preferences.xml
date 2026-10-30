@@ -26,36 +26,6 @@
             app:title="@string/firmware" />
     </PreferenceCategory>
     <PreferenceCategory
-        android:key="category_dlc"
-        android:title="@string/dlc_updates">
-        <org.stratoemu.strato.preference.DlcImportPreference
-            app:key="dlc_install"
-            app:title="@string/dlc_install" />
-        <org.stratoemu.strato.preference.ClearContentPreference
-            app:key="clear_dlc"
-            app:title="@string/dlc_clear" />
-    </PreferenceCategory>
-    <PreferenceCategory
-        android:key="category_mods"
-        android:title="@string/mods">
-        <org.stratoemu.strato.preference.ModImportPreference
-            app:key="mod_install"
-            app:title="@string/mod_install" />
-        <org.stratoemu.strato.preference.ClearContentPreference
-            app:key="clear_mods"
-            app:title="@string/mods_clear" />
-    </PreferenceCategory>
-    <PreferenceCategory
-        android:key="category_translations"
-        android:title="@string/translations">
-        <org.stratoemu.strato.preference.PatchImportPreference
-            app:key="patches"
-            app:title="@string/patches" />
-        <org.stratoemu.strato.preference.ClearContentPreference
-            app:key="clear_patches"
-            app:title="@string/patches_clear" />
-    </PreferenceCategory>
-    <PreferenceCategory
         android:key="category_appearance"
         android:title="@string/appearance">
         <org.stratoemu.strato.preference.ThemePreference
@@ -63,6 +33,12 @@
             android:entries="@array/app_theme"
             app:key="app_theme"
             app:title="@string/theme"
+            app:useSimpleSummaryProvider="true" />
+        <org.stratoemu.strato.preference.ThemeColorPreference
+            android:defaultValue="2"
+            android:entries="@array/theme_colors"
+            app:key="theme_color"
+            app:title="@string/theme_color"
             app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
             android:defaultValue="false"

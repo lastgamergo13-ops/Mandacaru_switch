@@ -7,6 +7,7 @@
 #include <set>
 #include <os.h>
 #include <loader/loader.h>
+#include <kernel/types/KProcess.h>
 #include <crypto/key_store.h>
 #include <vfs/os_filesystem.h>
 #include <vfs/nca.h>
@@ -16,15 +17,22 @@ namespace skyline::vfs {
      * @brief Helpers for the content the user installs (DLC) and the mods the user adds, all of it lives in the public files directory of the app
      */
 
-    inline std::string GetCurrentTitleIdString(const DeviceState &state) {
-        if (!state.loader || !state.loader->nacp)
-            return {};
-        return state.loader->nacp->GetSaveDataOwnerId();
+    /**
+     * @return The title id of the running game, it's read from the NPDM and the NACP is only used when that isn't available
+     */
+    inline u64 GetCurrentTitleId(const DeviceState &state) {
+        if (state.process && state.process->npdm.aci0.programId)
+            return state.process->npdm.aci0.programId;
+
+        if (state.loader && state.loader->nacp)
+            return std::strtoull(state.loader->nacp->GetSaveDataOwnerId().c_str(), nullptr, 16);
+
+        return 0;
     }
 
-    inline u64 GetCurrentTitleId(const DeviceState &state) {
-        auto titleId{GetCurrentTitleIdString(state)};
-        return titleId.empty() ? 0 : std::strtoull(titleId.c_str(), nullptr, 16);
+    inline std::string GetCurrentTitleIdString(const DeviceState &state) {
+        u64 titleId{GetCurrentTitleId(state)};
+        return titleId ? fmt::format("{:016X}", titleId) : std::string{};
     }
 
     /**
@@ -35,12 +43,15 @@ namespace skyline::vfs {
         return titleId.empty() ? std::string{} : state.os->publicAppFilesPath + "/mods/" + titleId;
     }
 
+    /**
+     * @return The directory the NCAs of the DLC installed for the current game are in, DLC is installed per game (from the game's own options) and doesn't affect other games
+     */
     inline std::string GetInstalledContentsPath(const DeviceState &state) {
-        return state.os->publicAppFilesPath + "/switch/nand/user/Contents/registered/";
+        return state.os->publicAppFilesPath + "/games/" + GetCurrentTitleIdString(state) + "/dlc/registered/";
     }
 
     inline std::string GetInstalledTitleKeysPath(const DeviceState &state) {
-        return state.os->publicAppFilesPath + "/switch/nand/user/Contents/title_keys.txt";
+        return state.os->publicAppFilesPath + "/games/" + GetCurrentTitleIdString(state) + "/dlc/title_keys.txt";
     }
 
     /**

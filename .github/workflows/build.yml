@@ -1,10 +1,8 @@
-# Compila o Strato (APK "mainline" release) no GitHub Actions.
-# Dispara a cada push em main/master e também manualmente (aba Actions > Build > Run workflow).
+# Compila o Mandacaru switch (APK "mainline" release) no GitHub Actions.
+# Gatilho MANUAL: o build só roda quando você pede (aba Actions > Build > Run workflow), um push não inicia mais o build.
 name: Build
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 env:

@@ -37,6 +37,7 @@ import org.stratoemu.strato.provider.DocumentsProvider
 import org.stratoemu.strato.settings.AppSettings
 import org.stratoemu.strato.settings.EmulationSettings
 import org.stratoemu.strato.settings.SettingsActivity
+import org.stratoemu.strato.settings.SetupModeTag
 import org.stratoemu.strato.utils.GpuDriverHelper
 import org.stratoemu.strato.utils.WindowInsetsHelper
 import javax.inject.Inject
@@ -108,6 +109,10 @@ class MainActivity : AppCompatActivity() {
 
         PreferenceManager.setDefaultValues(this, R.xml.app_preferences, false)
         PreferenceManager.setDefaultValues(this, R.xml.emulation_preferences, false)
+
+        // The first time the app is opened the user is asked for the keys, the firmware and the folder of the games
+        if (savedInstanceState == null && !AppSettings(this).setupCompleted)
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(SetupModeTag, true))
 
         binding.subText.text = BuildConfig.VERSION_NAME
         // The first click event is consumed by the focus acquisition

@@ -148,11 +148,9 @@
             android:layout_marginTop="8dp"
             app:alignItems="center"
             app:flexWrap="nowrap"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/save_management"
-            app:layout_constraintVertical_bias="1">
+            app:layout_constraintTop_toBottomOf="@+id/save_management">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/import_save"
@@ -185,5 +183,150 @@
                 app:iconGravity="textStart" />
 
         </com.google.android.flexbox.FlexboxLayout>
+
+        <LinearLayout
+            android:id="@+id/content_sections"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/flexboxSaves"
+            app:layout_constraintVertical_bias="1">
+
+            <TextView
+                style="?attr/textAppearanceLabelLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/dlc_updates" />
+
+            <com.google.android.flexbox.FlexboxLayout
+                style="@style/ThemeOverlay.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:alignItems="center"
+                app:flexWrap="nowrap">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dlc_install"
+                    style="@style/Widget.Material3.Button.TonalButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/content_install"
+                    android:text="@string/content_install"
+                    app:icon="@drawable/ic_add" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dlc_delete"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="48dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/content_remove"
+                    android:tooltipText="@string/content_remove"
+                    app:icon="@drawable/ic_delete"
+                    app:iconGravity="textStart" />
+
+            </com.google.android.flexbox.FlexboxLayout>
+
+            <TextView
+                android:id="@+id/dlc_summary"
+                style="?attr/textAppearanceBodySmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                style="?attr/textAppearanceLabelLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/mods" />
+
+            <com.google.android.flexbox.FlexboxLayout
+                style="@style/ThemeOverlay.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:alignItems="center"
+                app:flexWrap="nowrap">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/mod_install"
+                    style="@style/Widget.Material3.Button.TonalButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/content_install"
+                    android:text="@string/content_install"
+                    app:icon="@drawable/ic_add" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/mod_delete"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="48dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/content_remove"
+                    android:tooltipText="@string/content_remove"
+                    app:icon="@drawable/ic_delete"
+                    app:iconGravity="textStart" />
+
+            </com.google.android.flexbox.FlexboxLayout>
+
+            <TextView
+                android:id="@+id/mod_summary"
+                style="?attr/textAppearanceBodySmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                style="?attr/textAppearanceLabelLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/fix_patches" />
+
+            <com.google.android.flexbox.FlexboxLayout
+                style="@style/ThemeOverlay.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:alignItems="center"
+                app:flexWrap="nowrap">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/patch_install"
+                    style="@style/Widget.Material3.Button.TonalButton.Icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/content_install"
+                    android:text="@string/content_install"
+                    app:icon="@drawable/ic_add" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/patch_delete"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="48dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/content_remove"
+                    android:tooltipText="@string/content_remove"
+                    app:icon="@drawable/ic_delete"
+                    app:iconGravity="textStart" />
+
+            </com.google.android.flexbox.FlexboxLayout>
+
+            <TextView
+                android:id="@+id/patch_summary"
+                style="?attr/textAppearanceBodySmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 </LinearLayout>

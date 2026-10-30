@@ -16,6 +16,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.WindowCompat
+import androidx.core.view.isVisible
+import androidx.preference.PreferenceManager
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -27,12 +29,14 @@ import com.google.android.material.internal.ToolbarUtils
 import org.stratoemu.strato.BuildConfig
 import org.stratoemu.strato.R
 import org.stratoemu.strato.data.AppItemTag
+import org.stratoemu.strato.di.getSettings
 import org.stratoemu.strato.databinding.SettingsActivityBinding
 import org.stratoemu.strato.preference.IntegerListPreference
 import org.stratoemu.strato.preference.dialog.EditTextPreferenceMaterialDialogFragmentCompat
 import org.stratoemu.strato.preference.dialog.IntegerListPreferenceMaterialDialogFragmentCompat
 import org.stratoemu.strato.preference.dialog.ListPreferenceMaterialDialogFragmentCompat
 import org.stratoemu.strato.utils.WindowInsetsHelper
+import java.io.File
 
 private const val PREFERENCE_DIALOG_FRAGMENT_TAG = "androidx.preference.PreferenceFragment.DIALOG"
 
@@ -51,9 +55,39 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     private val preferenceFragment by lazy {
         if (intent.hasExtra(AppItemTag))
             GameSettingsFragment().apply { arguments = intent.extras }
+        else if (isSetupMode)
+            SetupSettingsFragment()
         else
             GlobalSettingsFragment()
     }
+
+    /**
+     * If this is the first-run setup (keys, firmware and games folder) instead of the normal settings
+     */
+    private val isSetupMode by lazy { intent.getBooleanExtra(SetupModeTag, false) }
+
+    /**
+     * The setup can be finished once the keys, the firmware and the folder of the games were chosen
+     */
+    private fun isSetupComplete() : Boolean {
+        val keys = File(filesDir, "keys")
+        val preferences = PreferenceManager.getDefaultSharedPreferences(this)
+        return File(keys, "prod.keys").exists() &&
+            File(keys, "title.keys").exists() &&
+            !preferences.getString("firmware", null).isNullOrBlank() &&
+            getSettings().searchLocation.isNotBlank()
+    }
+
+    private fun refreshSetupState() {
+        if (isSetupMode)
+            binding.setupDone.isEnabled = isSetupComplete()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshSetupState()
+    }
+
 
     /**
      * This initializes all of the elements in the activity and displays the settings fragment
@@ -64,6 +98,15 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         setContentView(binding.root)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsHelper.applyToActivity(binding.root)
+
+        if (isSetupMode) {
+            binding.setupBar.isVisible = true
+            binding.setupSkip.setOnClickListener { finish() }
+            binding.setupDone.setOnClickListener { finish() }
+
+            // The firmware is imported in the background and saves its version when it's done
+            PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener { _, _ -> refreshSetupState() }
+        }
 
         setSupportActionBar(binding.titlebar.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -190,6 +233,10 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     }
 
     override fun finish() {
+        // Leaving the first-run setup (done, skip or back) means it is not shown again
+        if (isSetupMode)
+            getSettings().setupCompleted = true
+
         setResult(RESULT_OK)
         super.finish()
     }

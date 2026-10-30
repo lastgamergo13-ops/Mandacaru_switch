@@ -224,7 +224,7 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_preference_FirmwareImportPre
  * @param titleKeysPathJstring The file the title keys of the tickets in the NSP are added to ('rights id=title key' lines)
  * @return The number of NCAs that were copied, -1 if the NSP couldn't be read
  */
-extern "C" JNIEXPORT jint Java_org_stratoemu_strato_preference_DlcImportPreference_installNsp(JNIEnv *env, jobject thiz, jint fd, jstring contentsPathJstring, jstring titleKeysPathJstring) {
+extern "C" JNIEXPORT jint Java_org_stratoemu_strato_utils_GameContentManager_installNsp(JNIEnv *env, jobject thiz, jint fd, jstring contentsPathJstring, jstring titleKeysPathJstring) {
     // C++ exceptions must never escape a JNI function (they abort the whole app)
     try {
         std::string contentsPath{skyline::JniString(env, contentsPathJstring)};

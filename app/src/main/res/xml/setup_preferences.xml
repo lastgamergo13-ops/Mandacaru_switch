@@ -1,0 +1,21 @@
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory
+        android:key="category_setup"
+        android:title="@string/setup_title">
+        <org.stratoemu.strato.preference.KeyPickerPreference
+            app:key="prod_keys"
+            app:title="@string/prod_keys"
+            app:useSimpleSummaryProvider="true" />
+        <org.stratoemu.strato.preference.KeyPickerPreference
+            app:key="title_keys"
+            app:title="@string/title_keys"
+            app:useSimpleSummaryProvider="true" />
+        <org.stratoemu.strato.preference.FirmwareImportPreference
+            app:key="firmware"
+            app:title="@string/firmware" />
+        <org.stratoemu.strato.preference.FolderPickerPreference
+            app:key="search_location"
+            app:title="@string/search_location" />
+    </PreferenceCategory>
+</androidx.preference.PreferenceScreen>

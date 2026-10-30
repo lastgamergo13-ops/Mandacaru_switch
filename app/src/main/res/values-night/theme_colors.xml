@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cores de tema escolhidas em Configurações > Tema (cor). Amarelo é o tema padrão e não usa overlay. -->
+<resources>
+    <style name="ThemeOverlay.Mandacaru.Red" parent="">
+        <item name="colorPrimary">#FFADAD</item>
+        <item name="colorOnPrimary">#411010</item>
+        <item name="colorPrimaryContainer">#5D2D2D</item>
+        <item name="colorOnPrimaryContainer">#FFADAD</item>
+        <item name="colorSecondary">#D6A9A9</item>
+        <item name="colorOnSecondary">#3C2020</item>
+        <item name="colorSecondaryContainer">#5C3D3D</item>
+        <item name="colorOnSecondaryContainer">#F0DBDB</item>
+        <item name="colorTertiary">#DDD1B0</item>
+        <item name="colorOnTertiary">#3E351E</item>
+        <item name="colorTertiaryContainer">#605539</item>
+        <item name="colorOnTertiaryContainer">#F2EBD9</item>
+        <item name="android:colorBackground">#1A1414</item>
+        <item name="colorOnBackground">#E8E3E3</item>
+        <item name="colorSurface">#1A1414</item>
+        <item name="colorOnSurface">#E8E3E3</item>
+        <item name="colorSurfaceVariant">#473838</item>
+        <item name="colorOnSurfaceVariant">#D2C6C6</item>
+        <item name="colorOutline">#A19191</item>
+        <item name="colorOutlineVariant">#544545</item>
+        <item name="colorSurfaceInverse">#E8E3E3</item>
+        <item name="colorOnSurfaceInverse">#2C2121</item>
+        <item name="colorPrimaryInverse">#7A2929</item>
+    </style>
+    <style name="ThemeOverlay.Mandacaru.Orange" parent="">
+        <item name="colorPrimary">#FFD6A5</item>
+        <item name="colorOnPrimary">#412B10</item>
+        <item name="colorPrimaryContainer">#5D472D</item>
+        <item name="colorOnPrimaryContainer">#FFD6A5</item>
+        <item name="colorSecondary">#D6C1A9</item>
+        <item name="colorOnSecondary">#3C2F20</item>
+        <item name="colorSecondaryContainer">#5C4E3D</item>
+        <item name="colorOnSecondaryContainer">#F0E6DB</item>
+        <item name="colorTertiary">#D1DDB0</item>
+        <item name="colorOnTertiary">#353E1E</item>
+        <item name="colorTertiaryContainer">#566039</item>
+        <item name="colorOnTertiaryContainer">#ECF2D9</item>
+        <item name="android:colorBackground">#1A1714</item>
+        <item name="colorOnBackground">#E8E6E3</item>
+        <item name="colorSurface">#1A1714</item>
+        <item name="colorOnSurface">#E8E6E3</item>
+        <item name="colorSurfaceVariant">#474038</item>
+        <item name="colorOnSurfaceVariant">#D2CDC6</item>
+        <item name="colorOutline">#A19A91</item>
+        <item name="colorOutlineVariant">#544D45</item>
+        <item name="colorSurfaceInverse">#E8E6E3</item>
+        <item name="colorOnSurfaceInverse">#2C2721</item>
+        <item name="colorPrimaryInverse">#7A5529</item>
+    </style>
+    <style name="ThemeOverlay.Mandacaru.Green" parent="">
+        <item name="colorPrimary">#CAFFBF</item>
+        <item name="colorOnPrimary">#194110</item>
+        <item name="colorPrimaryContainer">#355D2D</item>
+        <item name="colorOnPrimaryContainer">#CAFFBF</item>
+        <item name="colorSecondary">#B1D6A9</item>
+        <item name="colorOnSecondary">#253C20</item>
+        <item name="colorSecondaryContainer">#425C3D</item>
+        <item name="colorOnSecondaryContainer">#DFF0DB</item>
+        <item name="colorTertiary">#B0DDC9</item>
+        <item name="colorOnTertiary">#1E3E2F</item>
+        <item name="colorTertiaryContainer">#39604E</item>
+        <item name="colorOnTertiaryContainer">#D9F2E7</item>
+        <item name="android:colorBackground">#151A14</item>
+        <item name="colorOnBackground">#E4E8E3</item>
+        <item name="colorSurface">#151A14</item>
+        <item name="colorOnSurface">#E4E8E3</item>
+        <item name="colorSurfaceVariant">#3B4738</item>
+        <item name="colorOnSurfaceVariant">#C8D2C6</item>
+        <item name="colorOutline">#94A191</item>
+        <item name="colorOutlineVariant">#475445</item>
+        <item name="colorSurfaceInverse">#E4E8E3</item>
+        <item name="colorOnSurfaceInverse">#222C21</item>
+        <item name="colorPrimaryInverse">#377A29</item>
+    </style>
+    <style name="ThemeOverlay.Mandacaru.Blue" parent="">
+        <item name="colorPrimary">#9BF6FF</item>
+        <item name="colorOnPrimary">#103D41</item>
+        <item name="colorPrimaryContainer">#2D595D</item>
+        <item name="colorOnPrimaryContainer">#9BF6FF</item>
+        <item name="colorSecondary">#A9D2D6</item>
+        <item name="colorOnSecondary">#20393C</item>
+        <item name="colorSecondaryContainer">#3D595C</item>
+        <item name="colorOnSecondaryContainer">#DBEEF0</item>
+        <item name="colorTertiary">#B0B9DD</item>
+        <item name="colorOnTertiary">#1E243E</item>
+        <item name="colorTertiaryContainer">#394160</item>
+        <item name="colorOnTertiaryContainer">#D9DEF2</item>
+        <item name="android:colorBackground">#141A1A</item>
+        <item name="colorOnBackground">#E3E8E8</item>
+        <item name="colorSurface">#141A1A</item>
+        <item name="colorOnSurface">#E3E8E8</item>
+        <item name="colorSurfaceVariant">#384647</item>
+        <item name="colorOnSurfaceVariant">#C6D1D2</item>
+        <item name="colorOutline">#91A0A1</item>
+        <item name="colorOutlineVariant">#455354</item>
+        <item name="colorSurfaceInverse">#E3E8E8</item>
+        <item name="colorOnSurfaceInverse">#212B2C</item>
+        <item name="colorPrimaryInverse">#29737A</item>
+    </style>
+    <style name="ThemeOverlay.Mandacaru.Indigo" parent="">
+        <item name="colorPrimary">#A0C4FF</item>
+        <item name="colorOnPrimary">#102341</item>
+        <item name="colorPrimaryContainer">#2D3F5D</item>
+        <item name="colorOnPrimaryContainer">#A0C4FF</item>
+        <item name="colorSecondary">#A9BAD6</item>
+        <item name="colorOnSecondary">#202B3C</item>
+        <item name="colorSecondaryContainer">#3D495C</item>
+        <item name="colorOnSecondaryContainer">#DBE3F0</item>
+        <item name="colorTertiary">#C0B0DD</item>
+        <item name="colorOnTertiary">#291E3E</item>
+        <item name="colorTertiaryContainer">#463960</item>
+        <item name="colorOnTertiaryContainer">#E1D9F2</item>
+        <item name="android:colorBackground">#14161A</item>
+        <item name="colorOnBackground">#E3E5E8</item>
+        <item name="colorSurface">#14161A</item>
+        <item name="colorOnSurface">#E3E5E8</item>
+        <item name="colorSurfaceVariant">#383E47</item>
+        <item name="colorOnSurfaceVariant">#C6CBD2</item>
+        <item name="colorOutline">#9197A1</item>
+        <item name="colorOutlineVariant">#454B54</item>
+        <item name="colorSurfaceInverse">#E3E5E8</item>
+        <item name="colorOnSurfaceInverse">#21252C</item>
+        <item name="colorPrimaryInverse">#29487A</item>
+    </style>
+    <style name="ThemeOverlay.Mandacaru.Violet" parent="">
+        <item name="colorPrimary">#BDB2FF</item>
+        <item name="colorOnPrimary">#171041</item>
+        <item name="colorPrimaryContainer">#342D5D</item>
+        <item name="colorOnPrimaryContainer">#BDB2FF</item>
+        <item name="colorSecondary">#AFA9D6</item>
+        <item name="colorOnSecondary">#24203C</item>
+        <item name="colorSecondaryContainer">#423D5C</item>
+        <item name="colorOnSecondaryContainer">#DEDBF0</item>
+        <item name="colorTertiary">#D7B0DD</item>
+        <item name="colorOnTertiary">#3A1E3E</item>
+        <item name="colorTertiaryContainer">#5A3960</item>
+        <item name="colorOnTertiaryContainer">#EFD9F2</item>
+        <item name="android:colorBackground">#14141A</item>
+        <item name="colorOnBackground">#E4E3E8</item>
+        <item name="colorSurface">#14141A</item>
+        <item name="colorOnSurface">#E4E3E8</item>
+        <item name="colorSurfaceVariant">#3A3847</item>
+        <item name="colorOnSurfaceVariant">#C8C6D2</item>
+        <item name="colorOutline">#9391A1</item>
+        <item name="colorOutlineVariant">#474554</item>
+        <item name="colorSurfaceInverse">#E4E3E8</item>
+        <item name="colorOnSurfaceInverse">#22212C</item>
+        <item name="colorPrimaryInverse">#34297A</item>
+    </style>
+</resources>

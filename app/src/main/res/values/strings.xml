@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Skyline</string>
+    <string name="app_name" translatable="false">Mandacaru switch</string>
     <!-- Common -->
     <string name="search">Search</string>
     <string name="error">An error has occurred</string>
@@ -34,8 +34,8 @@
     <!-- Settings - Content -->
     <string name="content">Content</string>
     <string name="open_data_directory">View Internal Directory</string>
-    <string name="open_data_directory_summary">Opens Skyline\'s internal directory in a file manager</string>
-    <string name="open_data_directory_failed">Cannot find an external file manager to open Skyline\'s internal directory</string>
+    <string name="open_data_directory_summary">Opens Mandacaru switch\'s internal directory in a file manager</string>
+    <string name="open_data_directory_failed">Cannot find an external file manager to open Mandacaru switch\'s internal directory</string>
     <string name="search_location">Search Location</string>
     <!-- Settings - Keys -->
     <string name="keys">Keys</string>
@@ -58,6 +58,9 @@
     <string name="patches_installed">%d patch file(s) installed</string>
     <string name="import_patches_success">%d patch file(s) installed, they are applied the next time a game starts</string>
     <string name="dlc_updates">DLC / Updates</string>
+    <string name="content_install">Install</string>
+    <string name="content_remove">Remove</string>
+    <string name="fix_patches">Fix patches / translations (.pchtxt, .ips)</string>
     <string name="dlc_install">Install DLC / update (NSP)</string>
     <string name="dlc_clear">Remove installed DLC / updates</string>
     <string name="content_installed">%d package file(s) installed</string>
@@ -95,7 +98,7 @@
     <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>
     <string name="use_material_you">Use Material You</string>
-    <string name="use_material_you_desc_off">Skyline colors will be used</string>
+    <string name="use_material_you_desc_off">Mandacaru switch colors will be used</string>
     <string name="use_material_you_desc_on">Material You will be used</string>
     <string name="app_language">App Language</string>
     <string name="app_language_default">Use System Default</string>
@@ -347,7 +350,19 @@
     <string name="save_file_imported_ok">The save file was imported successfully</string>
     <string name="save_file_invalid_zip_structure">Invalid Zip directory structure: the first subfolder name must be the Title ID of the game.</string>
     <string name="save_file_share">Share save file</string>
-    <string name="global_save_data_zip_name">Strato save data</string>
+    <string name="global_save_data_zip_name">Mandacaru save data</string>
     <string name="game_crash">The game has crashed</string>
     <string name="game_crash_message">A fatal error occurred. Check the log for details.</string>
+    <string name="theme_color">Theme color</string>
+    <string name="theme_color_red">Red</string>
+    <string name="theme_color_orange">Orange</string>
+    <string name="theme_color_yellow">Yellow (default)</string>
+    <string name="theme_color_green">Green</string>
+    <string name="theme_color_blue">Blue</string>
+    <string name="theme_color_indigo">Indigo</string>
+    <string name="theme_color_violet">Violet</string>
+    <string name="setup_title">First setup</string>
+    <string name="setup_message">Choose the files you have to start playing. You can do this later in the settings.</string>
+    <string name="setup_done">Done</string>
+    <string name="setup_skip">Skip</string>
 </resources>

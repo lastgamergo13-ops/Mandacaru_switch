@@ -4,6 +4,8 @@
 #include <jni.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <sys/system_properties.h>
+#include <unistd.h>
 #include <vulkan/vulkan_raii.hpp>
 #include <adrenotools/driver.h>
 #include "skyline/common/format.h"
@@ -36,9 +38,19 @@ static bool CheckKgslPresent() {
     return access(KgslPath, F_OK) == 0;
 }
 
+/**
+ * @return If the GPU is a Mali, custom drivers can also be loaded for it (they only have to be built for the same kernel driver)
+ */
+static bool CheckMaliPresent() {
+    char vulkanDriver[PROP_VALUE_MAX]{};
+    __system_property_get("ro.hardware.vulkan", vulkanDriver);
+
+    return std::string_view(vulkanDriver).rfind("mali", 0) == 0 || access("/dev/mali0", F_OK) == 0 || access("/dev/mali", F_OK) == 0;
+}
+
 extern "C" JNIEXPORT jboolean JNICALL Java_org_stratoemu_strato_utils_GpuDriverHelper_00024Companion_supportsCustomDriverLoading(JNIEnv *env, jobject instance) {
-    // If the KGSL device exists custom drivers can be loaded using adrenotools
-    return CheckKgslPresent();
+    // If the KGSL device exists (Adreno) or the GPU is a Mali custom drivers can be loaded using adrenotools' linker namespace bypass
+    return CheckKgslPresent() || CheckMaliPresent();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_org_stratoemu_strato_utils_GpuDriverHelper_00024Companion_supportsForceMaxGpuClocks(JNIEnv *env, jobject instance) {

@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.snackbar.Snackbar
@@ -25,6 +26,7 @@ import org.stratoemu.strato.data.AppItemTag
 import org.stratoemu.strato.databinding.AppDialogBinding
 import org.stratoemu.strato.loader.LoaderResult
 import org.stratoemu.strato.settings.SettingsActivity
+import org.stratoemu.strato.utils.GameContentManager
 import org.stratoemu.strato.utils.SaveManagementUtils
 import org.stratoemu.strato.utils.serializable
 
@@ -55,6 +57,7 @@ class AppDialog : BottomSheetDialogFragment() {
      */
     private lateinit var documentPicker : ActivityResultLauncher<Array<String>>
     private lateinit var startForResultExportSave : ActivityResultLauncher<Intent>
+    private lateinit var contentManager : GameContentManager
 
     override fun onCreate(savedInstanceState : Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +67,38 @@ class AppDialog : BottomSheetDialogFragment() {
             binding.exportSave.isEnabled = isSaveFileOfThisGame
         }
         startForResultExportSave = SaveManagementUtils.registerStartForResultExportSave(requireActivity())
+
+        // The DLC, mods and patches are managed per game, they're stored with the game's title id so they never affect other games
+        contentManager = GameContentManager(requireActivity() as AppCompatActivity, item.titleId) {
+            if (isAdded)
+                updateContentSummaries()
+        }
+    }
+
+    /**
+     * Updates the texts and the state of the buttons of the DLC, mods and patches sections
+     */
+    private fun updateContentSummaries() {
+        val dlcCount = contentManager.dlcCount()
+        val modCount = contentManager.modCount()
+        val patchCount = contentManager.patchCount()
+
+        binding.dlcSummary.text = getString(R.string.content_installed, dlcCount)
+        binding.modSummary.text = getString(R.string.mods_installed, modCount)
+        binding.patchSummary.text = getString(R.string.patches_installed, patchCount)
+
+        binding.dlcDelete.isEnabled = dlcCount > 0
+        binding.modDelete.isEnabled = modCount > 0
+        binding.patchDelete.isEnabled = patchCount > 0
+    }
+
+    private fun confirmClear(onConfirmed : () -> Unit) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.clear_content_confirm))
+            .setMessage(getString(R.string.action_irreversible))
+            .setNegativeButton(getString(R.string.no), null)
+            .setPositiveButton(getString(R.string.yes)) { _, _ -> onConfirmed() }
+            .show()
     }
 
     /**
@@ -143,6 +178,14 @@ class AppDialog : BottomSheetDialogFragment() {
         binding.exportSave.setOnClickListener {
             SaveManagementUtils.exportSave(requireContext(), startForResultExportSave, item.titleId, "${item.title} (v${binding.gameVersion.text}) [${item.titleId}]")
         }
+
+        binding.dlcInstall.setOnClickListener { contentManager.pickDlc() }
+        binding.dlcDelete.setOnClickListener { confirmClear { contentManager.clearDlc() } }
+        binding.modInstall.setOnClickListener { contentManager.pickMod() }
+        binding.modDelete.setOnClickListener { confirmClear { contentManager.clearMods() } }
+        binding.patchInstall.setOnClickListener { contentManager.pickPatches() }
+        binding.patchDelete.setOnClickListener { confirmClear { contentManager.clearPatches() } }
+        updateContentSummaries()
 
         binding.gameTitleId.setOnLongClickListener {
             val clipboard = requireActivity().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager

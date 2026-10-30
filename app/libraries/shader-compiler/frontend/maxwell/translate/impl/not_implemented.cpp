@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <shader_compiler/common/common_types.h>
+#include <shader_compiler/common/log.h>
 #include <shader_compiler/exception.h>
 #include <shader_compiler/frontend/maxwell/opcodes.h>
 #include <shader_compiler/frontend/maxwell/translate/impl/impl.h>
@@ -209,7 +210,8 @@ void TranslatorVisitor::R2B(u64) {
 }
 
 void TranslatorVisitor::RAM(u64) {
-    ThrowNotImplemented(Opcode::RAM);
+    // Like Eden/yuzu forks do, this is ignored instead of failing: games such as Hogwarts Legacy use it and the shader still works without it
+    LOG_WARNING(Shader, "(STUBBED) RAM Instruction");
 }
 
 void TranslatorVisitor::RET(u64) {
@@ -221,7 +223,8 @@ void TranslatorVisitor::RTT(u64) {
 }
 
 void TranslatorVisitor::SAM(u64) {
-    ThrowNotImplemented(Opcode::SAM);
+    // Like Eden/yuzu forks do, this is ignored instead of failing: games such as Hogwarts Legacy use it and the shader still works without it
+    LOG_WARNING(Shader, "(STUBBED) SAM Instruction");
 }
 
 void TranslatorVisitor::SETCRSPTR(u64) {
