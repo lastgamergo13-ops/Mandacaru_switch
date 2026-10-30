@@ -17,3 +17,6 @@ Registro dos jogos testados. Atualize a cada rodada de testes. "Não testado" si
 - Versão do app (commit), aparelho, GPU e driver (aparece no início do `emulation.log`).
 - Nível de log usado (Info para jogar, Debug só para reproduzir bugs curtos).
 - O que aconteceu e em quanto tempo.
+
+## Formatos aceitos na biblioteca
+NRO, NSO, NCA, NSP, XCI, e NSZ/XCZ comprimidos **por blocos** (`nsz -B`). NSZ/XCZ "sólido" (padrão do `nsz`) não é lido: o app mostra a mensagem de arquivo sólido não suportado. Para esses arquivos, descomprima com `nsz -D` para NSP/XCI ou recomprima com `nsz -C -B`.

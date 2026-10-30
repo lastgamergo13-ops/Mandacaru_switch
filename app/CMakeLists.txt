@@ -34,6 +34,29 @@ set(LZ4_BUILD_LEGACY_LZ4C OFF CACHE BOOL "Build lz4c progam with legacy argument
 add_subdirectory("libraries/lz4/build/cmake")
 include_directories(SYSTEM "libraries/lz4/lib")
 
+# Zstandard, used to read block compressed NCZ files (NSZ/XCZ). It's taken from libraries/zstd when that folder exists, otherwise it's downloaded while configuring
+set(ZSTD_BUILD_STATIC ON CACHE BOOL "Build zstd static library" FORCE)
+set(ZSTD_BUILD_SHARED OFF CACHE BOOL "Build zstd shared library" FORCE)
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Build zstd programs" FORCE)
+set(ZSTD_BUILD_CONTRIB OFF CACHE BOOL "Build zstd contrib" FORCE)
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Build zstd tests" FORCE)
+set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "Support for legacy zstd formats" FORCE)
+set(ZSTD_MULTITHREAD_SUPPORT OFF CACHE BOOL "Multithreaded compression, only decompression is used" FORCE)
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libraries/zstd/build/cmake/CMakeLists.txt")
+    set(ZSTD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/zstd")
+    add_subdirectory("libraries/zstd/build/cmake" "${CMAKE_CURRENT_BINARY_DIR}/zstd" EXCLUDE_FROM_ALL)
+else ()
+    include(FetchContent)
+    FetchContent_Declare(zstd URL "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz")
+    FetchContent_GetProperties(zstd)
+    if (NOT zstd_POPULATED)
+        FetchContent_Populate(zstd)
+        set(ZSTD_SOURCE_DIR "${zstd_SOURCE_DIR}")
+        add_subdirectory("${zstd_SOURCE_DIR}/build/cmake" "${zstd_BINARY_DIR}" EXCLUDE_FROM_ALL)
+    endif ()
+endif ()
+include_directories(SYSTEM "${ZSTD_SOURCE_DIR}/lib")
+
 # Vulkan + Vulkan-Hpp
 add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR) # We want all the Android-specific structures to be defined
 add_compile_definitions(VULKAN_HPP_NO_SPACESHIP_OPERATOR) # libcxx doesn't implement operator<=> for std::array which breaks this
@@ -247,6 +270,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/vfs/nacp.cpp
         ${source_DIR}/skyline/vfs/npdm.cpp
         ${source_DIR}/skyline/vfs/nca.cpp
+        ${source_DIR}/skyline/vfs/ncz_backing.cpp
         ${source_DIR}/skyline/vfs/ticket.cpp
         ${source_DIR}/skyline/services/serviceman.cpp
         ${source_DIR}/skyline/services/base_service.cpp
@@ -404,4 +428,4 @@ target_compile_options(skyline PRIVATE -Wall -Wno-unknown-attributes -Wno-c++20-
 target_link_libraries(skyline PRIVATE shader_recompiler audio_core)
 # Align the ELF segments to 16 KB so the library can be loaded on devices that use 16 KB memory pages (Android 15+), harmless on 4 KB devices
 target_link_options(skyline PRIVATE -Wl,-z,max-page-size=16384)
-target_link_libraries_system(skyline android perfetto fmt lz4_static tzcode vkma mbedcrypto opus Boost::intrusive Boost::container Boost::preprocessor Boost::regex range-v3 adrenotools tsl::robin_map)
+target_link_libraries_system(skyline android perfetto fmt lz4_static libzstd_static tzcode vkma mbedcrypto opus Boost::intrusive Boost::container Boost::preprocessor Boost::regex range-v3 adrenotools tsl::robin_map)

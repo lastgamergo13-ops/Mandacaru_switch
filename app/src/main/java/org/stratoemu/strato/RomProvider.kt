@@ -38,7 +38,7 @@ class RomProvider @Inject constructor(@ApplicationContext private val context : 
 
     fun loadRoms(searchLocation : Uri, systemLanguage : Int) = DocumentFile.fromTreeUri(context, searchLocation)!!.let { documentFile ->
         arrayListOf<AppEntry>().apply {
-            addEntries(mapOf("nro" to NRO, "nso" to NSO, "nca" to NCA, "nsp" to NSP, "xci" to XCI), documentFile, this, systemLanguage)
+            addEntries(mapOf("nro" to NRO, "nso" to NSO, "nca" to NCA, "nsp" to NSP, "xci" to XCI, "nsz" to NSP, "xcz" to XCI), documentFile, this, systemLanguage)
         }
     }
 }

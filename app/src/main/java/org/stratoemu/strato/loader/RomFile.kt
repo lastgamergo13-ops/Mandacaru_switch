@@ -41,7 +41,12 @@ fun getRomFormat(uri : Uri, contentResolver : ContentResolver) : RomFormat {
         cursor.moveToFirst()
         uriStr = cursor.getString(nameIndex)
     }
-    return RomFormat.valueOf(uriStr.substring(uriStr.lastIndexOf(".") + 1).uppercase(Locale.ROOT))
+    // NSZ and XCZ are NSP and XCI with compressed NCAs, the same loaders read them
+    return when (val extension = uriStr.substring(uriStr.lastIndexOf(".") + 1).uppercase(Locale.ROOT)) {
+        "NSZ" -> RomFormat.NSP
+        "XCZ" -> RomFormat.XCI
+        else -> RomFormat.valueOf(extension)
+    }
 }
 
 /**
@@ -53,7 +58,8 @@ enum class LoaderResult(val value : Int) {
     MissingHeaderKey(2),
     MissingTitleKey(3),
     MissingTitleKek(4),
-    MissingKeyArea(5);
+    MissingKeyArea(5),
+    UnsupportedCompression(6);
 
     companion object {
         fun get(value : Int) = values().firstOrNull { value == it.value } ?: ParsingError

@@ -3,6 +3,7 @@
 
 #include <kernel/types/KProcess.h>
 #include <vfs/ticket.h>
+#include <vfs/ncz_backing.h>
 #include "nca.h"
 #include "nsp.h"
 
@@ -27,11 +28,17 @@ namespace skyline::loader {
 
         auto root{nsp->OpenDirectory("", {false, true})};
         for (const auto &entry : root->Read()) {
-            if (entry.name.substr(entry.name.find_last_of('.') + 1) != "nca")
+            // NSZ files hold NCZ (block compressed NCA) files next to the regular ones
+            auto extension{entry.name.substr(entry.name.find_last_of('.') + 1)};
+            if (extension != "nca" && extension != "ncz")
                 continue;
 
             try {
-                auto nca{vfs::NCA(nsp->OpenFile(entry.name), keyStore)};
+                std::shared_ptr<vfs::Backing> ncaBacking{nsp->OpenFile(entry.name)};
+                if (extension == "ncz")
+                    ncaBacking = std::make_shared<vfs::NczBacking>(std::move(ncaBacking));
+
+                auto nca{vfs::NCA(std::move(ncaBacking), keyStore)};
 
                 if (nca.contentType == vfs::NcaContentType::Program && nca.romFs != nullptr && nca.exeFs != nullptr)
                     programNca = std::move(nca);

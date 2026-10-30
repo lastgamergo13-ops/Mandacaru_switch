@@ -4,6 +4,7 @@
 #include <common.h>
 #include <kernel/types/KProcess.h>
 #include <vfs/region_backing.h>
+#include <vfs/ncz_backing.h>
 #include "nca.h"
 #include "xci.h"
 
@@ -32,11 +33,17 @@ namespace skyline::loader {
         if (secure) {
             root = secure->OpenDirectory("", {false, true});
             for (const auto &entry : root->Read()) {
-                if (entry.name.substr(entry.name.find_last_of('.') + 1) != "nca")
+                // XCZ files hold NCZ (block compressed NCA) files next to the regular ones
+                auto extension{entry.name.substr(entry.name.find_last_of('.') + 1)};
+                if (extension != "nca" && extension != "ncz")
                     continue;
 
                 try {
-                    auto nca{vfs::NCA(secure->OpenFile(entry.name), keyStore, true)};
+                    std::shared_ptr<vfs::Backing> ncaBacking{secure->OpenFile(entry.name)};
+                    if (extension == "ncz")
+                        ncaBacking = std::make_shared<vfs::NczBacking>(std::move(ncaBacking));
+
+                    auto nca{vfs::NCA(std::move(ncaBacking), keyStore, true)};
 
                     if (nca.contentType == vfs::NcaContentType::Program && nca.romFs != nullptr && nca.exeFs != nullptr)
                         programNca = std::move(nca);

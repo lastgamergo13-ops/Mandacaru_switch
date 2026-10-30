@@ -73,6 +73,8 @@ data class AppItem(private val meta : AppEntry) : Serializable {
 
             LoaderResult.ParsingError -> R.string.invalid_file
 
+            LoaderResult.UnsupportedCompression -> R.string.unsupported_compression
+
             LoaderResult.MissingTitleKey -> R.string.missing_title_key
 
             LoaderResult.MissingHeaderKey,

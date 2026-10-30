@@ -39,6 +39,7 @@ namespace skyline::loader {
         MissingTitleKey,
         MissingTitleKek,
         MissingKeyArea,
+        UnsupportedCompression, //!< A compressed container (NSZ/XCZ) that can't be read without extracting it first
     };
 
     /**
