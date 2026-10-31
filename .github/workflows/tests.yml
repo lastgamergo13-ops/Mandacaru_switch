@@ -1,0 +1,35 @@
+# Testes rapidos que nao precisam do Android SDK: rodam no PC do CI a cada push e pull request
+name: Host Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: sudo apt-get install -y g++ python3-cryptography libzstd-dev
+
+      - name: XML resources are well formed
+        run: |
+          python3 - <<'PY'
+          import glob, sys, xml.dom.minidom
+          bad = 0
+          for f in glob.glob('app/src/main/res/**/*.xml', recursive=True) + ['app/src/main/AndroidManifest.xml']:
+              try:
+                  xml.dom.minidom.parse(f)
+              except Exception as e:
+                  print('INVALID', f, e); bad += 1
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: NCZ reader and Opus multi-stream
+        run: ./tests/run_host_tests.sh

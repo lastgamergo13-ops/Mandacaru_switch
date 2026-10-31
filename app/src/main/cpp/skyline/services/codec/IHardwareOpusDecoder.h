@@ -4,12 +4,15 @@
 #pragma once
 
 #include <opus.h>
+#include <opus_multistream.h>
 
 #include <common.h>
 #include <services/base_service.h>
 #include <kernel/types/KTransferMemory.h>
 
 namespace skyline::service::codec {
+    struct MultiStreamParametersEx;
+
     /**
      * @return The required output buffer size for decoding an Opus stream with the given parameters
      */
@@ -28,9 +31,11 @@ namespace skyline::service::codec {
       private:
         std::shared_ptr<kernel::type::KTransferMemory> workBuffer;
         OpusDecoder *decoderState{};
+        OpusMSDecoder *multiStreamDecoderState{}; //!< Set instead of decoderState when this decodes several streams at once
         i32 sampleRate;
         i32 channelCount;
         u32 decoderOutputBufferSize;
+        u32 maxInputSize{MaxInputBufferSize}; //!< The biggest packet (without the header) the guest may send, a multi-stream packet holds one packet per stream
 
         /**
          * @brief Holds information about the Opus packet to be decoded
@@ -59,6 +64,11 @@ namespace skyline::service::codec {
 
       public:
         IHardwareOpusDecoder(const DeviceState &state, ServiceManager &manager, i32 sampleRate, i32 channelCount, u32 workBufferSize, KHandle workBufferHandle, bool isIsLargerSize = false);
+
+        /**
+         * @brief Creates a multi-stream decoder, the work buffer holds the libopus multi-stream decoder
+         */
+        IHardwareOpusDecoder(const DeviceState &state, ServiceManager &manager, const MultiStreamParametersEx &parameters, u32 workBufferSize, KHandle workBufferHandle);
 
         /**
          * @brief Decodes the Opus source data, returns decoded data size and decoded sample count
