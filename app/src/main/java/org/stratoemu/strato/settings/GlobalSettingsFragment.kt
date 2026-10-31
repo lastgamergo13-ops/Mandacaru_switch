@@ -79,11 +79,6 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         preferenceScreen.addPreference(menu)
 
         sections.forEach { (categoryKey, titleRes) ->
-            // The debug tab is only for debug builds
-            @Suppress("SENSELESS_COMPARISON")
-            if (categoryKey == "category_debug" && BuildConfig.BUILD_TYPE == "release")
-                return@forEach
-
             menu.addPreference(Preference(requireContext()).apply {
                 key = "tab_$categoryKey"
                 title = getString(titleRes)

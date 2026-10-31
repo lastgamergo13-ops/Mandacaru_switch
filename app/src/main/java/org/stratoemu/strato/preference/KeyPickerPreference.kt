@@ -31,6 +31,9 @@ class KeyPickerPreference @JvmOverloads constructor(context : Context, attrs : A
 
     override fun onClick() = documentPicker.launch(arrayOf("*/*"))
 
+    /** Opens the file picker, used by the first-run setup that has its own buttons */
+    fun pick() = onClick()
+
     private fun resolveImportResultString(result : KeyReader.ImportResult) = when (result) {
         KeyReader.ImportResult.Success -> R.string.import_keys_success
         KeyReader.ImportResult.InvalidInputPath -> R.string.import_keys_invalid_input_path

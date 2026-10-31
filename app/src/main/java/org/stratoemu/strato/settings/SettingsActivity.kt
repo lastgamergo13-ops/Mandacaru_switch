@@ -15,6 +15,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.fragment.app.Fragment
 import androidx.core.view.WindowCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
@@ -52,11 +53,11 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
      * The instance of [PreferenceFragmentCompat] that is shown inside [R.id.settings]
      * Retrieves extras from the intent if any and instantiates the appropriate fragment
      */
-    private val preferenceFragment by lazy {
+    private val preferenceFragment : Fragment by lazy {
         if (intent.hasExtra(AppItemTag))
             GameSettingsFragment().apply { arguments = intent.extras }
         else if (isSetupMode)
-            SetupSettingsFragment()
+            SetupFragment()
         else
             GlobalSettingsFragment()
     }
@@ -64,7 +65,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     /**
      * The fragment that is on the screen now, the tabs of the settings are fragments of their own
      */
-    private val currentPreferenceFragment get() = supportFragmentManager.findFragmentById(R.id.settings) as? PreferenceFragmentCompat ?: preferenceFragment
+    private val currentPreferenceFragment get() = (supportFragmentManager.findFragmentById(R.id.settings) ?: preferenceFragment) as? PreferenceFragmentCompat
 
     /**
      * Opens a tab of the global settings (a category) as a new screen, back returns to the list of tabs
@@ -90,27 +91,6 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
      */
     private val isSetupMode by lazy { intent.getBooleanExtra(SetupModeTag, false) }
 
-    /**
-     * The setup can be finished once the keys, the firmware and the folder of the games were chosen
-     */
-    private fun isSetupComplete() : Boolean {
-        val keys = File(filesDir, "keys")
-        val preferences = PreferenceManager.getDefaultSharedPreferences(this)
-        return File(keys, "prod.keys").exists() &&
-            !preferences.getString("firmware", null).isNullOrBlank() &&
-            getSettings().searchLocation.isNotBlank()
-    }
-
-    private fun refreshSetupState() {
-        if (isSetupMode)
-            binding.setupDone.isEnabled = isSetupComplete()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        refreshSetupState()
-    }
-
 
     /**
      * This initializes all of the elements in the activity and displays the settings fragment
@@ -122,14 +102,9 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsHelper.applyToActivity(binding.root)
 
-        if (isSetupMode) {
-            binding.setupBar.isVisible = true
-            binding.setupSkip.setOnClickListener { finish() }
-            binding.setupDone.setOnClickListener { finish() }
-
-            // The firmware is imported in the background and saves its version when it's done
-            PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener { _, _ -> refreshSetupState() }
-        }
+        // The first-run setup has its own screen with the buttons at the bottom, there are no toolbar and no search
+        if (isSetupMode)
+            binding.titlebar.appBarLayout.isVisible = false
 
         setSupportActionBar(binding.titlebar.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -192,6 +167,9 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     }
 
     override fun onCreateOptionsMenu(menu : Menu?) : Boolean {
+        if (isSetupMode)
+            return false
+
         menuInflater.inflate(R.menu.settings_menu, menu)
         val menuItem = menu!!.findItem(R.id.app_bar_search)
         val searchView = menuItem.actionView as SearchView
@@ -213,7 +191,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             override fun onQueryTextChange(newText : String) : Boolean {
                 val queries = newText.split(",")
                 if (newText.isNotEmpty()) {
-                    currentPreferenceFragment.preferenceScreen.forEach { preferenceCategory ->
+                    currentPreferenceFragment?.preferenceScreen?.forEach { preferenceCategory ->
                         if (hiddenCategoriesFromSearch.contains(preferenceCategory.key)) {
                             preferenceCategory.isVisible = false
                             return@forEach
@@ -230,7 +208,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                         preferenceCategory.isVisible = !areAllPrefsHidden || queryMatchesCategory
                     }
                 } else { // If user input is empty, show all preferences of the tab (or the list of tabs)
-                    currentPreferenceFragment.preferenceScreen.forEach { preferenceCategory ->
+                    currentPreferenceFragment?.preferenceScreen?.forEach { preferenceCategory ->
                         preferenceCategory.isVisible = true
                         (preferenceCategory as PreferenceCategory).forEach { preference ->
                             preference.isVisible = true

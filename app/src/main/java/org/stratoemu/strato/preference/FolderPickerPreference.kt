@@ -35,4 +35,7 @@ class FolderPickerPreference @JvmOverloads constructor(context : Context, attrs 
     }
 
     override fun onClick() = documentPicker.launch(null)
+
+    /** Opens the folder picker, used by the first-run setup that has its own buttons */
+    fun pick() = onClick()
 }

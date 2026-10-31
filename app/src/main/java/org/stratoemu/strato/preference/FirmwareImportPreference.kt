@@ -102,6 +102,9 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
 
     override fun onClick() = documentPicker.launch(arrayOf("application/zip"))
 
+    /** Opens the file picker, used by the first-run setup that has its own buttons */
+    fun pick() = onClick()
+
     /**
      * Firmware zips sometimes wrap all the NCAs in a single top-level folder, this descends into it (up to 3 levels)
      * @return The directory that directly contains the firmware files
