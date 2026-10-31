@@ -9,10 +9,12 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatDelegate
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.DynamicColorsOptions
 import dagger.hilt.android.HiltAndroidApp
 import org.stratoemu.strato.di.getSettings
+import org.stratoemu.strato.settings.ThemeOptions
 import java.io.File
 
 /**
@@ -41,22 +43,15 @@ class StratoApplication : Application() {
         val dynamicColorsOptions = DynamicColorsOptions.Builder().setPrecondition { _, _ -> getSettings().useMaterialYou }.build()
         DynamicColors.applyToActivitiesIfAvailable(this, dynamicColorsOptions)
 
-        // The color the user chose is applied as a theme overlay to every screen before it is created, the default color (yellow) and Material You don't need it
-        val colorOverlays = intArrayOf(
-            R.style.ThemeOverlay_Mandacaru_Red,
-            R.style.ThemeOverlay_Mandacaru_Orange,
-            0,
-            R.style.ThemeOverlay_Mandacaru_Green,
-            R.style.ThemeOverlay_Mandacaru_Blue,
-            R.style.ThemeOverlay_Mandacaru_Indigo,
-            R.style.ThemeOverlay_Mandacaru_Violet
-        )
+        // The light/dark mode is part of the same setting as the color so every screen (also the ones opened without going through the main screen, like a game shortcut) starts with it
+        AppCompatDelegate.setDefaultNightMode(getSettings().appTheme)
+
+        // The color the user chose is applied as a theme overlay to every screen before it is created (Material You uses the colors of the system instead)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityPreCreated(activity : Activity, savedInstanceState : Bundle?) {
                 val settings = getSettings()
-                val overlay = colorOverlays.getOrElse(settings.themeColor) { 0 }
-                if (!settings.useMaterialYou && overlay != 0)
-                    activity.theme.applyStyle(overlay, true)
+                if (!settings.useMaterialYou)
+                    activity.theme.applyStyle(ThemeOptions.colorOverlays[settings.themeColor], true)
             }
 
             override fun onActivityCreated(activity : Activity, savedInstanceState : Bundle?) {}

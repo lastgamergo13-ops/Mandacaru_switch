@@ -1072,6 +1072,12 @@ namespace skyline::kernel::svc {
             // 6.0.0+
             TotalMemoryAvailableWithoutSystemResource = 21,
             TotalMemoryUsageWithoutSystemResource = 22,
+            // 9.0.0+
+            IsApplication = 23,
+            // 11.0.0+
+            FreeThreadCount = 24,
+            // 13.0.0+
+            AliasRegionExtraSize = 28,
         };
 
         InfoState info{static_cast<u32>(ctx.w1)};
@@ -1169,6 +1175,18 @@ namespace skyline::kernel::svc {
 
             case InfoState::ResourceLimit:
                 out = ResourceLimitPseudoHandle;
+                break;
+
+            case InfoState::IsApplication:
+                out = 1;
+                break;
+
+            case InfoState::FreeThreadCount:
+                out = 0x200; // The same limit GetResourceLimitLimitValue reports for threads, nothing here counts the threads in use
+                break;
+
+            case InfoState::AliasRegionExtraSize:
+                out = 0; // The alias region is never extended, a game asking for this (SDK 20+, seen on Farming Simulator 26) aborts when the SVC fails
                 break;
 
             default:

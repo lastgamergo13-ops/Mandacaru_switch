@@ -43,9 +43,9 @@ private const val PREFERENCE_DIALOG_FRAGMENT_TAG = "androidx.preference.Preferen
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceDisplayDialogCallback {
     val binding by lazy { SettingsActivityBinding.inflate(layoutInflater) }
     val hiddenCategoriesFromSearch = if (BuildConfig.BUILD_TYPE == "release") {
-        arrayOf("category_debug", "category_credits", "category_licenses")
+        arrayOf("category_debug", "category_credits", "category_licenses", GlobalSettingsFragment.MenuCategoryKey)
     } else {
-        arrayOf("category_credits", "category_licenses")
+        arrayOf("category_credits", "category_licenses", GlobalSettingsFragment.MenuCategoryKey)
     }
 
     /**
@@ -59,6 +59,30 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             SetupSettingsFragment()
         else
             GlobalSettingsFragment()
+    }
+
+    /**
+     * The fragment that is on the screen now, the tabs of the settings are fragments of their own
+     */
+    private val currentPreferenceFragment get() = supportFragmentManager.findFragmentById(R.id.settings) as? PreferenceFragmentCompat ?: preferenceFragment
+
+    /**
+     * Opens a tab of the global settings (a category) as a new screen, back returns to the list of tabs
+     */
+    fun openSection(categoryKey : String) {
+        supportFragmentManager
+            .beginTransaction()
+            .replace(R.id.settings, GlobalSettingsFragment().apply { arguments = Bundle().apply { putString(GlobalSettingsFragment.SectionTag, categoryKey) } })
+            .addToBackStack(categoryKey)
+            .commit()
+    }
+
+    override fun onSupportNavigateUp() : Boolean {
+        if (supportFragmentManager.backStackEntryCount > 0)
+            supportFragmentManager.popBackStack()
+        else
+            finish()
+        return true
     }
 
     /**
@@ -189,7 +213,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             override fun onQueryTextChange(newText : String) : Boolean {
                 val queries = newText.split(",")
                 if (newText.isNotEmpty()) {
-                    preferenceFragment.preferenceScreen.forEach { preferenceCategory ->
+                    currentPreferenceFragment.preferenceScreen.forEach { preferenceCategory ->
                         if (hiddenCategoriesFromSearch.contains(preferenceCategory.key)) {
                             preferenceCategory.isVisible = false
                             return@forEach
@@ -205,13 +229,14 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                         // Hide PreferenceCategory if none of its preferences match the search and neither the category title
                         preferenceCategory.isVisible = !areAllPrefsHidden || queryMatchesCategory
                     }
-                } else { // If user input is empty, show all preferences
-                    preferenceFragment.preferenceScreen.forEach { preferenceCategory ->
+                } else { // If user input is empty, show all preferences of the tab (or the list of tabs)
+                    currentPreferenceFragment.preferenceScreen.forEach { preferenceCategory ->
                         preferenceCategory.isVisible = true
                         (preferenceCategory as PreferenceCategory).forEach { preference ->
                             preference.isVisible = true
                         }
                     }
+                    (currentPreferenceFragment as? GlobalSettingsFragment)?.applySectionVisibility()
                 }
                 return true
             }

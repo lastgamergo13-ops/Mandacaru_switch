@@ -363,6 +363,14 @@
     <string name="theme_color_indigo">Indigo</string>
     <string name="theme_color_violet">Violet</string>
     <string name="setup_title">First setup</string>
+    <string name="setup_welcome">Welcome to Mandacaru</string>
+    <string name="setup_welcome_message">Three steps to start playing: add your keys, install the firmware and choose the folder with your games. You can skip this and do it later in the settings.</string>
+    <string name="setup_step_prod_keys">1. Keys (prod.keys)</string>
+    <string name="setup_step_title_keys">Title keys (title.keys, optional)</string>
+    <string name="setup_step_firmware">2. Firmware</string>
+    <string name="setup_step_games">3. Games folder</string>
+    <string name="controls">Controls</string>
+    <string name="hackers">Hackers</string>
     <string name="setup_message">Choose the files you have to start playing. You can do this later in the settings.</string>
     <string name="setup_done">Done</string>
     <string name="setup_skip">Skip</string>

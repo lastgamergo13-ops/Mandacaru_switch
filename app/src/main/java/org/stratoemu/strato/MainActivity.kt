@@ -93,14 +93,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState : Bundle?) {
         // Need to create new instance of settings, dependency injection happens
-        AppCompatDelegate.setDefaultNightMode(
-            when ((AppSettings(this).appTheme)) {
-                0 -> AppCompatDelegate.MODE_NIGHT_NO
-                1 -> AppCompatDelegate.MODE_NIGHT_YES
-                2 -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                else -> AppCompatDelegate.MODE_NIGHT_UNSPECIFIED
-            }
-        )
+        AppCompatDelegate.setDefaultNightMode(AppSettings(this).appTheme)
         super.onCreate(savedInstanceState)
 
         setContentView(binding.root)
@@ -112,7 +105,7 @@ class MainActivity : AppCompatActivity() {
 
         // The first time the app is opened the user is asked for the keys, the firmware and the folder of the games
         if (savedInstanceState == null && !AppSettings(this).setupCompleted)
-            startActivity(Intent(this, SettingsActivity::class.java).putExtra(SetupModeTag, true))
+            settingsCallback.launch(Intent(this, SettingsActivity::class.java).putExtra(SetupModeTag, true))
 
         binding.subText.text = BuildConfig.VERSION_NAME
         // The first click event is consumed by the focus acquisition
@@ -215,7 +208,7 @@ class MainActivity : AppCompatActivity() {
         binding.appList.layoutManager = CustomLayoutManager(gridSpan)
         setAppListDecoration()
 
-        if (appSettings.searchLocation.isEmpty()) documentPicker.launch(null)
+        // The folder is chosen in the first-run setup (or in the settings), the file explorer is no longer opened on its own
     }
 
     private fun getAppItems() = mutableListOf<AppViewItem>().apply {

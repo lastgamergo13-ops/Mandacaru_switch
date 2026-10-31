@@ -38,17 +38,18 @@ class GameContentManager(private val activity : AppCompatActivity, titleId : Str
     private val tempPath = File(activity.cacheDir, "mod_import")
     private val titleIdRegex = Regex("[0-9A-Fa-f]{16}")
 
-    private val dlcPicker = activity.registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    // These are registered in the registry directly because this class is created while the screen is already resumed (when the game dialog opens), activity.registerForActivityResult() throws IllegalStateException in that state
+    private val dlcPicker = activity.activityResultRegistry.register("game_content_dlc_picker", ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty())
             installDlc(uris)
     }
 
-    private val modPicker = activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    private val modPicker = activity.activityResultRegistry.register("game_content_mod_picker", ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null)
             installMod(uri)
     }
 
-    private val patchPicker = activity.registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    private val patchPicker = activity.activityResultRegistry.register("game_content_patch_picker", ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty())
             installPatches(uris)
     }

@@ -17,10 +17,22 @@
         <item>A-Z</item>
         <item>Z-A</item>
     </string-array>
-    <string-array name="app_theme">
-        <item>Light</item>
-        <item>Dark</item>
-        <item>Use System Default</item>
+    <string-array name="theme_options">
+        <item>Automatic (follows the system)</item>
+        <item>Yellow - Light</item>
+        <item>Yellow - Dark</item>
+        <item>Red - Light</item>
+        <item>Red - Dark</item>
+        <item>Orange - Light</item>
+        <item>Orange - Dark</item>
+        <item>Green - Light</item>
+        <item>Green - Dark</item>
+        <item>Blue - Light</item>
+        <item>Blue - Dark</item>
+        <item>Indigo - Light</item>
+        <item>Indigo - Dark</item>
+        <item>Violet - Light</item>
+        <item>Violet - Dark</item>
     </string-array>
     <string-array name="system_languages">
         <item>American English</item>
@@ -95,13 +107,4 @@
         <item>0</item>
         <item>8</item>
     </integer-array>
-    <string-array name="theme_colors">
-        <item>@string/theme_color_red</item>
-        <item>@string/theme_color_orange</item>
-        <item>@string/theme_color_yellow</item>
-        <item>@string/theme_color_green</item>
-        <item>@string/theme_color_blue</item>
-        <item>@string/theme_color_indigo</item>
-        <item>@string/theme_color_violet</item>
-    </string-array>
 </resources>

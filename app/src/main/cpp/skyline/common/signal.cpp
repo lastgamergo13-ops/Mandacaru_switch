@@ -31,8 +31,8 @@ namespace skyline::signal {
     }
 
     void SleepTillExit() {
-        // Without this the log just stops and nothing says why: this path is reached by every crash nothing is waiting to catch
-        ReportEmergency("The thread has hit an unrecoverable crash and is being parked forever, the emulator will look frozen");
+        // Without this the log just stops and nothing says why: this path is reached by every crash nothing is waiting to catch (and by the normal shutdown after a kill, where the emulator waits for the activity to close)
+        ReportEmergency("The thread is being parked until the process exits");
         // We don't want to actually exit the process ourselves as it'll automatically be restarted gracefully due to a timeout after being unable to exit within a fixed duration
         while (true)
             sleep(std::numeric_limits<int>::max()); // We just trigger the timeout wait by sleeping forever
@@ -113,7 +113,9 @@ namespace skyline::signal {
     void ExceptionalSignalHandler(int signal, siginfo *info, ucontext *context) {
         // Report the signal right away: if the code that is going to receive the exception is missing or the unwinding fails, the process just hangs and this is the only record left
         static std::atomic<int> reportCount{};
-        if (reportCount.fetch_add(1, std::memory_order_relaxed) < 8) {
+        // Threads are interrupted with tgkill (SI_TKILL) when the guest is killed on purpose, that isn't a crash and used to flood the log with "fatal" lines
+        bool deliberateKill{info->si_code == SI_TKILL || info->si_code == SI_USER};
+        if (!deliberateKill && reportCount.fetch_add(1, std::memory_order_relaxed) < 8) {
             char detail[256];
             snprintf(detail, sizeof(detail), "Host signal %d (si_code %d) at PC 0x%llx, fault address 0x%llx",
                      signal, info->si_code,

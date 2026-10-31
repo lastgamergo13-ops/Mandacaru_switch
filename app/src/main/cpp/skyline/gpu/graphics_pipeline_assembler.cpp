@@ -192,9 +192,10 @@ namespace skyline::gpu {
             .pSubpasses = &subpassDescription,
         }};
 
-        auto pipeline{gpu.vkDevice.createGraphicsPipeline(vkPipelineCache, vk::GraphicsPipelineCreateInfo{
-            .pStages = pipelineDescIt->shaderStages.data(),
-            .stageCount = static_cast<u32>(pipelineDescIt->shaderStages.size()),
+        auto createPipeline{[&](span<const vk::PipelineShaderStageCreateInfo> shaderStages) {
+            return gpu.vkDevice.createGraphicsPipeline(vkPipelineCache, vk::GraphicsPipelineCreateInfo{
+            .pStages = shaderStages.data(),
+            .stageCount = static_cast<u32>(shaderStages.size()),
             .pVertexInputState = &pipelineDescIt->vertexState.get<vk::PipelineVertexInputStateCreateInfo>(),
             .pInputAssemblyState = &pipelineDescIt->inputAssemblyState,
             .pTessellationState = &pipelineDescIt->tessellationState,
@@ -207,7 +208,25 @@ namespace skyline::gpu {
             .layout = pipelineLayout,
             .renderPass = *renderPass,
             .subpass = 0,
-        })};
+            });
+        }};
+
+        vk::raii::Pipeline pipeline{nullptr};
+        try {
+            pipeline = createPipeline(pipelineDescIt->shaderStages);
+        } catch (const vk::SystemError &e) {
+            // A failed pipeline would otherwise kill the whole game: a geometry shader that had to be emulated without NV_geometry_shader_passthrough (seen on Adreno) is the known cause, so the pipeline is created again without that stage, which draws without whatever the shader did but keeps the game running
+            boost::container::small_vector<vk::PipelineShaderStageCreateInfo, 5> withoutGeometry;
+            for (const auto &shaderStage : pipelineDescIt->shaderStages)
+                if (shaderStage.stage != vk::ShaderStageFlagBits::eGeometry)
+                    withoutGeometry.push_back(shaderStage);
+
+            if (withoutGeometry.size() == pipelineDescIt->shaderStages.size())
+                throw;
+
+            LOGW("Creating a pipeline with a geometry shader failed ({}), retrying without the geometry stage", e.what());
+            pipeline = createPipeline(withoutGeometry);
+        }
 
         if (pipelineDescIt->destroyShaderModules)
             for (auto &shaderStage : pipelineDescIt->shaderStages)

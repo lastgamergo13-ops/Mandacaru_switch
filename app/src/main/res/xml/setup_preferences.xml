@@ -1,21 +1,31 @@
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <PreferenceCategory
-        android:key="category_setup"
-        android:title="@string/setup_title">
-        <org.stratoemu.strato.preference.KeyPickerPreference
-            app:key="prod_keys"
-            app:title="@string/prod_keys"
-            app:useSimpleSummaryProvider="true" />
-        <org.stratoemu.strato.preference.KeyPickerPreference
-            app:key="title_keys"
-            app:title="@string/title_keys"
-            app:useSimpleSummaryProvider="true" />
-        <org.stratoemu.strato.preference.FirmwareImportPreference
-            app:key="firmware"
-            app:title="@string/firmware" />
-        <org.stratoemu.strato.preference.FolderPickerPreference
-            app:key="search_location"
-            app:title="@string/search_location" />
-    </PreferenceCategory>
+    <Preference
+        android:key="setup_header"
+        android:layout="@layout/preference_setup_header"
+        android:selectable="false"
+        android:summary="@string/setup_welcome_message"
+        android:title="@string/setup_welcome" />
+    <org.stratoemu.strato.preference.KeyPickerPreference
+        android:icon="@drawable/ic_vpn_key"
+        android:layout="@layout/preference_setup_card"
+        app:key="prod_keys"
+        app:title="@string/setup_step_prod_keys"
+        app:useSimpleSummaryProvider="true" />
+    <org.stratoemu.strato.preference.KeyPickerPreference
+        android:icon="@drawable/ic_vpn_key"
+        android:layout="@layout/preference_setup_card"
+        app:key="title_keys"
+        app:title="@string/setup_step_title_keys"
+        app:useSimpleSummaryProvider="true" />
+    <org.stratoemu.strato.preference.FirmwareImportPreference
+        android:icon="@drawable/ic_memory"
+        android:layout="@layout/preference_setup_card"
+        app:key="firmware"
+        app:title="@string/setup_step_firmware" />
+    <org.stratoemu.strato.preference.FolderPickerPreference
+        android:icon="@drawable/ic_folder"
+        android:layout="@layout/preference_setup_card"
+        app:key="search_location"
+        app:title="@string/setup_step_games" />
 </androidx.preference.PreferenceScreen>

@@ -28,17 +28,11 @@
     <PreferenceCategory
         android:key="category_appearance"
         android:title="@string/appearance">
-        <org.stratoemu.strato.preference.ThemePreference
-            android:defaultValue="2"
-            android:entries="@array/app_theme"
-            app:key="app_theme"
+        <org.stratoemu.strato.preference.ThemeOptionPreference
+            android:defaultValue="0"
+            android:entries="@array/theme_options"
+            app:key="theme_option"
             app:title="@string/theme"
-            app:useSimpleSummaryProvider="true" />
-        <org.stratoemu.strato.preference.ThemeColorPreference
-            android:defaultValue="2"
-            android:entries="@array/theme_colors"
-            app:key="theme_color"
-            app:title="@string/theme_color"
             app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
             android:defaultValue="false"

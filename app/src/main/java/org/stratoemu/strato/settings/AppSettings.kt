@@ -23,9 +23,10 @@ class AppSettings @Inject constructor(@ApplicationContext private val context : 
     var searchLocation by sharedPreferences(context, "")
 
     // Appearance
-    var appTheme by sharedPreferences(context, 2)
+    var themeOption by sharedPreferences(context, 0) // One setting for the color and the light/dark mode, see ThemeOptions
+    val appTheme get() = ThemeOptions.nightMode(themeOption)
     var useMaterialYou by sharedPreferences(context, false)
-    var themeColor by sharedPreferences(context, 2) // The index of the color of the theme, 2 (yellow) is the default theme
+    val themeColor get() = ThemeOptions.colorIndex(themeOption)
     var layoutType by sharedPreferences(context, 1)
     var sortAppsBy by sharedPreferences(context, 0)
     var selectAction by sharedPreferences(context, false)
