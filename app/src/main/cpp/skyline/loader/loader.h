@@ -5,6 +5,7 @@
 
 #include <linux/elf.h>
 #include <vfs/nacp.h>
+#include <crypto/key_store.h>
 #include <common/signal.h>
 #include "executable.h"
 
@@ -99,6 +100,15 @@ namespace skyline::loader {
 
         virtual std::vector<u8> GetIcon(language::ApplicationLanguage language) {
             return std::vector<u8>();
+        }
+
+        /**
+         * @brief Applies the update of the game that the user installed, if there is one: the game then runs with the new executables and RomFS and shows the new version
+         * @param publicFilesPath The public files directory of the app, the content is installed in it
+         * @return If an update was applied
+         */
+        virtual bool ApplyUpdate(const std::string &publicFilesPath, const std::shared_ptr<crypto::KeyStore> &keyStore) {
+            return false;
         }
 
         /**

@@ -7,6 +7,7 @@ package org.stratoemu.strato.preference
 
 import android.content.ContentResolver
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -34,7 +35,7 @@ class ProfilePicturePreference @JvmOverloads constructor(context : Context, attr
     private val skylineFilesDir = StratoApplication.instance.getPublicFilesDir().canonicalPath
     private val profilePictureDir = "$skylineFilesDir/switch/nand/system/save/8000000000000010/su/avators"
     private val profilePicture = "$profilePictureDir/profile_picture.jpeg"
-    private val pickMedia = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+    private val pickMedia = (context as ComponentActivity).registerLauncher(ActivityResultContracts.PickVisualMedia()) { uri ->
         try {
             if (uri != null) { // The user selected a picture
                 persistString(profilePicture)

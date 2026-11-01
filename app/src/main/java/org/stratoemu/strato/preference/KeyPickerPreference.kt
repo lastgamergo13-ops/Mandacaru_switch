@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.content.Intent
 import android.util.AttributeSet
 import androidx.activity.ComponentActivity
@@ -18,7 +19,7 @@ import org.stratoemu.strato.settings.SettingsActivity
 import org.stratoemu.strato.di.getSettings
 
 class KeyPickerPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = androidx.preference.R.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenDocument()) {
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenDocument()) {
         it?.let { uri ->
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 

@@ -63,10 +63,53 @@ namespace skyline::vfs {
     }
 
     void NCA::ReadRomFs(const NcaSectionHeader &sectionHeader, const NcaFsEntry &entry) {
-        size_t offset{static_cast<size_t>(entry.startOffset) * constant::MediaUnitSize + sectionHeader.integrityHashInfo.levels.back().offset};
+        size_t sectionOffset{static_cast<size_t>(entry.startOffset) * constant::MediaUnitSize};
+        size_t sectionSize{constant::MediaUnitSize * static_cast<size_t>(entry.endOffset - entry.startOffset)};
+        size_t offset{sectionOffset + sectionHeader.integrityHashInfo.levels.back().offset};
         size_t size{sectionHeader.integrityHashInfo.levels.back().size};
 
+        const auto &patch{sectionHeader.patchInfo};
+        if (sectionHeader.encryptionType == NcaSectionEncryptionType::BKTR && patch.indirectSize != 0 && patch.aesCtrExSize != 0) {
+            // The RomFS of an update: its data is only valid together with the base game, so only what is needed to build it is kept
+            auto headerEntryCount{[](const std::array<u8, 0x10> &header) {
+                if (std::memcmp(header.data(), "BKTR", 4) != 0)
+                    throw loader_exception(LoaderResult::ParsingError, "Invalid patch table header");
+                i32 count;
+                std::memcpy(&count, header.data() + 8, sizeof(count));
+                return count;
+            }};
+
+            BktrParameters parameters{};
+            parameters.section = std::make_shared<RegionBacking>(backing, sectionOffset, sectionSize);
+            parameters.encrypted = encrypted && sectionHeader.encryptionType != NcaSectionEncryptionType::None;
+            if (parameters.encrypted)
+                parameters.key = !(rightsIdEmpty || useKeyArea) ? GetTitleKey() : GetKeyAreaKey(sectionHeader.encryptionType);
+            parameters.secureValue = sectionHeader.secureValue;
+            parameters.generation = sectionHeader.generation;
+            parameters.sectionOffset = sectionOffset;
+            parameters.indirectOffset = patch.indirectOffset;
+            parameters.indirectSize = patch.indirectSize;
+            parameters.indirectEntryCount = headerEntryCount(patch.indirectHeader);
+            parameters.aesCtrExOffset = patch.aesCtrExOffset;
+            parameters.aesCtrExSize = patch.aesCtrExSize;
+            parameters.aesCtrExEntryCount = headerEntryCount(patch.aesCtrExHeader);
+
+            patchedRomFs = PatchedRomFs{std::move(parameters), sectionHeader.integrityHashInfo.levels.back().offset, size};
+            return;
+        }
+
+        romFsSection = CreateBacking(sectionHeader, std::make_shared<RegionBacking>(backing, sectionOffset, sectionSize), sectionOffset);
         romFs = CreateBacking(sectionHeader, std::make_shared<RegionBacking>(backing, offset, size), offset);
+    }
+
+    std::shared_ptr<Backing> NCA::OpenPatchedRomFs(std::shared_ptr<Backing> baseSection) {
+        if (!patchedRomFs)
+            return nullptr;
+
+        auto bktr{std::make_shared<BktrBacking>(patchedRomFs->parameters, std::move(baseSection))};
+        if (patchedRomFs->dataOffset + patchedRomFs->dataSize > bktr->size)
+            throw loader_exception(LoaderResult::ParsingError, "The RomFS of the update is bigger than its section");
+        return std::make_shared<RegionBacking>(bktr, patchedRomFs->dataOffset, patchedRomFs->dataSize);
     }
 
     std::shared_ptr<Backing> NCA::CreateBacking(const NcaSectionHeader &sectionHeader, std::shared_ptr<Backing> rawBacking, size_t offset) {

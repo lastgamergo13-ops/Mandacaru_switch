@@ -5,6 +5,7 @@
 
 package org.stratoemu.strato.utils
 
+import org.stratoemu.strato.utils.registerLauncher
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -40,7 +41,7 @@ interface SaveManagementUtils {
         private val savesFolderRoot = "${StratoApplication.instance.getPublicFilesDir().canonicalPath}/switch/nand/user/save/0000000000000000/00000000000000000000000000000001"
 
         fun registerDocumentPicker(context : Context) : ActivityResultLauncher<Array<String>> {
-            return (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenDocument()) {
+            return (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenDocument()) {
                 it?.let { uri -> importSave(context, uri) }
             }
         }
@@ -55,7 +56,7 @@ interface SaveManagementUtils {
         }
 
         fun registerStartForResultExportSave(context : Context) : ActivityResultLauncher<Intent> {
-            return (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            return (context as ComponentActivity).registerLauncher(ActivityResultContracts.StartActivityForResult()) {
                 File(context.getPublicFilesDir().canonicalPath, "temp").deleteRecursively()
             }
         }

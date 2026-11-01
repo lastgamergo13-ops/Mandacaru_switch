@@ -32,4 +32,4 @@ jobs:
           PY
 
       - name: NCZ reader and Opus multi-stream
-        run: ./tests/run_host_tests.sh
+        run: bash ./tests/run_host_tests.sh

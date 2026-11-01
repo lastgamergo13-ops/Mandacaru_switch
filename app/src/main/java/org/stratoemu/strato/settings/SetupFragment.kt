@@ -10,7 +10,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.preference.Preference
 import androidx.preference.PreferenceManager
@@ -103,6 +106,13 @@ class SetupFragment : Fragment() {
 
     override fun onViewCreated(view : View, savedInstanceState : Bundle?) {
         val binding = binding!!
+
+        // Keeps the buttons clear of the system bars and the camera cutout when they are shown
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.updatePadding(insets.left, insets.top, insets.right, insets.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
         binding.buttonNext.setOnClickListener {
             if (currentStep < steps.size - 1) {
                 currentStep++

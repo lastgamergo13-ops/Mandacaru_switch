@@ -51,6 +51,13 @@ namespace skyline::kernel {
             }
         }();
 
+        // The update of the game the user installed (from the options of the game) replaces the executables and the RomFS and gives the game its new version
+        try {
+            state.loader->ApplyUpdate(publicAppFilesPath, keyStore);
+        } catch (const std::exception &e) {
+            LOGE("Failed to apply the installed update, the game runs without it: {}", e.what());
+        }
+
         state.gpu->Initialise();
 
         auto &process{state.process};

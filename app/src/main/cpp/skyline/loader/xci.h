@@ -119,6 +119,8 @@ namespace skyline::loader {
 
         std::vector<u8> GetIcon(language::ApplicationLanguage language) override;
 
+        bool ApplyUpdate(const std::string &publicFilesPath, const std::shared_ptr<crypto::KeyStore> &keyStore) override;
+
         void *LoadProcessData(const std::shared_ptr<kernel::type::KProcess> &process, const DeviceState &state) override;
     };
 }

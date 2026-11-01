@@ -1,11 +1,58 @@
 // SPDX-License-Identifier: MIT OR MPL-2.0
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <atomic>
 #include <soc.h>
 #include <services/nvdrv/devices/deserialisation/deserialisation.h>
 #include "host1x_channel.h"
 
 namespace skyline::service::nvdrv::device::nvhost {
+    /**
+     * @brief Writes what a command buffer does (the Host1x opcodes it has) to the log, used to see what the games send to the video decoder while it isn't implemented
+     * @note Only the first few submissions of every channel are described, the rest would flood the log
+     */
+    static void DescribeCommandBuffer(core::ChannelType channelType, span<u32> gather) {
+        static std::array<std::atomic<u32>, 8> submissionCounts{};
+        u32 channelIndex{static_cast<u32>(channelType)};
+        if (channelIndex >= submissionCounts.size() || submissionCounts[channelIndex].fetch_add(1) >= 8)
+            return;
+
+        LOGI("Command buffer for channel {}: {} words", channelIndex, gather.size());
+
+        u32 lines{};
+        for (size_t i{}; i < gather.size() && lines < 48; i++, lines++) {
+            u32 word{gather[i]};
+            u32 opcode{word >> 28};
+            u32 offset{(word >> 16) & 0xFFF};
+            switch (opcode) {
+                case 0: // SetClass
+                    LOGI("  setclass: class 0x{:X}, offset 0x{:X}, mask 0x{:X}", (word >> 6) & 0x3FF, offset, word & 0x3F);
+                    for (u32 bit{}; bit < 6 && i + 1 < gather.size(); bit++)
+                        if (word & (1u << bit))
+                            LOGI("    reg 0x{:X} <- 0x{:X}", offset + bit, gather[++i]);
+                    break;
+                case 1: // Increment
+                case 2: // Non-increment
+                    LOGI("  {}: offset 0x{:X}, {} words", opcode == 1 ? "incr" : "nonincr", offset, word & 0xFFFF);
+                    for (u32 j{}; j < (word & 0xFFFF) && i + 1 < gather.size() && lines < 48; j++, lines++)
+                        LOGI("    reg 0x{:X} <- 0x{:X}", opcode == 1 ? offset + j : offset, gather[++i]);
+                    break;
+                case 3: // Mask
+                    LOGI("  mask: offset 0x{:X}, mask 0x{:X}", offset, word & 0xFFFF);
+                    for (u32 bit{}; bit < 16 && i + 1 < gather.size(); bit++)
+                        if (word & (1u << bit))
+                            LOGI("    reg 0x{:X} <- 0x{:X}", offset + bit, gather[++i]);
+                    break;
+                case 4: // Immediate
+                    LOGI("  imm: reg 0x{:X} <- 0x{:X}", offset, word & 0xFFFF);
+                    break;
+                default:
+                    LOGI("  unhandled opcode {} (word 0x{:X})", opcode, word);
+                    return;
+            }
+        }
+    }
+
     Host1xChannel::Host1xChannel(const DeviceState &state,
                                  Driver &driver,
                                  Core &core,
@@ -30,10 +77,25 @@ namespace skyline::service::nvdrv::device::nvhost {
         if (fenceThresholds.size() > syncpointIncrs.size())
             return PosixResult::InvalidArgument;
 
-        if (!relocs.empty())
-            throw exception("Relocations are unimplemented!");
-
         std::scoped_lock lock(channelMutex);
+
+        // A relocation replaces a word of a command buffer (the address of a buffer) with the address the buffer was pinned at, shifted as the engine expects. Games that use the video decoder always send them, they used to make the emulator throw
+        for (size_t i{}; i < relocs.size(); i++) {
+            const auto &reloc{relocs[i]};
+            auto patchHandle{core.nvMap.GetHandle(reloc.patchMem)};
+            auto pinHandle{core.nvMap.GetHandle(reloc.pinMem)};
+            if (!patchHandle || !pinHandle || reloc.patchOffset + sizeof(u32) > patchHandle->size) {
+                LOGW("Skipping an invalid relocation: patch handle {} offset 0x{:X}, pin handle {}", reloc.patchMem, reloc.patchOffset, reloc.pinMem);
+                continue;
+            }
+            if (!pinHandle->pinVirtAddress)
+                LOGW("Relocation to a handle that wasn't pinned: {}", reloc.pinMem);
+
+            u32 shift{i < relocShifts.size() ? relocShifts[i] : 0};
+            u32 value{static_cast<u32>((static_cast<u64>(pinHandle->pinVirtAddress) + reloc.pinOffset) >> shift)};
+            *reinterpret_cast<u32 *>(patchHandle->address + reloc.patchOffset) = value;
+            LOGD("Relocation {}: handle {} + 0x{:X} -> word at 0x{:X} of handle {} = 0x{:X}", i, reloc.pinMem, reloc.pinOffset, reloc.patchOffset, reloc.patchMem, value);
+        }
 
         for (size_t i{}; i < syncpointIncrs.size(); i++) {
             const auto &incr{syncpointIncrs[i]};
@@ -57,6 +119,11 @@ namespace skyline::service::nvdrv::device::nvhost {
             LOGD("Submit gather, CPU address: 0x{:X}, words: 0x{:X}", gatherAddress, cmdBuf.words);
 
             span gather(reinterpret_cast<u32 *>(gatherAddress), cmdBuf.words);
+
+            // The video decoder isn't implemented yet, what the game sends to it is only written to the log
+            if (channelType == core::ChannelType::NvDec || channelType == core::ChannelType::VIC)
+                DescribeCommandBuffer(channelType, gather);
+
             // Skip submitting the cmdbufs as no functionality is implemented
             // state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);
         }

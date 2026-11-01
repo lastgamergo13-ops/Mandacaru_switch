@@ -17,6 +17,8 @@ import androidx.appcompat.widget.SearchView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.fragment.app.Fragment
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
 import androidx.preference.EditTextPreference
@@ -103,8 +105,15 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         WindowInsetsHelper.applyToActivity(binding.root)
 
         // The first-run setup has its own screen with the buttons at the bottom, there are no toolbar and no search
-        if (isSetupMode)
+        if (isSetupMode) {
             binding.titlebar.appBarLayout.isVisible = false
+
+            // The navigation buttons of the phone covered the Next button: the system bars stay hidden and only appear for a moment when swiping from the edge
+            WindowInsetsControllerCompat(window, binding.root).apply {
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsetsCompat.Type.systemBars())
+            }
+        }
 
         setSupportActionBar(binding.titlebar.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

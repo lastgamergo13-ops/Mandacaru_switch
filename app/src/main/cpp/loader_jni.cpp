@@ -19,7 +19,7 @@
 #include "skyline/loader/nsp.h"
 #include "skyline/jvm.h"
 
-extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_populate(JNIEnv *env, jobject thiz, jint jformat, jint fd, jstring appFilesPathJstring, jint systemLanguage) {
+extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_populate(JNIEnv *env, jobject thiz, jint jformat, jint fd, jstring appFilesPathJstring, jstring publicFilesPathJstring, jint systemLanguage) {
     skyline::signal::ScopedStackBlocker stackBlocker;
 
     skyline::loader::RomFormat format{static_cast<skyline::loader::RomFormat>(jformat)};
@@ -53,6 +53,13 @@ extern "C" JNIEXPORT jint JNICALL Java_org_stratoemu_strato_loader_RomFile_popul
         return static_cast<jint>(e.error);
     } catch (const std::exception &e) {
         return static_cast<jint>(skyline::loader::LoaderResult::ParsingError);
+    }
+
+    // The version and the name of the installed update are what the library shows
+    try {
+        loader->ApplyUpdate(skyline::JniString(env, publicFilesPathJstring), keyStore);
+    } catch (const std::exception &) {
+        // The game is listed without the update
     }
 
     try {

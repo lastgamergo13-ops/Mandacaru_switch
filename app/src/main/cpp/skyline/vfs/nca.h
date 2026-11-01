@@ -6,6 +6,7 @@
 #include <crypto/key_store.h>
 #include <crypto/aes_cipher.h>
 #include "filesystem.h"
+#include "bktr_backing.h"
 
 namespace skyline {
     namespace constant {
@@ -137,7 +138,18 @@ namespace skyline {
                     HierarchicalIntegrityHashInfo integrityHashInfo; //!< The HashInfo used for RomFS
                     HierarchicalSha256HashInfo sha256HashInfo; //!< The HashInfo used for PFS0
                 };
-                u8 _pad1_[0x40]; // PatchInfo
+                /**
+                 * @brief Where the tables of an update (patch) section are, for the RomFS of an update the section is made from data that is new and data from the base game
+                 */
+                struct PatchInfo {
+                    u64 indirectOffset; //!< The offset of the relocation table in the section
+                    u64 indirectSize;
+                    std::array<u8, 0x10> indirectHeader; //!< 'BKTR', the version and the number of entries
+                    u64 aesCtrExOffset; //!< The offset of the table with the encryption subsections
+                    u64 aesCtrExSize;
+                    std::array<u8, 0x10> aesCtrExHeader;
+                } patchInfo;
+                static_assert(sizeof(PatchInfo) == 0x40);
                 u32 generation; //!< The generation of the NCA section
                 u32 secureValue; //!< The secure value of the section
                 u8 _pad2_[0x30]; //!< SparseInfo
@@ -175,6 +187,16 @@ namespace skyline {
             bool rightsIdEmpty;
             bool useKeyArea;
 
+            /**
+             * @brief What is needed to build the RomFS of an update, which can only be done with the section of the base game
+             */
+            struct PatchedRomFs {
+                BktrParameters parameters;
+                u64 dataOffset; //!< The offset of the data level of the RomFS in the section
+                u64 dataSize;
+            };
+            std::optional<PatchedRomFs> patchedRomFs;
+
             void ReadPfs0(const NcaSectionHeader &sectionHeader, const NcaFsEntry &entry);
 
             void ReadRomFs(const NcaSectionHeader &sectionHeader, const NcaFsEntry &entry);
@@ -191,11 +213,23 @@ namespace skyline {
             std::shared_ptr<FileSystem> exeFs; //!< The PFS0 filesystem for this NCA's ExeFS section
             std::shared_ptr<FileSystem> logo; //!< The PFS0 filesystem for this NCA's logo section
             std::shared_ptr<FileSystem> cnmt; //!< The PFS0 filesystem for this NCA's CNMT section
-            std::shared_ptr<Backing> romFs; //!< The backing for this NCA's RomFS section
+            std::shared_ptr<Backing> romFs; //!< The backing for this NCA's RomFS section, null for the RomFS of an update (see OpenPatchedRomFs)
+            std::shared_ptr<Backing> romFsSection; //!< The whole decrypted RomFS section (the hash levels and the data), the update of a game is built on top of it
             NcaHeader header; //!< The header of the NCA
             NcaContentType contentType; //!< The content type of the NCA
 
             NCA(std::shared_ptr<vfs::Backing> backing, std::shared_ptr<crypto::KeyStore> keyStore, bool useKeyArea = false);
+
+            /**
+             * @return If this is the NCA of an update with a RomFS that is made from the RomFS of the base game
+             */
+            bool HasPatchedRomFs() const { return patchedRomFs.has_value(); }
+
+            /**
+             * @param baseSection The romFsSection of the same NCA in the base game
+             * @return The RomFS of the updated game
+             */
+            std::shared_ptr<Backing> OpenPatchedRomFs(std::shared_ptr<Backing> baseSection);
         };
     }
 }

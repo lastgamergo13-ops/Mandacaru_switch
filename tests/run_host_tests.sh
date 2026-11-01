@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Testes que rodam no PC/CI (nao no Android), sem o emulador inteiro:
 #   1. NczBacking: le um .ncz sintetico por blocos (zstd + AES-CTR) e compara com o NCA original
 #   2. libopus multi-stream (5.1): o mesmo fluxo que o servico hwopus usa (tamanho, init em memoria crua, decodificar, resetar)
@@ -29,6 +29,13 @@ g++ -std=c++20 -O1 -DFMT_HEADER_ONLY -D__ANDROID__ -DPAGE_SIZE=4096 -include cst
 "$WORK/test_ncz" "$WORK" | tee "$WORK/ncz.out"
 grep -q "FULL OK mismatches=0" "$WORK/ncz.out"
 grep -q "solid rejected with code 6" "$WORK/ncz.out"
+
+echo "== BKTR (RomFS of updates)"
+python3 "$ROOT/tests/bktr/gen_bktr.py" "$WORK"
+g++ -std=c++20 -O1 -DFMT_HEADER_ONLY -D__ANDROID__ -DPAGE_SIZE=4096 -include cstdint -include optional -include csignal -include sys/ucontext.h -Dsiginfo=siginfo_t -Ducontext=ucontext_t $INC \
+  "$ROOT/tests/bktr/test_bktr.cpp" "$WORK/src/cpp/skyline/vfs/bktr_backing.cpp" "$WORK/src/cpp/skyline/crypto/aes_cipher.cpp" "$WORK"/mbed/*.o -o "$WORK/test_bktr" 2>&1 | grep -E "error|undefined" && exit 1
+"$WORK/test_bktr" "$WORK" | tee "$WORK/bktr.out"
+grep -q "FULL OK mismatches=0" "$WORK/bktr.out"
 
 echo "== libopus multi-stream"
 python3 - "$APP/libraries/opus" "$WORK/opus_srcs.txt" <<'PY'

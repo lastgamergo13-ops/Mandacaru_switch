@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.util.AttributeSet
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,12 +32,12 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
     private val keysPath = "${context.filesDir.canonicalPath}/keys/"
     private val fontsPath = "${context.getPublicFilesDir().canonicalPath}/fonts/"
 
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenDocument()) {
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenDocument()) {
         it?.let { uri ->
             val inputZip = context.contentResolver.openInputStream(uri)
             if (inputZip == null) {
                 Snackbar.make((context as SettingsActivity).binding.root, R.string.error, Snackbar.LENGTH_LONG).show()
-                return@registerForActivityResult
+                return@registerLauncher
             }
 
             val cacheFirmwareDir = File("${context.cacheDir.path}/registered/")

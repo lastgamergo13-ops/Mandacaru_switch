@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.util.AttributeSet
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,7 +29,7 @@ class DlcImportPreference @JvmOverloads constructor(context : Context, attrs : A
     private val contentsPath = File(context.getPublicFilesDir().canonicalPath + "/switch/nand/user/Contents/registered/")
     private val titleKeysPath = File(context.getPublicFilesDir().canonicalPath + "/switch/nand/user/Contents/title_keys.txt")
 
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val task : () -> Unit = {
                 var installed = 0

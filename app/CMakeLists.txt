@@ -270,6 +270,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/vfs/nacp.cpp
         ${source_DIR}/skyline/vfs/npdm.cpp
         ${source_DIR}/skyline/vfs/nca.cpp
+        ${source_DIR}/skyline/vfs/bktr_backing.cpp
         ${source_DIR}/skyline/vfs/ncz_backing.cpp
         ${source_DIR}/skyline/vfs/ticket.cpp
         ${source_DIR}/skyline/services/serviceman.cpp

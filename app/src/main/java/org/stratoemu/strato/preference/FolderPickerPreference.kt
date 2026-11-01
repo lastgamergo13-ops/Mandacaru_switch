@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.content.Intent
 import android.net.Uri
 import android.util.AttributeSet
@@ -18,7 +19,7 @@ import androidx.preference.R
 import org.stratoemu.strato.di.getSettings
 
 class FolderPickerPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = R.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) {
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenDocumentTree()) {
         it?.let { uri ->
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 

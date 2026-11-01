@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.text.InputType
@@ -36,7 +37,7 @@ class ModImportPreference @JvmOverloads constructor(context : Context, attrs : A
     private val tempPath = File(context.cacheDir, "mod_import")
     private val titleIdRegex = Regex("[0-9A-Fa-f]{16}")
 
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null)
             startInstall(uri)
     }

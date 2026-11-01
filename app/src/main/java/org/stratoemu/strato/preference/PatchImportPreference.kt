@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.provider.OpenableColumns
 import android.util.AttributeSet
 import androidx.activity.ComponentActivity
@@ -25,7 +26,7 @@ import java.io.File
 class PatchImportPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = androidx.preference.R.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
     private val patchesPath = File(context.getPublicFilesDir().canonicalPath + "/patches/")
 
-    private val documentPicker = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    private val documentPicker = (context as ComponentActivity).registerLauncher(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         var installed = 0
 
         patchesPath.mkdirs()

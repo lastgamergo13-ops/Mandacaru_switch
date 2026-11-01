@@ -173,7 +173,7 @@ internal class RomFile(context : Context, format : RomFormat, uri : Uri, systemL
         if (descriptor == null)
             result = LoaderResult.ParsingError
         else descriptor.use {
-            result = LoaderResult.get(populate(format.ordinal, it.fd, "${context.filesDir.canonicalPath}/keys/", systemLanguage))
+            result = LoaderResult.get(populate(format.ordinal, it.fd, "${context.filesDir.canonicalPath}/keys/", "${(context.getExternalFilesDir(null) ?: context.filesDir).canonicalPath}/", systemLanguage))
         }
 
         appEntry = applicationName?.let { name ->
@@ -196,5 +196,5 @@ internal class RomFile(context : Context, format : RomFormat, uri : Uri, systemL
      * @param appFilesPath Path to internal app data storage, needed to read imported keys
      * @return A pointer to the newly allocated object, or 0 if the ROM is invalid
      */
-    private external fun populate(format : Int, romFd : Int, appFilesPath : String, systemLanguage : Int) : Int
+    private external fun populate(format : Int, romFd : Int, appFilesPath : String, publicFilesPath : String, systemLanguage : Int) : Int
 }

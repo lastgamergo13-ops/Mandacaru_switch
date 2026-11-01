@@ -107,15 +107,27 @@ namespace skyline::kernel::svc {
             return;
         }
 
-        memory::MemoryAttribute mask{static_cast<u8>(ctx.w2)};
-        memory::MemoryAttribute value{static_cast<u8>(ctx.w3)};
+        // Only the uncached and (kernel 15+) the permission locked attributes can be set by a guest, the others are managed by the kernel
+        constexpr u32 UncachedBit{1 << 3};
+        constexpr u32 PermissionLockedBit{1 << 4};
+        constexpr u32 SupportedBits{UncachedBit | PermissionLockedBit};
 
-        auto maskedValue{mask.value | value.value};
-        if (maskedValue != mask.value || !mask.isUncached || mask.isDeviceShared || mask.isBorrowed || mask.isIpcLocked) [[unlikely]] {
+        u32 rawMask{static_cast<u32>(ctx.w2)};
+        u32 rawValue{static_cast<u32>(ctx.w3)};
+        if ((rawMask | rawValue) != rawMask || (rawMask | rawValue | SupportedBits) != SupportedBits || (rawMask & PermissionLockedBit) != (rawValue & PermissionLockedBit)) [[unlikely]] {
             ctx.w0 = result::InvalidCombination;
-            LOGW("'mask' invalid: 0x{:X}, 0x{:X}", mask.value, value.value);
+            LOGW("'mask' invalid: 0x{:X}, 0x{:X}", rawMask, rawValue);
             return;
         }
+
+        // Games built with a recent SDK (like Farming Simulator 26) lock the permissions of some memory, nothing here can change them afterwards so it's accepted without doing anything, refusing made those games abort at startup
+        if (!(rawMask & UncachedBit)) {
+            LOGD("Ignoring attribute change without the uncached bit: mask 0x{:X}, value 0x{:X} at {} (0x{:X} bytes)", rawMask, rawValue, fmt::ptr(address), size);
+            ctx.w0 = Result{};
+            return;
+        }
+
+        memory::MemoryAttribute value{static_cast<u8>(rawValue)};
 
         auto chunk{state.process->memory.GetChunk(address).value()};
 

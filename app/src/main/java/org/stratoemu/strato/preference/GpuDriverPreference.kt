@@ -6,6 +6,7 @@
 package org.stratoemu.strato.preference
 
 import android.content.Context
+import org.stratoemu.strato.utils.registerLauncher
 import android.content.Intent
 import android.util.AttributeSet
 import androidx.activity.ComponentActivity
@@ -23,7 +24,7 @@ import org.stratoemu.strato.R
  * This preference is used to launch [GpuDriverActivity] using a preference
  */
 class GpuDriverPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = AndroidR.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
-    private val driverCallback = (context as ComponentActivity).registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+    private val driverCallback = (context as ComponentActivity).registerLauncher(ActivityResultContracts.StartActivityForResult()) {
         notifyChanged()
     }
 

@@ -7,6 +7,7 @@
 #include <vfs/ncz_backing.h>
 #include "nca.h"
 #include "xci.h"
+#include "update.h"
 
 namespace skyline::loader {
     XciLoader::XciLoader(const std::shared_ptr<vfs::Backing> &backing, const std::shared_ptr<crypto::KeyStore> &keyStore) {
@@ -65,6 +66,32 @@ namespace skyline::loader {
         romFs = programNca->romFs;
         controlRomFs = std::make_shared<vfs::RomFileSystem>(controlNca->romFs);
         nacp.emplace(controlRomFs->OpenFile("control.nacp"));
+    }
+
+    bool XciLoader::ApplyUpdate(const std::string &publicFilesPath, const std::shared_ptr<crypto::KeyStore> &keyStore) {
+        if (!programNca)
+            return false;
+
+        auto update{FindInstalledUpdate(publicFilesPath, programNca->header.programId, keyStore)};
+        if (!update.program)
+            return false;
+
+        // The RomFS of an update is built on top of the one of the game, one that was released complete is used as it is
+        std::shared_ptr<vfs::Backing> updatedRomFs{update.program->HasPatchedRomFs() ? update.program->OpenPatchedRomFs(programNca->romFsSection) : update.program->romFs};
+        if (updatedRomFs == nullptr)
+            return false;
+
+        romFs = std::move(updatedRomFs);
+        programNca = std::move(update.program);
+
+        if (update.control) {
+            controlNca = std::move(update.control);
+            controlRomFs = std::make_shared<vfs::RomFileSystem>(controlNca->romFs);
+            nacp.emplace(controlRomFs->OpenFile("control.nacp"));
+        }
+
+        LOGINF("Applied the installed update (version {})", nacp ? nacp->GetApplicationVersion() : "unknown");
+        return true;
     }
 
     void *XciLoader::LoadProcessData(const std::shared_ptr<kernel::type::KProcess> &process, const DeviceState &state) {
