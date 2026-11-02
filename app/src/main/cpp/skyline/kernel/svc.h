@@ -313,4 +313,9 @@ namespace skyline::kernel::svc {
      * @brief The SVC table that maps all SVCs to their corresponding functions
      */
     extern const std::array<SvcDescriptor, 0x80> SvcTable;
+
+    /**
+     * @brief How many SVCs the guest made in total, the stall watchdog looks at it to notice a game that stopped making any
+     */
+    inline std::atomic<u64> SvcCounter{};
 }

@@ -57,6 +57,54 @@ else ()
 endif ()
 include_directories(SYSTEM "${ZSTD_SOURCE_DIR}/lib")
 
+# FFmpeg, used to decode the videos of the games (the NVDEC video decoder of the console), only the software decoders of H.264, VP8 and VP9 are built.
+# The source is downloaded and built for Android while the app is built. Set this to OFF to build without videos (cutscenes stay empty), no download or FFmpeg build happens then.
+option(MANDACARU_ENABLE_VIDEO "Decode the videos of the games with FFmpeg" ON)
+if (MANDACARU_ENABLE_VIDEO)
+    include(ExternalProject)
+    include(ProcessorCount)
+    ProcessorCount(FFMPEG_JOBS)
+    if (FFMPEG_JOBS EQUAL 0)
+        set(FFMPEG_JOBS 4)
+    endif ()
+
+    set(FFMPEG_VERSION "7.1.1")
+    set(FFMPEG_PREFIX "${CMAKE_BINARY_DIR}/ffmpeg-install")
+    if (NOT CMAKE_ANDROID_NDK_TOOLCHAIN_HOST_TAG)
+        set(CMAKE_ANDROID_NDK_TOOLCHAIN_HOST_TAG "linux-x86_64")
+    endif ()
+    if (NOT CMAKE_ANDROID_NDK)
+        if (ANDROID_NDK)
+            set(CMAKE_ANDROID_NDK "${ANDROID_NDK}")
+        else ()
+            set(CMAKE_ANDROID_NDK "$ENV{ANDROID_NDK_HOME}")
+        endif ()
+    endif ()
+    set(FFMPEG_TOOLCHAIN "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/${CMAKE_ANDROID_NDK_TOOLCHAIN_HOST_TAG}/bin")
+    set(FFMPEG_API "${CMAKE_SYSTEM_VERSION}")
+
+    ExternalProject_Add(ffmpeg_external
+            URL "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz"
+            PREFIX "${CMAKE_BINARY_DIR}/ffmpeg"
+            CONFIGURE_COMMAND <SOURCE_DIR>/configure
+                --prefix=${FFMPEG_PREFIX}
+                --enable-cross-compile --target-os=android --arch=aarch64 --cpu=armv8-a
+                --cc=${FFMPEG_TOOLCHAIN}/aarch64-linux-android${FFMPEG_API}-clang
+                --cxx=${FFMPEG_TOOLCHAIN}/aarch64-linux-android${FFMPEG_API}-clang++
+                --ar=${FFMPEG_TOOLCHAIN}/llvm-ar --nm=${FFMPEG_TOOLCHAIN}/llvm-nm
+                --ranlib=${FFMPEG_TOOLCHAIN}/llvm-ranlib --strip=${FFMPEG_TOOLCHAIN}/llvm-strip
+                --extra-cflags=-fPIC
+                --enable-static --disable-shared --enable-pic
+                --disable-everything --disable-autodetect --disable-programs --disable-doc --disable-debug
+                --disable-avdevice --disable-avformat --disable-avfilter --disable-swscale --disable-swresample --disable-postproc --disable-network
+                --enable-avcodec --enable-avutil
+                --enable-decoder=h264 --enable-decoder=vp8 --enable-decoder=vp9
+            BUILD_COMMAND make -j${FFMPEG_JOBS}
+            INSTALL_COMMAND make install
+            BUILD_BYPRODUCTS "${FFMPEG_PREFIX}/lib/libavcodec.a" "${FFMPEG_PREFIX}/lib/libavutil.a"
+            LOG_DOWNLOAD ON LOG_CONFIGURE ON LOG_BUILD ON LOG_INSTALL ON LOG_OUTPUT_ON_FAILURE ON)
+endif ()
+
 # Vulkan + Vulkan-Hpp
 add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR) # We want all the Android-specific structures to be defined
 add_compile_definitions(VULKAN_HPP_NO_SPACESHIP_OPERATOR) # libcxx doesn't implement operator<=> for std::array which breaks this
@@ -271,6 +319,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/vfs/npdm.cpp
         ${source_DIR}/skyline/vfs/nca.cpp
         ${source_DIR}/skyline/vfs/bktr_backing.cpp
+        ${source_DIR}/skyline/soc/host1x/video/ffmpeg_check.cpp
         ${source_DIR}/skyline/vfs/ncz_backing.cpp
         ${source_DIR}/skyline/vfs/ticket.cpp
         ${source_DIR}/skyline/services/serviceman.cpp
@@ -430,3 +479,12 @@ target_link_libraries(skyline PRIVATE shader_recompiler audio_core)
 # Align the ELF segments to 16 KB so the library can be loaded on devices that use 16 KB memory pages (Android 15+), harmless on 4 KB devices
 target_link_options(skyline PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries_system(skyline android perfetto fmt lz4_static libzstd_static tzcode vkma mbedcrypto opus Boost::intrusive Boost::container Boost::preprocessor Boost::regex range-v3 adrenotools tsl::robin_map)
+
+if (MANDACARU_ENABLE_VIDEO)
+    add_dependencies(skyline ffmpeg_external)
+    target_compile_definitions(skyline PRIVATE MANDACARU_VIDEO=1)
+    target_include_directories(skyline SYSTEM PRIVATE "${FFMPEG_PREFIX}/include")
+    # libavcodec needs libavutil, so it comes first, and the symbols stay inside the library
+    target_link_libraries(skyline "${FFMPEG_PREFIX}/lib/libavcodec.a" "${FFMPEG_PREFIX}/lib/libavutil.a" m)
+    target_link_options(skyline PRIVATE "-Wl,--exclude-libs,libavcodec.a" "-Wl,--exclude-libs,libavutil.a")
+endif ()

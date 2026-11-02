@@ -7,7 +7,11 @@
 #include "command_scheduler.h"
 #include "common/exception.h"
 
+#include <fstream>
+#include "breadcrumbs.h"
+
 namespace skyline::gpu {
+
     void CommandScheduler::WaiterThread() {
         if (int result{pthread_setname_np(pthread_self(), "Sky-CycleWaiter")})
             LOGW("Failed to set the thread name: {}", strerror(result));
@@ -104,6 +108,11 @@ namespace skyline::gpu {
                     .pSignalSemaphores = fullSignalSemaphores.data(),
                 }, cycle->fence);
             } catch (const vk::DeviceLostError &e) {
+                // The queue reports the loss on a later submission, so what was submitted just before it is what to look at
+                Breadcrumbs::Get().Add("vkQueueSubmit failed with VK_ERROR_DEVICE_LOST");
+                Breadcrumbs::Get().Dump("device lost");
+                LogProcessMemory("device lost");
+
                 // Wait 5 seconds to give traces etc. time to settle
                 std::this_thread::sleep_for(std::chrono::seconds(5));
                 throw exception("Vulkan device lost!");

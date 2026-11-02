@@ -69,6 +69,10 @@ namespace skyline {
             std::list<std::shared_ptr<type::KThread>> waiters; //!< A queue of threads waiting on this thread sorted by priority
             void *waitConditionVariable; //!< The condition variable which this thread is waiting on
             bool waitSignalled{}; //!< If the conditional variable has been signalled already
+
+            std::atomic<i32> currentSvc{-1}; //!< The SVC this thread is inside of right now, -1 when it runs guest code (read by the stall watchdog)
+            std::atomic<i32> lastSvc{-1}; //!< The last SVC this thread made
+            std::array<std::atomic<u64>, 3> lastSvcArgs{}; //!< X0-X2 of that SVC
             Result waitResult; //!< The result of the wait operation
 
             bool isCancellable{false}; //!< If the thread is currently in a position where it's cancellable

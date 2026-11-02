@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <gpu.h>
 #include "graphics_pipeline_assembler.h"
+#include "breadcrumbs.h"
 #include "trait_manager.h"
 
 namespace skyline::gpu {
@@ -226,6 +227,13 @@ namespace skyline::gpu {
 
             LOGW("Creating a pipeline with a geometry shader failed ({}), retrying without the geometry stage", e.what());
             pipeline = createPipeline(withoutGeometry);
+        }
+
+        {
+            std::string stages;
+            for (const auto &shaderStage : pipelineDescIt->shaderStages)
+                stages += fmt::format("{} ", vk::to_string(shaderStage.stage));
+            Breadcrumbs::Get().Add("Pipeline compiled: {}", stages);
         }
 
         if (pipelineDescIt->destroyShaderModules)

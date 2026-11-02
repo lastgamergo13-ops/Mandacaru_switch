@@ -11,6 +11,7 @@
 #include <gpu.h>
 #include <dlfcn.h>
 #include "command_executor.h"
+#include <gpu/breadcrumbs.h>
 #include <nce.h>
 
 namespace skyline::gpu::interconnect {
@@ -378,6 +379,7 @@ namespace skyline::gpu::interconnect {
             }
             renderPass = &std::get<node::RenderPassNode>(slot->nodes.emplace_back(std::in_place_type_t<node::RenderPassNode>(), renderArea));
             renderPassIt = std::prev(slot->nodes.end());
+            Breadcrumbs::Get().Add("Render pass #{}: area {}x{} at ({}, {}), {} color attachment(s), depth/stencil: {}", renderPassIndex, renderArea.extent.width, renderArea.extent.height, renderArea.offset.x, renderArea.offset.y, colorAttachments.size(), depthStencilAttachment != nullptr);
             addSubpass();
             subpassCount = 1;
         } else if (!attachmentsMatch) {
@@ -612,6 +614,8 @@ namespace skyline::gpu::interconnect {
     void CommandExecutor::SubmitInternal() {
         if (renderPass)
             FinishRenderPass();
+
+        Breadcrumbs::Get().Add("Submission #{}: {} render pass(es), {} attached texture(s), {} attached buffer(s)", submissionNumber, renderPassIndex, attachedTextures.size(), attachedBuffers.size());
 
         slot->nodes.splice(slot->nodes.end(), slot->pendingPostRenderPassNodes);
 

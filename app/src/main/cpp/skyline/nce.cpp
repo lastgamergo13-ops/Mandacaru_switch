@@ -27,6 +27,16 @@ namespace skyline::nce {
 
         const auto &state{*ctx->state};
         auto svc{kernel::svc::SvcTable[svcId]};
+
+        // Cheap bookkeeping that lets the stall watchdog say what a frozen game was doing
+        kernel::svc::SvcCounter.fetch_add(1, std::memory_order_relaxed);
+        if (state.thread) {
+            state.thread->currentSvc.store(svcId, std::memory_order_relaxed);
+            state.thread->lastSvc.store(svcId, std::memory_order_relaxed);
+            for (size_t i{}; i < state.thread->lastSvcArgs.size(); i++)
+                state.thread->lastSvcArgs[i].store(reinterpret_cast<kernel::svc::SvcContext *>(ctx)->regs[i], std::memory_order_relaxed);
+        }
+
         try {
             if (svc) [[likely]] {
                 TRACE_EVENT("kernel", perfetto::StaticString{svc.name});
@@ -43,6 +53,9 @@ namespace skyline::nce {
                 kernel::Scheduler::YieldPending = false;
                 state.scheduler->WaitSchedule();
             }
+
+            if (state.thread)
+                state.thread->currentSvc.store(-1, std::memory_order_relaxed);
         } catch (const signal::SignalException &e) {
             if (e.signal != SIGINT) {
                 LOGENF("{} (SVC: {})\nStack Trace:{}", e.what(), svc.name, state.loader->GetStackTrace(e.frames));
