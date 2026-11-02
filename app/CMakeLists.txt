@@ -81,7 +81,18 @@ if (MANDACARU_ENABLE_VIDEO)
         endif ()
     endif ()
     set(FFMPEG_TOOLCHAIN "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/${CMAKE_ANDROID_NDK_TOOLCHAIN_HOST_TAG}/bin")
-    set(FFMPEG_API "${CMAKE_SYSTEM_VERSION}")
+    # The API level of the compiler wrapper (aarch64-linux-android<level>-clang), CMAKE_SYSTEM_VERSION isn't the level when Gradle runs CMake
+    if (ANDROID_PLATFORM_LEVEL)
+        set(FFMPEG_API "${ANDROID_PLATFORM_LEVEL}")
+    elseif (ANDROID_PLATFORM)
+        string(REGEX REPLACE "^android-" "" FFMPEG_API "${ANDROID_PLATFORM}")
+    else ()
+        set(FFMPEG_API 29)
+    endif ()
+    if (NOT FFMPEG_API MATCHES "^[0-9]+$")
+        set(FFMPEG_API 29)
+    endif ()
+    message(STATUS "FFmpeg is built with the compiler of API level ${FFMPEG_API}")
 
     ExternalProject_Add(ffmpeg_external
             URL "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz"
