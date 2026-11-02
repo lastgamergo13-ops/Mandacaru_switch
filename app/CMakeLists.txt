@@ -485,6 +485,6 @@ if (MANDACARU_ENABLE_VIDEO)
     target_compile_definitions(skyline PRIVATE MANDACARU_VIDEO=1)
     target_include_directories(skyline SYSTEM PRIVATE "${FFMPEG_PREFIX}/include")
     # libavcodec needs libavutil, so it comes first, and the symbols stay inside the library
-    target_link_libraries(skyline "${FFMPEG_PREFIX}/lib/libavcodec.a" "${FFMPEG_PREFIX}/lib/libavutil.a" m)
+    target_link_libraries(skyline PRIVATE "${FFMPEG_PREFIX}/lib/libavcodec.a" "${FFMPEG_PREFIX}/lib/libavutil.a" m)
     target_link_options(skyline PRIVATE "-Wl,--exclude-libs,libavcodec.a" "-Wl,--exclude-libs,libavutil.a")
 endif ()
