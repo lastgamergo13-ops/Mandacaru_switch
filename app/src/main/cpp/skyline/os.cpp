@@ -74,22 +74,19 @@ namespace skyline::kernel {
                 return;
 
             std::string report{fmt::format("The guest has not made any SVC for {} seconds (SVCs so far: {}), threads:", seconds, kernel::svc::SvcCounter.load())};
-            std::scoped_lock lock{state.process->threadMutex};
-            for (const auto &thread : state.process->threads) {
-                if (!thread)
-                    continue;
+            auto describe{[](i32 svcId) -> std::string {
+                if (svcId < 0 || static_cast<size_t>(svcId) >= kernel::svc::SvcTable.size())
+                    return fmt::format("0x{:X}", svcId);
+                const char *name{kernel::svc::SvcTable[static_cast<size_t>(svcId)].name};
+                return name ? std::string{name} : fmt::format("0x{:X}", svcId);
+            }};
 
-                auto describe{[](i32 svcId) -> std::string {
-                    if (svcId < 0 || static_cast<size_t>(svcId) >= kernel::svc::SvcTable.size() || !kernel::svc::SvcTable[svcId].name)
-                        return fmt::format("0x{:X}", svcId);
-                    return kernel::svc::SvcTable[svcId].name;
-                }};
-
-                i32 current{thread->currentSvc.load()};
-                report += fmt::format("\n  Thread #{} (priority {}): ", thread->id, thread->priority.load());
+            state.process->ForEachThread([&](kernel::type::KThread &thread) {
+                i32 current{thread.currentSvc.load()};
+                report += fmt::format("\n  Thread #{} (priority {}): ", thread.id, thread.priority.load());
                 report += current >= 0 ? fmt::format("waiting inside SVC {}", describe(current)) : "running guest code without calling the kernel";
-                report += fmt::format(", last SVC {} (X0=0x{:X} X1=0x{:X} X2=0x{:X})", describe(thread->lastSvc.load()), thread->lastSvcArgs[0].load(), thread->lastSvcArgs[1].load(), thread->lastSvcArgs[2].load());
-            }
+                report += fmt::format(", last SVC {} (X0=0x{:X} X1=0x{:X} X2=0x{:X})", describe(thread.lastSvc.load()), thread.lastSvcArgs[0].load(), thread.lastSvcArgs[1].load(), thread.lastSvcArgs[2].load());
+            });
             LOGW("{}", report);
         }
 

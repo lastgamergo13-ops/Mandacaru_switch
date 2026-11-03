@@ -66,6 +66,17 @@ namespace skyline {
             std::vector<std::shared_ptr<KObject>> handles;
 
           public:
+            /**
+             * @brief Calls the function for every thread that exists, the list of threads is locked meanwhile
+             */
+            template<typename Function>
+            void ForEachThread(Function &&function) {
+                std::scoped_lock lock{threadMutex};
+                for (const auto &thread : threads)
+                    if (thread)
+                        function(*thread);
+            }
+
             KProcess(const DeviceState &state);
 
             ~KProcess();
