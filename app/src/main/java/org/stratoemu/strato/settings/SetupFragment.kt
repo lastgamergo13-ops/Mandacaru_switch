@@ -90,7 +90,7 @@ class SetupFragment : Fragment() {
                 }
             )),
             Step(R.drawable.ic_folder, R.string.setup_games, R.string.setup_games_description, listOf(
-                StepButton(R.string.setup_button_games, R.drawable.ic_folder, { requireContext().getSettings().searchLocation.isNotBlank() }) { gamesFolder.pick() }
+                StepButton(R.string.setup_button_games, R.drawable.ic_folder, { requireContext().getSettings().searchLocations.isNotEmpty() }) { gamesFolder.pick() }
             )),
             Step(R.drawable.ic_check_circle, R.string.setup_finished, R.string.setup_finished_description, listOf(
                 StepButton(R.string.setup_get_started, R.drawable.ic_arrow_forward, { false }) { requireActivity().finish() }

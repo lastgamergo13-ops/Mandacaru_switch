@@ -60,6 +60,16 @@ namespace skyline::nce {
         static void HostSignalHandler(int signal, siginfo *info, ucontext *ctx);
 
         /**
+         * @brief Stores the registers of a thread that is running guest code, it is the answer to SIGUSR2 that the stall watchdog sends to see where a frozen game is
+         */
+        static void SampleHandler(int signal, siginfo *info, ucontext *ctx, void **tls);
+
+        /**
+         * @brief SIGUSR2 reaching a thread that is in host code (it just entered the kernel), nothing to sample
+         */
+        static void HostSampleHandler(int signal, siginfo *info, ucontext *ctx) {}
+
+        /**
          * @note There should only be one instance of NCE concurrently
          */
         NCE(const DeviceState &state);

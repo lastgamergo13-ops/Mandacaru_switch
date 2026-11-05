@@ -8,6 +8,7 @@
 #include <soc/gm20b/channel.h>
 #include "common/utils.h"
 #include "maxwell_3d.h"
+#include <gpu/breadcrumbs.h>
 #include "common.h"
 
 namespace skyline::gpu::interconnect::maxwell3d {
@@ -296,6 +297,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
     void Maxwell3D::Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices) {
         TRACE_EVENT("gpu", "Draw", "indexed", indexed, "count", count, "instanceCount", instanceCount);
+        Breadcrumbs::Get().RecordDraw(static_cast<u32>(topology), indexed, false, count, instanceCount, vertexOffset);
 
         StateUpdateBuilder builder{*ctx.executor.allocator};
         vk::PipelineStageFlags srcStageMask{}, dstStageMask{};

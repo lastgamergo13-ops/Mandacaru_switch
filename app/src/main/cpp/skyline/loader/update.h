@@ -55,10 +55,13 @@ namespace skyline::loader {
             root += '/';
         std::string gameDirectory{fmt::format("{}games/{:016X}/dlc/", root, baseTitleId)};
         std::string contentsDirectory{gameDirectory + "registered/"};
-        if (!std::filesystem::is_directory(contentsDirectory))
+        if (!std::filesystem::is_directory(contentsDirectory)) {
+            LOGI("No installed content for {:016X} (looked in {})", baseTitleId, contentsDirectory);
             return update;
+        }
 
         LoadInstalledTitleKeys(*keyStore, gameDirectory + "title_keys.txt");
+        LOGI("Looking for the update of {:016X} (title id {:016X}) in {}", baseTitleId, baseTitleId + 0x800, contentsDirectory);
 
         u64 updateTitleId{baseTitleId + 0x800};
         std::filesystem::file_time_type programTime{}, controlTime{};
@@ -66,6 +69,7 @@ namespace skyline::loader {
         for (const auto &entry : fileSystem->OpenDirectory("")->Read()) {
             try {
                 auto nca{vfs::NCA(fileSystem->OpenFile(entry.name), keyStore)};
+                LOGI("  {}: title id {:016X}, content type {}, ExeFS: {}, RomFS: {}", entry.name, nca.header.programId, static_cast<int>(nca.contentType), nca.exeFs != nullptr, nca.romFs != nullptr || nca.HasPatchedRomFs());
                 if (nca.header.programId != updateTitleId)
                     continue;
 
@@ -77,11 +81,13 @@ namespace skyline::loader {
                     update.control = std::move(nca);
                     controlTime = time;
                 }
-            } catch (const std::exception &) {
-                continue; // DLC and anything that can't be read (missing keys) isn't an update we can use
+            } catch (const std::exception &e) {
+                // DLC and anything that can't be read (missing keys, a table that couldn't be understood) isn't an update we can use, the reason is in the log
+                LOGW("  {} can't be used: {}", entry.name, e.what());
             }
         }
 
+        LOGI("Update of {:016X}: program NCA {}, control NCA {}", baseTitleId, update.program ? "found" : "NOT found", update.control ? "found" : "NOT found");
         return update;
     }
 }

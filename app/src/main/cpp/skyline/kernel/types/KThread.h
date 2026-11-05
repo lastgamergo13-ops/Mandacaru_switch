@@ -73,6 +73,12 @@ namespace skyline {
             std::atomic<i32> currentSvc{-1}; //!< The SVC this thread is inside of right now, -1 when it runs guest code (read by the stall watchdog)
             std::atomic<i32> lastSvc{-1}; //!< The last SVC this thread made
             std::array<std::atomic<u64>, 3> lastSvcArgs{}; //!< X0-X2 of that SVC
+
+            std::array<std::atomic<u64>, 31> sampledRegs{}; //!< X0-X30 of the last time the stall watchdog asked this thread for its registers (see NCE::SampleHandler)
+            std::atomic<u64> sampledSp{};
+            std::atomic<u64> sampledPc{}; //!< Written last, zero while a sample is awaited
+
+            pthread_t GetHostThread() const { return pthread; } //!< The host thread that runs this guest thread, used by the stall watchdog to send it signals
             Result waitResult; //!< The result of the wait operation
 
             bool isCancellable{false}; //!< If the thread is currently in a position where it's cancellable

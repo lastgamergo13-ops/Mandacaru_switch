@@ -32,7 +32,15 @@ object KeyReader {
         }
     }
 
-    fun importFromLocation(context : Context, searchLocation : Uri) = importFromDirectory(context, DocumentFile.fromTreeUri(context, searchLocation)!!)
+    fun importFromLocations(context : Context, searchLocations : List<Uri>) {
+        searchLocations.forEach { location ->
+            try {
+                DocumentFile.fromTreeUri(context, location)?.let { importFromDirectory(context, it) }
+            } catch (e : Exception) {
+                // One folder that can't be read doesn't stop the keys of the others from being imported
+            }
+        }
+    }
 
     private fun importFromDirectory(context : Context, directory : DocumentFile) {
         directory.listFiles().forEach { file ->

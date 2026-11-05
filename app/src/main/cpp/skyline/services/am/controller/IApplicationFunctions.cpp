@@ -15,7 +15,8 @@ namespace skyline::service::am {
         : BaseService(state, manager),
           gpuErrorEvent(std::make_shared<type::KEvent>(state, false)),
           friendInvitationStorageChannelEvent(std::make_shared<type::KEvent>(state, false)),
-          notificationStorageChannelEvent(std::make_shared<type::KEvent>(state, false)) {}
+          notificationStorageChannelEvent(std::make_shared<type::KEvent>(state, false)),
+          unknownEvent210(std::make_shared<type::KEvent>(state, false)) {}
 
     Result IApplicationFunctions::PopLaunchParameter(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         constexpr u32 LaunchParameterMagic{0xC79497CA}; //!< The magic of the application launch parameters
@@ -179,6 +180,18 @@ namespace skyline::service::am {
 
     Result IApplicationFunctions::GetPreviousProgramIndex(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         response.Push<i32>(previousProgramIndex);
+        return {};
+    }
+
+    Result IApplicationFunctions::GetUnknownEvent210(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto handle{state.process->InsertItem(unknownEvent210)};
+        LOGD("Unknown event 210 handle: 0x{:X}", handle);
+        response.copyHandles.push_back(handle);
+        return {};
+    }
+
+    Result IApplicationFunctions::Unknown330(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(0);
         return {};
     }
 

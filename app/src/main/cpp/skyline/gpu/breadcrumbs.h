@@ -3,6 +3,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <chrono>
@@ -29,7 +30,28 @@ namespace skyline::gpu {
         u64 nextSequence{};
         std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
 
+        struct DrawRecord {
+            u32 topology{};
+            u32 count{};
+            u32 instanceCount{};
+            u32 vertexOffset{};
+            bool indexed{};
+            bool indirect{};
+        };
+
+        static constexpr size_t DrawCapacity{48};
+        std::array<DrawRecord, DrawCapacity> draws;
+        std::atomic<u32> drawHead{};
+
       public:
+        /**
+         * @brief Remembers a draw, a draw is only a few numbers so this is cheap enough to do for every one of them (nothing is formatted until the history is dumped)
+         */
+        void RecordDraw(u32 topology, bool indexed, bool indirect, u32 count, u32 instanceCount, u32 vertexOffset) {
+            u32 slot{drawHead.fetch_add(1, std::memory_order_relaxed) % DrawCapacity};
+            draws[slot] = DrawRecord{topology, count, instanceCount, vertexOffset, indexed, indirect};
+        }
+
         static Breadcrumbs &Get() {
             static Breadcrumbs instance;
             return instance;
@@ -55,6 +77,14 @@ namespace skyline::gpu {
             for (u64 sequence{first}; sequence < nextSequence; sequence++) {
                 const auto &entry{entries[sequence % Capacity]};
                 LOGE("  [{:>8}] #{} {}", entry.timeMs, entry.sequence, entry.text);
+            }
+
+            u32 head{drawHead.load(std::memory_order_relaxed)};
+            u32 shown{std::min<u32>(head, DrawCapacity)};
+            LOGE("The last {} draw calls, oldest first (topology is the value of the Maxwell enum):", shown);
+            for (u32 i{head - shown}; i != head; i++) {
+                const auto &draw{draws[i % DrawCapacity]};
+                LOGE("  topology {} count {} instances {} vertex offset {}{}{}", draw.topology, draw.count, draw.instanceCount, draw.vertexOffset, draw.indexed ? " indexed" : "", draw.indirect ? " indirect" : "");
             }
         }
     };

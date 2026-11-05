@@ -160,6 +160,18 @@ namespace skyline::nce {
         }
     }
 
+    void NCE::SampleHandler(int signal, siginfo *info, ucontext *ctx, void **tls) {
+        auto &mctx{ctx->uc_mcontext};
+        const auto &state{*reinterpret_cast<ThreadContext *>(*tls)->state};
+        if (!state.thread)
+            return;
+
+        for (size_t i{}; i < state.thread->sampledRegs.size(); i++)
+            state.thread->sampledRegs[i].store(mctx.regs[i], std::memory_order_relaxed);
+        state.thread->sampledSp.store(mctx.sp, std::memory_order_relaxed);
+        state.thread->sampledPc.store(mctx.pc, std::memory_order_release);
+    }
+
     void NCE::SignalHandler(int signal, siginfo *info, ucontext *ctx, void **tls) {
         auto &mctx{ctx->uc_mcontext};
         const auto &state{*reinterpret_cast<ThreadContext *>(*tls)->state};
@@ -249,6 +261,8 @@ namespace skyline::nce {
         signal::SetTlsRestorer(&NceTlsRestorer);
         signal::SetGuestSignalHandler({SIGINT, SIGILL, SIGTRAP, SIGBUS, SIGFPE, SIGSEGV}, nce::NCE::SignalHandler);
         signal::SetHostSignalHandler({SIGSEGV}, nce::NCE::HostSignalHandler);
+        signal::SetGuestSignalHandler({SIGUSR2}, nce::NCE::SampleHandler);
+        signal::SetHostSignalHandler({SIGUSR2}, nce::NCE::HostSampleHandler);
     }
 
     constexpr size_t TrampolineSize{18}; // Size of the main SVC trampoline function in u32 units

@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
     private val documentPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) {
         it?.let { uri ->
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            appSettings.searchLocation = uri.toString()
+            appSettings.addSearchLocation(uri)
 
             loadRoms(false)
         }
@@ -272,7 +272,7 @@ class MainActivity : AppCompatActivity() {
             binding.romPlaceholder.isVisible = true
             binding.romPlaceholder.text = getString(R.string.searching_roms)
         }
-        viewModel.loadRoms(this, loadFromFile, Uri.parse(appSettings.searchLocation), EmulationSettings.global.systemLanguage)
+        viewModel.loadRoms(this, loadFromFile, appSettings.searchLocations, EmulationSettings.global.systemLanguage)
         appSettings.refreshRequired = false
     }
 
@@ -332,6 +332,6 @@ class MainActivity : AppCompatActivity() {
             adapter.notifyItemRangeChanged(0, adapter.currentItems.size)
         }
 
-        viewModel.checkRomHash(Uri.parse(appSettings.searchLocation), EmulationSettings.global.systemLanguage)
+        viewModel.checkRomHash(appSettings.searchLocations, EmulationSettings.global.systemLanguage)
     }
 }

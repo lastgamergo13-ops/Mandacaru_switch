@@ -37,7 +37,12 @@
     <string name="open_data_directory">View Internal Directory</string>
     <string name="open_data_directory_summary">Opens Mandacaru switch\'s internal directory in a file manager</string>
     <string name="open_data_directory_failed">Cannot find an external file manager to open Mandacaru switch\'s internal directory</string>
-    <string name="search_location">Search Location</string>
+    <string name="search_location">Game folders</string>
+    <string name="search_location_none">No folder selected</string>
+    <string name="search_location_add">Add folder</string>
+    <string name="search_location_close">Close</string>
+    <string name="search_location_remove_title">Remove this folder?</string>
+    <string name="search_location_remove">Remove</string>
     <!-- Settings - Keys -->
     <string name="keys">Keys</string>
     <string name="prod_keys">Production Keys</string>
@@ -372,7 +377,7 @@
     <string name="setup_firmware_description">Install the firmware from your own console (a .zip file). The keys must be added first.</string>
     <string name="setup_button_firmware">Install firmware</string>
     <string name="setup_games">Games</string>
-    <string name="setup_games_description">Choose the folder where your games are. They show up in the library when you finish.</string>
+    <string name="setup_games_description">Choose the folders where your games are, on the internal storage or on an SD card. Tap the button again to add more folders, they show up in the library when you finish.</string>
     <string name="setup_button_games">Select games folder</string>
     <string name="setup_finished">All done</string>
     <string name="setup_finished_description">You can change all of this later in the settings.</string>

@@ -683,7 +683,16 @@ namespace skyline::kernel::svc {
         objectTable.reserve(numHandles);
 
         for (const auto &handle : waitHandles) {
-            auto object{state.process->GetHandle(handle)};
+            std::shared_ptr<type::KObject> object;
+            try {
+                object = state.process->GetHandle(handle);
+            } catch (const std::out_of_range &) {
+                // A handle that doesn't exist (for example one from an IPC command that failed) is reported to the game, which used to be an exception that killed it
+                LOGW("An invalid handle was supplied to WaitSynchronization: 0x{:X}", handle);
+                ctx.w0 = result::InvalidHandle;
+                return;
+            }
+
             switch (object->objectType) {
                 case type::KType::KProcess:
                 case type::KType::KThread:

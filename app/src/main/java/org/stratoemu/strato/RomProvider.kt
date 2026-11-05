@@ -36,9 +36,23 @@ class RomProvider @Inject constructor(@ApplicationContext private val context : 
         }
     }
 
-    fun loadRoms(searchLocation : Uri, systemLanguage : Int) = DocumentFile.fromTreeUri(context, searchLocation)!!.let { documentFile ->
-        arrayListOf<AppEntry>().apply {
-            addEntries(mapOf("nro" to NRO, "nso" to NSO, "nca" to NCA, "nsp" to NSP, "xci" to XCI, "nsz" to NSP, "xcz" to XCI), documentFile, this, systemLanguage)
+    /**
+     * Searches every folder for games, a folder that can't be read (an SD card that was removed, a permission that was revoked) is skipped and the others are still listed
+     */
+    fun loadRoms(searchLocations : List<Uri>, systemLanguage : Int) : ArrayList<AppEntry> {
+        val formats = mapOf("nro" to NRO, "nso" to NSO, "nca" to NCA, "nsp" to NSP, "xci" to XCI, "nsz" to NSP, "xcz" to XCI)
+        val entries = arrayListOf<AppEntry>()
+        searchLocations.forEach { location ->
+            try {
+                DocumentFile.fromTreeUri(context, location)?.let { addEntries(formats, it, entries, systemLanguage) }
+            } catch (e : Exception) {
+                Log.w("RomProvider", "Can't read the folder $location: ${e.message}")
+            }
         }
+
+        // A folder can be inside another one that is also searched
+        val seen = HashSet<String>()
+        entries.removeAll { !seen.add(it.uri.toString()) }
+        return entries
     }
 }
