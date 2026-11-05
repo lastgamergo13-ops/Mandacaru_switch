@@ -48,7 +48,7 @@ namespace skyline::gpu {
          * @brief Remembers a draw, a draw is only a few numbers so this is cheap enough to do for every one of them (nothing is formatted until the history is dumped)
          */
         void RecordDraw(u32 topology, bool indexed, bool indirect, u32 count, u32 instanceCount, u32 vertexOffset) {
-            u32 slot{drawHead.fetch_add(1, std::memory_order_relaxed) % DrawCapacity};
+            u32 slot{static_cast<u32>(drawHead.fetch_add(1, std::memory_order_relaxed) % DrawCapacity)};
             draws[slot] = DrawRecord{topology, count, instanceCount, vertexOffset, indexed, indirect};
         }
 
