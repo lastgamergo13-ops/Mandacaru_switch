@@ -331,6 +331,13 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/vfs/nca.cpp
         ${source_DIR}/skyline/vfs/bktr_backing.cpp
         ${source_DIR}/skyline/soc/host1x/video/ffmpeg_check.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/common/stream.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/host1x.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/ffmpeg.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/codecs/decoder.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/codecs/h264.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/codecs/vp8.cpp
+        ${source_DIR}/skyline/soc/host1x/video/eden/video_core/host1x/codecs/vp9.cpp
         ${source_DIR}/skyline/vfs/ncz_backing.cpp
         ${source_DIR}/skyline/vfs/ticket.cpp
         ${source_DIR}/skyline/services/serviceman.cpp
@@ -482,7 +489,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/services/ts/ISession.cpp
         ${source_DIR}/skyline/services/ntc/IEnsureNetworkClockAvailabilityService.cpp
         )
-target_include_directories(skyline PRIVATE ${source_DIR}/skyline)
+target_include_directories(skyline PRIVATE ${source_DIR}/skyline ${source_DIR}/skyline/soc/host1x/video) # The second one is the root of the "eden/..." includes of the video decoder
 # target_precompile_headers(skyline PRIVATE ${source_DIR}/skyline/common.h) # PCH will currently break Intellisense
 target_compile_options(skyline PRIVATE -Wall -Wno-unknown-attributes -Wno-c++20-extensions -Wno-c++17-extensions -Wno-c99-designator -Wno-reorder -Wno-missing-braces -Wno-unused-variable -Wno-unused-private-field -Wno-dangling-else -Wconversion -fsigned-bitfields)
 

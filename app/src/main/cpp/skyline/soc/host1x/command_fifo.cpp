@@ -45,7 +45,7 @@ namespace skyline::soc::host1x {
     };
     static_assert(sizeof(ChannelCommandFifoMethodHeader) == sizeof(u32));
 
-    ChannelCommandFifo::ChannelCommandFifo(const DeviceState &state, SyncpointSet &syncpoints) : state(state), gatherQueue(GatherQueueSize), host1XClass(syncpoints), nvDecClass(syncpoints), vicClass(syncpoints) {}
+    ChannelCommandFifo::ChannelCommandFifo(const DeviceState &state, SyncpointSet &syncpoints) : state(state), gatherQueue(GatherQueueSize), host1XClass(syncpoints), nvDecClass(state, syncpoints), vicClass(state, syncpoints) {}
 
     void ChannelCommandFifo::Send(ClassId targetClass, u32 method, u32 argument) {
         LOGV("Calling method in class: 0x{:X}, method: 0x{:X}, argument: 0x{:X}", targetClass, method, argument);
@@ -69,7 +69,16 @@ namespace skyline::soc::host1x {
     void ChannelCommandFifo::Process(span<u32> gather) {
         ClassId targetClass{ClassId::Host1x};
 
-        for (auto entry{gather.begin()}; entry != gather.end(); entry++) {
+        // The words that follow a header, a truncated buffer must not read past its end
+        auto entry{gather.begin()};
+        auto next{[&]() -> u32 {
+            if (entry + 1 >= gather.end())
+                throw exception("Host1x command buffer ends in the middle of a command");
+            return *++entry;
+        }};
+
+        try {
+        for (; entry != gather.end(); entry++) {
             ChannelCommandFifoMethodHeader methodHeader{.raw = *entry};
 
             switch (methodHeader.opcode) {
@@ -78,31 +87,36 @@ namespace skyline::soc::host1x {
 
                     for (u32 i{}; i < std::numeric_limits<u8>::digits; i++)
                         if (methodHeader.classMethodMask & (1 << i))
-                            Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                            Send(targetClass, methodHeader.methodAddress + i, next());
 
                     break;
                 case Host1xOpcode::Incr:
                     for (u32 i{}; i < methodHeader.methodCount; i++)
-                        Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                        Send(targetClass, methodHeader.methodAddress + i, next());
 
                     break;
                 case Host1xOpcode::NonIncr:
                     for (u32 i{}; i < methodHeader.methodCount; i++)
-                        Send(targetClass, methodHeader.methodAddress, *++entry);
+                        Send(targetClass, methodHeader.methodAddress, next());
 
                     break;
                 case Host1xOpcode::Mask:
                     for (u32 i{}; i < std::numeric_limits<u16>::digits; i++)
                         if (methodHeader.offsetMask & (1 << i))
-                            Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                            Send(targetClass, methodHeader.methodAddress + i, next());
 
                     break;
                 case Host1xOpcode::Imm:
                     Send(targetClass, methodHeader.methodAddress, methodHeader.immdData);
                     break;
                 default:
-                    throw exception("Unimplemented Host1x command FIFO opcode: 0x{:X}", static_cast<u8>(methodHeader.opcode));
+                    // An opcode that isn't implemented ends the buffer instead of ending the game
+                    LOGE("Unimplemented Host1x command FIFO opcode: 0x{:X}", static_cast<u8>(methodHeader.opcode));
+                    return;
             }
+        }
+        } catch (const std::exception &e) {
+            LOGE("A Host1x command buffer failed: {}", e.what());
         }
     }
 

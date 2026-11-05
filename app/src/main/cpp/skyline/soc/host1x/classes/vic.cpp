@@ -5,8 +5,8 @@
 #include "vic.h"
 
 namespace skyline::soc::host1x {
-    VicClass::VicClass(std::function<void()> opDoneCallback)
-        : opDoneCallback(std::move(opDoneCallback)) {}
+    VicClass::VicClass(const DeviceState &state, std::function<void()> opDoneCallback)
+        : state(state), opDoneCallback(std::move(opDoneCallback)) {}
 
     void VicClass::CallMethod(u32 method, u32 argument) {
         // The VIC converts decoded video frames to RGB, it isn't implemented either (see NvDecClass), only the first call is logged as a warning

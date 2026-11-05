@@ -79,6 +79,8 @@ namespace skyline::service::nvdrv::device::nvhost {
 
         std::scoped_lock lock(channelMutex);
 
+        bool executesCommands{channelType == core::ChannelType::NvDec || channelType == core::ChannelType::VIC};
+
         // A relocation replaces a word of a command buffer (the address of a buffer) with the address the buffer was pinned at, shifted as the engine expects. Games that use the video decoder always send them, they used to make the emulator throw
         for (size_t i{}; i < relocs.size(); i++) {
             const auto &reloc{relocs[i]};
@@ -102,9 +104,10 @@ namespace skyline::service::nvdrv::device::nvhost {
 
             u32 max{core.syncpointManager.IncrementSyncpointMaxExt(incr.syncpointId, incr.numIncrs)};
 
-            // Increment syncpoints on the CPU to avoid needing to pass through the emulated nvdec code which currently does nothing
-            for (size_t j{}; j < incr.numIncrs; j++)
-                state.soc->host1x.syncpoints[incr.syncpointId].Increment();
+            // The video engines increment their syncpoints from the command buffers once the work was done, anything else has nothing to execute and the CPU does it right away
+            if (!executesCommands)
+                for (size_t j{}; j < incr.numIncrs; j++)
+                    state.soc->host1x.syncpoints[incr.syncpointId].Increment();
 
             if (i < fenceThresholds.size())
                 fenceThresholds[i] = max;
@@ -120,12 +123,11 @@ namespace skyline::service::nvdrv::device::nvhost {
 
             span gather(reinterpret_cast<u32 *>(gatherAddress), cmdBuf.words);
 
-            // The video decoder isn't implemented yet, what the game sends to it is only written to the log
-            if (channelType == core::ChannelType::NvDec || channelType == core::ChannelType::VIC)
+            if (executesCommands) {
+                // What the game sends to the video engines is also written to the log, the first few submissions of each
                 DescribeCommandBuffer(channelType, gather);
-
-            // Skip submitting the cmdbufs as no functionality is implemented
-            // state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);
+                state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);
+            }
         }
 
         return PosixResult::Success;

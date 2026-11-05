@@ -11,10 +11,11 @@ namespace skyline::soc::host1x {
      */
     class VicClass {
       private:
+        const DeviceState &state;
         std::function<void()> opDoneCallback;
 
       public:
-        VicClass(std::function<void()> opDoneCallback);
+        VicClass(const DeviceState &state, std::function<void()> opDoneCallback);
 
         void CallMethod(u32 method, u32 argument);
     };
