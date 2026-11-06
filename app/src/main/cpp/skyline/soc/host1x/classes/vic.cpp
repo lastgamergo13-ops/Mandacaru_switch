@@ -159,9 +159,9 @@ namespace skyline::soc::host1x {
 
         if (slot.color_matrix.matrix_enable) {
             // The matrix turns the YUV values of a pixel into RGB: three rows of three coefficients and an offset, with a shift for the products
-            const s32 c00{slot.color_matrix.matrix_coeff00.Value()}, c01{slot.color_matrix.matrix_coeff01.Value()}, c02{slot.color_matrix.matrix_coeff02.Value()}, c03{slot.color_matrix.matrix_coeff03.Value()};
-            const s32 c10{slot.color_matrix.matrix_coeff10.Value()}, c11{slot.color_matrix.matrix_coeff11.Value()}, c12{slot.color_matrix.matrix_coeff12.Value()}, c13{slot.color_matrix.matrix_coeff13.Value()};
-            const s32 c20{slot.color_matrix.matrix_coeff20.Value()}, c21{slot.color_matrix.matrix_coeff21.Value()}, c22{slot.color_matrix.matrix_coeff22.Value()}, c23{slot.color_matrix.matrix_coeff23.Value()};
+            const s32 c00{static_cast<s32>(slot.color_matrix.matrix_coeff00.Value())}, c01{static_cast<s32>(slot.color_matrix.matrix_coeff01.Value())}, c02{static_cast<s32>(slot.color_matrix.matrix_coeff02.Value())}, c03{static_cast<s32>(slot.color_matrix.matrix_coeff03.Value())};
+            const s32 c10{static_cast<s32>(slot.color_matrix.matrix_coeff10.Value())}, c11{static_cast<s32>(slot.color_matrix.matrix_coeff11.Value())}, c12{static_cast<s32>(slot.color_matrix.matrix_coeff12.Value())}, c13{static_cast<s32>(slot.color_matrix.matrix_coeff13.Value())};
+            const s32 c20{static_cast<s32>(slot.color_matrix.matrix_coeff20.Value())}, c21{static_cast<s32>(slot.color_matrix.matrix_coeff21.Value())}, c22{static_cast<s32>(slot.color_matrix.matrix_coeff22.Value())}, c23{static_cast<s32>(slot.color_matrix.matrix_coeff23.Value())};
             const s32 shift{static_cast<s32>(slot.color_matrix.matrix_r_shift.Value())};
             const s32 clampMin{static_cast<s32>(slot.config.soft_clamp_low.Value())};
             const s32 clampMax{static_cast<s32>(slot.config.soft_clamp_high.Value())};
