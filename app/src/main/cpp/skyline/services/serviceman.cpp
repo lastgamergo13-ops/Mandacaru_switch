@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <array>
+#include <mutex>
+#include <string>
 #include <kernel/types/KProcess.h>
 #include <kernel/results.h>
 #include <common/trace.h>
@@ -73,6 +76,36 @@
         }
 
 namespace skyline::service {
+    namespace {
+        /**
+         * @brief Keeps the last IPC requests so the log can show what happened right before an error (a request on a closed session, for example). The first requests and every session event are also written to the log as they happen (Info)
+         */
+        class IpcTrace {
+          private:
+            std::mutex traceMutex;
+            std::array<std::string, 48> recent;
+            size_t next{};
+            u32 written{};
+
+          public:
+            void Add(std::string line, bool always = false) {
+                std::scoped_lock lock{traceMutex};
+                if (always || written < 400) {
+                    written++;
+                    LOGI("IPC: {}", line);
+                }
+                recent[next++ % recent.size()] = std::move(line);
+            }
+
+            void DumpRecent() {
+                std::scoped_lock lock{traceMutex};
+                LOGW("IPC: the last {} requests before this error:", std::min(next, recent.size()));
+                for (size_t i{next > recent.size() ? next - recent.size() : 0}; i < next; i++)
+                    LOGW("IPC:   {}", recent[i % recent.size()]);
+            }
+        } ipcTrace;
+    }
+
     struct GlobalServiceState {
         timesrv::core::TimeServiceObject timesrv;
         pl::SharedFontCore sharedFontCore;
@@ -175,6 +208,7 @@ namespace skyline::service {
             response.moveHandles.push_back(handle);
         }
         LOGD("Service has been created: \"{}\" (0x{:X})", serviceObject->GetName(), handle);
+        ipcTrace.Add(fmt::format("service \"{}\" created, {} 0x{:X}", serviceObject->GetName(), session.isDomain ? "domain object" : "handle", handle), true);
         return serviceObject;
     }
 
@@ -222,6 +256,8 @@ namespace skyline::service {
             ipc::IpcRequest request(session->isDomain, state);
             ipc::IpcResponse response(state);
 
+            ipcTrace.Add(fmt::format("handle 0x{:X} ({}{}) type {} {}{}", handle, session->serviceObject ? session->serviceObject->GetName() : "?", session->isDomain ? ", domain" : "", static_cast<u16>(request.header->type), request.payload ? "command " : "", request.payload ? static_cast<i64>(request.payload->value) : -1), request.header->type != ipc::CommandType::Request && request.header->type != ipc::CommandType::RequestWithContext);
+
             switch (request.header->type) {
                 case ipc::CommandType::Request:
                 case ipc::CommandType::RequestWithContext:
@@ -263,7 +299,9 @@ namespace skyline::service {
                         case ipc::ControlCommand::CloneCurrentObjectEx: {
                             // The clone is a session of its own that talks to the same service object. It used to be the very same KSession under a second handle, so when the game closed the original (the Nintendo SDK does this right after cloning) the clone was closed too and every later request on it was dropped ("svcSendSyncRequest called on closed handle")
                             std::shared_ptr<BaseService> cloneServiceObject{session->serviceObject};
-                            response.moveHandles.push_back(state.process->NewHandle<type::KSession>(cloneServiceObject).handle);
+                            KHandle cloneHandle{state.process->NewHandle<type::KSession>(cloneServiceObject).handle};
+                            response.moveHandles.push_back(cloneHandle);
+                            ipcTrace.Add(fmt::format("handle 0x{:X} cloned into handle 0x{:X}", handle, cloneHandle), true);
                             break;
                         }
 
@@ -280,6 +318,7 @@ namespace skyline::service {
                 case ipc::CommandType::Close:
                 case ipc::CommandType::TipcCloseSession:
                     LOGD("Closing Session");
+                    ipcTrace.Add(fmt::format("handle 0x{:X} closed by the game", handle), true);
                     CloseSession(handle);
                     break;
                 default:
@@ -293,6 +332,7 @@ namespace skyline::service {
             }
         } else {
             LOGW("svcSendSyncRequest called on closed handle: 0x{:X}", handle);
+            ipcTrace.DumpRecent();
             // A closed session answers with an error, returning success made the game read the reply of an older request as if it was the answer
             return kernel::result::SessionClosed;
         }
