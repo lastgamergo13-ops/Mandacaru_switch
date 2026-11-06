@@ -56,7 +56,7 @@ class GameContentManager(private val activity : AppCompatActivity, titleId : Str
 
     fun pickDlc() = dlcPicker.launch(arrayOf("*/*"))
 
-    fun pickMod() = modPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+    fun pickMod() = modPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/vnd.rar", "application/x-rar-compressed", "application/x-rar", "application/x-7z-compressed", "application/octet-stream"))
 
     fun pickPatches() = patchPicker.launch(arrayOf("*/*"))
 
@@ -157,57 +157,138 @@ class GameContentManager(private val activity : AppCompatActivity, titleId : Str
         runWithProgress(R.string.install_content_in_progress, task)
     }
 
-    private fun hasModContent(directory : File) = File(directory, "romfs").isDirectory || File(directory, "exefs").isDirectory
+    private fun childDirectory(directory : File, name : String) : File? = directory.listFiles()?.firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
 
-    /**
-     * @return The directory that directly contains the mod's `romfs` or `exefs` directory, null if there isn't one
-     */
-    private fun findModRoot(directory : File) : File? {
-        return directory.walkTopDown().maxDepth(6).firstOrNull { it.isDirectory && hasModContent(it) }
+    private fun hasModContent(directory : File) = childDirectory(directory, "romfs") != null || childDirectory(directory, "exefs") != null
+
+    private val junkExtensions = setOf("txt", "md", "nfo", "url", "html", "htm", "pdf", "png", "jpg", "jpeg", "gif", "db", "ini", "lnk", "log", "docx", "doc")
+    private val junkNames = setOf("thumbs.db", "desktop.ini", ".ds_store")
+
+    private fun isJunk(file : File) = file.name.lowercase() in junkNames || file.name.startsWith("._") || file.extension.lowercase() in junkExtensions
+
+    /** Extracts the archives found inside the extracted files (a mod packed inside another archive), at most [depth] levels */
+    private fun extractNestedArchives(directory : File, depth : Int) {
+        if (depth <= 0)
+            return
+        val archives = directory.walkTopDown().filter { it.isFile && (it.extension.lowercase() in ArchiveUtils.archiveExtensions) }.toList()
+        for (archive in archives) {
+            if (ArchiveUtils.detectFormat(archive) == null)
+                continue
+            val target = File(archive.parentFile, archive.nameWithoutExtension + "_extracted")
+            try {
+                ArchiveUtils.extract(archive, target)
+                archive.delete()
+                extractNestedArchives(target, depth - 1)
+            } catch (e : Exception) {
+                // An archive that can't be read is skipped, the rest of the mod can still be installed
+            }
+        }
     }
 
-    private fun copyMod(root : File, name : String) : Int {
+    private fun copyFlat(files : List<File>, target : File) : Int {
+        var count = 0
+        target.mkdirs()
+        for (file in files) {
+            var destination = File(target, file.name)
+            var index = 1
+            while (destination.exists()) // two patches with the same name in different directories
+                destination = File(target, "${file.nameWithoutExtension}_${index++}.${file.extension}")
+            file.copyTo(destination)
+            count++
+        }
+        return count
+    }
+
+    /**
+     * Finds the directories of [directory] that directly contain a `romfs` or `exefs` directory (in any case), without looking inside the ones that were found
+     */
+    private fun findModRoots(directory : File, depth : Int = 10) : List<File> {
+        if (hasModContent(directory))
+            return listOf(directory)
+        if (depth <= 0)
+            return emptyList()
+        return directory.listFiles()?.filter { it.isDirectory }?.flatMap { findModRoots(it, depth - 1) } ?: emptyList()
+    }
+
+    private fun copyMod(root : File, name : String, extraPatches : List<File>) : Int {
         val safeName = name.replace(Regex("[^A-Za-z0-9 ._()\\[\\]-]"), "_").ifBlank { "mod" }
         val target = File(modsPath, safeName)
         target.deleteRecursively()
 
         var count = 0
         for (part in arrayOf("romfs", "exefs")) {
-            val directory = File(root, part)
-            if (directory.isDirectory) {
-                directory.copyRecursively(File(target, part), true)
-                count += directory.walkTopDown().count { it.isFile }
+            val directory = childDirectory(root, part) ?: continue
+            directory.copyRecursively(File(target, part), true)
+            count += directory.walkTopDown().count { it.isFile }
+        }
+        if (extraPatches.isNotEmpty())
+            count += copyFlat(extraPatches, File(target, "exefs"))
+        return count
+    }
+
+    /**
+     * Installs everything a translation or mod needs from the extracted archive. All of it is searched, not only the top level:
+     *  - the directories with a `romfs`/`exefs` directory inside (in any case, inside a title id directory, `atmosphere/contents`, `load`... or one directory per mod)
+     *  - `exefs_patches` directories of Atmosphère and loose `.ips`/`.pchtxt` patches, installed in the `exefs` of the mod
+     *  - archives inside the archive
+     *  - when there is none of that, the files of the archive are taken as the RomFS files of the game (the directories of the game directly at the top of the archive)
+     * @return The number of files that were installed
+     */
+    private fun installModFiles(source : File, modName : String) : Int {
+        extractNestedArchives(source, 2)
+
+        // A directory with the title id of this game limits the search, a pack with the files of several games only installs the one that is being managed
+        val scope = source.walkTopDown().maxDepth(8).firstOrNull { it.isDirectory && it.name.equals(gameId, ignoreCase = true) } ?: source
+
+        val roots = findModRoots(scope).filterNot { root -> root.name.equals("exefs_patches", ignoreCase = true) }
+        val rootPaths = roots.map { it.canonicalPath }
+
+        // Patches that aren't inside a mod directory
+        val patches = scope.walkTopDown().filter { file ->
+            file.isFile && (file.extension.equals("ips", ignoreCase = true) || file.extension.equals("pchtxt", ignoreCase = true)) &&
+                    rootPaths.none { file.canonicalPath.startsWith(it + File.separator) }
+        }.toList()
+
+        var count = 0
+        if (roots.isNotEmpty()) {
+            roots.forEachIndexed { index, root ->
+                // The patches that are next to the only mod belong to it, with several mods they are installed with the first one
+                count += copyMod(root, if (roots.size == 1 || root == scope) modName else root.name, if (index == 0) patches else emptyList())
+            }
+            return count
+        }
+
+        if (patches.isNotEmpty()) {
+            val target = File(modsPath, modName.replace(Regex("[^A-Za-z0-9 ._()\\[\\]-]"), "_").ifBlank { "mod" })
+            target.deleteRecursively()
+            count += copyFlat(patches, File(target, "exefs"))
+        }
+
+        // Nothing is named romfs/exefs: the archive is the content of the RomFS. The directories that only wrap the content (a single directory and no file) are skipped
+        var content = scope
+        while (true) {
+            val entries = content.listFiles()?.filter { !isJunk(it) } ?: break
+            val only = entries.singleOrNull()
+            if (only != null && only.isDirectory && !only.name.matches(titleIdRegex)) content = only else break
+        }
+        val files = content.walkTopDown().filter { it.isFile && !isJunk(it) && !it.name.endsWith(".ips") && !it.name.endsWith(".pchtxt") }.toList()
+        if (files.isNotEmpty()) {
+            val target = File(modsPath, modName.replace(Regex("[^A-Za-z0-9 ._()\\[\\]-]"), "_").ifBlank { "mod" })
+            if (patches.isEmpty())
+                target.deleteRecursively()
+            val romfs = File(target, "romfs")
+            for (file in files) {
+                val destination = File(romfs, file.relativeTo(content).path)
+                destination.parentFile?.mkdirs()
+                file.copyTo(destination, true)
+                count++
             }
         }
         return count
     }
 
-    /**
-     * Installs the mod(s) inside an unzipped mod, it can have a directory named with a title id around it and it can have several mods in directories of their own
-     * @return The number of files that were installed
-     */
-    private fun installModFiles(source : File, zipName : String) : Int {
-        val start = source.walkTopDown().maxDepth(6).firstOrNull { it.isDirectory && it.name.matches(titleIdRegex) } ?: source
-        if (hasModContent(start))
-            return copyMod(start, zipName)
-
-        var count = 0
-        start.listFiles()?.filter { it.isDirectory }?.forEach { child ->
-            val root = findModRoot(child)
-            if (root != null)
-                count += copyMod(root, child.name)
-        }
-
-        if (count == 0) {
-            val root = findModRoot(start)
-            if (root != null)
-                count = copyMod(root, zipName)
-        }
-        return count
-    }
-
     private fun installMod(uri : Uri) {
-        val zipName = displayName(uri).substringBeforeLast('.')
+        val modName = displayName(uri).substringBeforeLast('.')
 
         val task : () -> Unit = {
             var message = activity.getString(R.string.import_mod_error)
@@ -215,14 +296,20 @@ class GameContentManager(private val activity : AppCompatActivity, titleId : Str
             try {
                 tempPath.deleteRecursively()
                 tempPath.mkdirs()
-                activity.contentResolver.openInputStream(uri)?.use { ZipUtils.unzip(it, tempPath) }
 
-                message = if (installModFiles(tempPath, zipName) > 0)
+                // The archive is copied first, RAR and 7z need to be read in any order
+                val archiveFile = File(tempPath, "mod_archive")
+                activity.contentResolver.openInputStream(uri)?.use { input -> archiveFile.outputStream().use { input.copyTo(it) } }
+                val extracted = File(tempPath, "content")
+                ArchiveUtils.extract(archiveFile, extracted)
+                archiveFile.delete()
+
+                message = if (installModFiles(extracted, modName) > 0)
                     activity.getString(R.string.import_mod_success)
                 else
                     activity.getString(R.string.import_mod_invalid)
             } catch (e : Exception) {
-                // The error message is shown
+                message = activity.getString(R.string.import_mod_error) + (e.message?.let { ": $it" } ?: "")
             } finally {
                 tempPath.deleteRecursively()
             }

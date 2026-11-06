@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <kernel/types/KProcess.h>
+#include <kernel/results.h>
 #include <common/trace.h>
 #include "sm/IUserInterface.h"
 #include "settings/ISettingsServer.h"
@@ -211,7 +212,7 @@ namespace skyline::service {
         }
     }
 
-    void ServiceManager::SyncRequestHandler(KHandle handle) {
+    Result ServiceManager::SyncRequestHandler(KHandle handle) {
         TRACE_EVENT("kernel", "ServiceManager::SyncRequestHandler");
         auto session{state.process->GetHandle<type::KSession>(handle)};
         LOGV("----IPC Start----");
@@ -259,9 +260,12 @@ namespace skyline::service {
                             break;
 
                         case ipc::ControlCommand::CloneCurrentObject:
-                        case ipc::ControlCommand::CloneCurrentObjectEx:
-                            response.moveHandles.push_back(state.process->InsertItem(session));
+                        case ipc::ControlCommand::CloneCurrentObjectEx: {
+                            // The clone is a session of its own that talks to the same service object. It used to be the very same KSession under a second handle, so when the game closed the original (the Nintendo SDK does this right after cloning) the clone was closed too and every later request on it was dropped ("svcSendSyncRequest called on closed handle")
+                            std::shared_ptr<BaseService> cloneServiceObject{session->serviceObject};
+                            response.moveHandles.push_back(state.process->NewHandle<type::KSession>(cloneServiceObject).handle);
                             break;
+                        }
 
                         case ipc::ControlCommand::QueryPointerBufferSize:
                             response.Push<u32>(0x8000);
@@ -289,7 +293,10 @@ namespace skyline::service {
             }
         } else {
             LOGW("svcSendSyncRequest called on closed handle: 0x{:X}", handle);
+            // A closed session answers with an error, returning success made the game read the reply of an older request as if it was the answer
+            return kernel::result::SessionClosed;
         }
         LOGV("====IPC End====");
+        return {};
     }
 }

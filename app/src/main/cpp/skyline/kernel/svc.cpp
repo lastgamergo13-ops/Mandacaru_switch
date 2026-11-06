@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <atomic>
 #include <os.h>
 #include <nce.h>
 #include <kernel/types/KProcess.h>
@@ -239,7 +240,10 @@ namespace skyline::kernel::svc {
                 .ipcRefCount = 0,
             };
 
-            fmt::format("Address: {}, Region Start: 0x{:X}, Size: 0x{:X}, Type: 0x{:X}, Attributes: 0x{:X}, Permissions: {}", fmt::ptr(address), memInfo.address, memInfo.size, memInfo.type, memInfo.attributes, chunk->second.permission);
+            // The first answers are written to the log (Info) so a game that stops right after asking, like Well Dweller in rtld, shows what it was told
+            static std::atomic<u32> loggedQueries{0};
+            if (loggedQueries.fetch_add(1) < 64)
+                LOGI("QueryMemory: Address: {}, Region Start: 0x{:X}, Size: 0x{:X}, Type: 0x{:X}, Attributes: 0x{:X}, Permissions: {}", fmt::ptr(address), memInfo.address, memInfo.size, memInfo.type, memInfo.attributes, chunk->second.permission);
         } else {
             u64 addressSpaceEnd{reinterpret_cast<u64>(state.process->memory.addressSpace.end().base())};
 
@@ -915,8 +919,7 @@ namespace skyline::kernel::svc {
 
     void SendSyncRequest(const DeviceState &state, SvcContext &ctx) {
         SchedulerScopedLock schedulerLock(state);
-        state.os->serviceManager.SyncRequestHandler(static_cast<KHandle>(ctx.x0));
-        ctx.w0 = Result{};
+        ctx.w0 = state.os->serviceManager.SyncRequestHandler(static_cast<KHandle>(ctx.x0));
     }
 
     void GetThreadId(const DeviceState &state, SvcContext &ctx) {

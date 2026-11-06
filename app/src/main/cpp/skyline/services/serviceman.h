@@ -68,6 +68,6 @@ namespace skyline::service {
          * @brief Handles a Synchronous IPC Request
          * @param handle The handle of the object
          */
-        void SyncRequestHandler(KHandle handle);
+        Result SyncRequestHandler(KHandle handle);
     };
 }

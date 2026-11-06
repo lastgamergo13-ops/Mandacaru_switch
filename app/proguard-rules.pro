@@ -34,3 +34,7 @@
 
 # @Serializable and @Polymorphic are used at runtime for polymorphic serialization.
 -keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+
+# 7-Zip-JBinding (RAR/7z): the native code looks the classes up by name
+-keep class net.sf.sevenzipjbinding.** { *; }
+-dontwarn net.sf.sevenzipjbinding.**

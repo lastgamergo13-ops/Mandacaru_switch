@@ -12,7 +12,7 @@
 namespace skyline::soc::host1x {
     /**
      * @brief The VIC Host1x class composes the video frames that the decoder produced into the surface that the game shows
-     * @details The game describes in a configuration structure which frame goes where, how its colors are converted (the matrix that turns YUV into RGB) and which format and layout the output has. Only the common case is handled: progressive frames of the 4:2:0 formats written as 8 bit RGB, in pitch-linear or block-linear layout
+     * @details The game describes in a configuration structure which frame goes where, how its colors are converted (the matrix that turns YUV into RGB) and which format and layout the output has. Only the common case is handled: progressive frames of the 4:2:0 formats written as 8 bit RGB or as YUV 4:2:0, in pitch-linear or block-linear layout
      */
     class VicClass {
       private:
@@ -40,6 +40,11 @@ namespace skyline::soc::host1x {
          * @brief Writes the output surface to the memory of the game as 8 bit RGB
          */
         void WriteRgb(const Tegra::Host1x::OutputSurfaceConfig &outputConfig, Tegra::Host1x::VideoPixelFormat format);
+
+        /**
+         * @brief Writes the output surface to the memory of the game as YUV 4:2:0 (Y8__V8U8_N420): a plane with the luma and a plane with the chroma pairs. Games that play videos with their own conversion to RGB (Pokémon Let's Go) ask for this instead of RGB
+         */
+        void WriteYuv420(const Tegra::Host1x::OutputSurfaceConfig &outputConfig);
 
       public:
         VicClass(const DeviceState &state, std::function<void()> opDoneCallback);

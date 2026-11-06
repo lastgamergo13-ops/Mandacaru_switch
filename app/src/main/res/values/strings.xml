@@ -78,7 +78,7 @@
     <string name="mods_installed">%d mod(s) installed</string>
     <string name="import_mod_in_progress">Installing mod…</string>
     <string name="import_mod_success">Mod installed, it is applied the next time the game starts</string>
-    <string name="import_mod_invalid">The ZIP has no romfs or exefs directory</string>
+    <string name="import_mod_invalid">No files for the game were found in the archive (no romfs or exefs directory, patches or game files)</string>
     <string name="import_mod_error">The mod couldn\'t be installed</string>
     <string name="mod_title_id_title">Game Title ID</string>
     <string name="mod_title_id_message">The ZIP doesn\'t say which game the mod is for, type the Title ID of the game (16 digits, shown in the game list)</string>
