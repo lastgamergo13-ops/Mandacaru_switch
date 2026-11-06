@@ -1,0 +1,40 @@
+// 7-Zip-JBinding-4Android 16.02-2.03 (https://github.com/omicronapps/7-Zip-JBinding-4Android), compilado junto com o app.
+// Serve para ler RAR (3/4/5) e 7z. Licenças: License.txt e LICENSE (LGPL, com a restrição do unRAR) nesta pasta.
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'net.sf.sevenzipjbinding'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 29
+
+        ndk {
+            //noinspection ChromeOsAbiSupport
+            abiFilters "arm64-v8a"
+        }
+
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    ndkVersion '27.2.12479018'
+    externalNativeBuild {
+        cmake {
+            version '3.22.1+'
+            path "CMakeLists.txt"
+        }
+    }
+}

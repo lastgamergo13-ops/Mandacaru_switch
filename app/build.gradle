@@ -74,6 +74,8 @@ android {
         }
 
         reldebug {
+            // The library module only has debug and release
+            matchingFallbacks = ['release']
             debuggable true
             externalNativeBuild {
                 cmake {
@@ -167,8 +169,8 @@ dependencies {
 
     /* Other Java */
     implementation 'info.debatty:java-string-similarity:2.0.0'
-    // RAR (3/4/5) and 7z support for mods and translations (native library, loaded only when a RAR/7z file is installed)
-    implementation 'com.github.omicronapps:7-Zip-JBinding-4Android:Release-16.02-2.02'
+    // RAR (3/4/5) and 7z support for mods and translations: the source is in the sevenzipjbinding folder of this project, nothing is downloaded
+    implementation project(':sevenzipjbinding')
     implementation 'com.github.KikiManjaro:colorpicker:v1.1.12'
     implementation 'com.github.android:renderscript-intrinsics-replacement-toolkit:344be3f'
 }
