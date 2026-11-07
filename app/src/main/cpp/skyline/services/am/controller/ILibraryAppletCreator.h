@@ -31,8 +31,22 @@ namespace skyline::service::am {
          */
         Result CreateTransferMemoryStorage(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief There is no library applet that is started and left running, so no applet is ever terminated and none is left
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#TerminateAllLibraryApplets
+         */
+        Result TerminateAllLibraryApplets(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#AreAnyLibraryAppletsLeft
+         */
+        Result AreAnyLibraryAppletsLeft(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x0, ILibraryAppletCreator, CreateLibraryApplet),
+            SFUNC(0x1, ILibraryAppletCreator, TerminateAllLibraryApplets),
+            SFUNC(0x2, ILibraryAppletCreator, AreAnyLibraryAppletsLeft),
+            SFUNC(0x3, ILibraryAppletCreator, CreateLibraryApplet), // CreateLibraryAppletEx, takes the same arguments
             SFUNC(0xA, ILibraryAppletCreator, CreateStorage),
             SFUNC(0xB, ILibraryAppletCreator, CreateTransferMemoryStorage)
         )

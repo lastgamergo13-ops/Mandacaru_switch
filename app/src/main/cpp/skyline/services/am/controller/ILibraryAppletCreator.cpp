@@ -19,6 +19,15 @@ namespace skyline::service::am {
         return {};
     }
 
+    Result ILibraryAppletCreator::TerminateAllLibraryApplets(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
+
+    Result ILibraryAppletCreator::AreAnyLibraryAppletsLeft(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(0);
+        return {};
+    }
+
     Result ILibraryAppletCreator::CreateStorage(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         auto size{request.Pop<i64>()};
         if (size < 0)

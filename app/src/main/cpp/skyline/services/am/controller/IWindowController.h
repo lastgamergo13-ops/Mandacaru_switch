@@ -26,8 +26,15 @@ namespace skyline::service::am {
          */
         Result AcquireForegroundRights(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Returns the ARUID of the applet that launched the game, 0 as the game is launched by the emulator
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#GetAppletResourceUserIdOfCallerApplet
+         */
+        Result GetAppletResourceUserIdOfCallerApplet(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x1, IWindowController, GetAppletResourceUserId),
+            SFUNC(0x2, IWindowController, GetAppletResourceUserIdOfCallerApplet),
             SFUNC(0xA, IWindowController, AcquireForegroundRights)
         )
     };

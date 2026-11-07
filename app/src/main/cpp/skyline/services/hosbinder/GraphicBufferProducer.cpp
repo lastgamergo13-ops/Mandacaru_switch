@@ -712,8 +712,22 @@ namespace skyline::service::hosbinder {
                 break;
             }
 
+            case TransactionCode::SetSidebandStream: {
+                // Sideband streams (used for video overlays on Android) don't exist on HOS
+                out.Push(AndroidStatus::InvalidOperation);
+                break;
+            }
+
+            case TransactionCode::AllocateBuffers: {
+                // It's a hint to allocate buffers in advance and it has no reply, the buffers are allocated when a game asks for them
+                break;
+            }
+
             default:
-                throw exception("An unimplemented transaction was called: {}", static_cast<u32>(code));
+                // The transactions the Android version of HOS doesn't have aren't fatal: the caller gets an error instead of the emulator stopping
+                LOGW("An unimplemented transaction was called: {}", static_cast<u32>(code));
+                out.Push(AndroidStatus::BadValue);
+                break;
         }
     }
 }

@@ -14,6 +14,8 @@ namespace skyline::service::am {
     ICommonStateGetter::ICommonStateGetter(const DeviceState &state, ServiceManager &manager)
         : BaseService(state, manager),
           messageEvent(std::make_shared<type::KEvent>(state, false)),
+          sleepLockEvent(std::make_shared<type::KEvent>(state, false)),
+          hdcpAuthenticationStateChangeEvent(std::make_shared<type::KEvent>(state, false)),
           defaultDisplayResolutionChangeEvent(std::make_shared<type::KEvent>(state, false)) {
         operationMode = static_cast<OperationMode>(*state.settings->isDocked);
         LOGI("Switch to mode: {}", static_cast<bool>(operationMode) ? "Docked" : "Handheld");
@@ -120,6 +122,60 @@ namespace skyline::service::am {
     }
 
     Result ICommonStateGetter::SetRequestExitToLibraryAppletAtExecuteNextProgramEnabled(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
+
+    Result ICommonStateGetter::RequestToAcquireSleepLock(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        sleepLockEvent->Signal();
+        return {};
+    }
+
+    Result ICommonStateGetter::ReleaseSleepLock(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
+
+    Result ICommonStateGetter::GetAcquiredSleepLockEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(sleepLockEvent));
+        return {};
+    }
+
+    Result ICommonStateGetter::GetBootMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(0);
+        return {};
+    }
+
+    Result ICommonStateGetter::IsInControllerFirmwareUpdateSection(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(0);
+        return {};
+    }
+
+    Result ICommonStateGetter::GetHdcpAuthenticationState(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<i32>(1);
+        return {};
+    }
+
+    Result ICommonStateGetter::GetHdcpAuthenticationStateChangeEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(hdcpAuthenticationStateChangeEvent));
+        return {};
+    }
+
+    Result ICommonStateGetter::GetBuiltInDisplayType(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<i32>(0);
+        return {};
+    }
+
+    Result ICommonStateGetter::GetAppletLaunchedHistory(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<i32>(0);
+        return {};
+    }
+
+    Result ICommonStateGetter::GetOperationModeSystemInfo(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u32>(0);
+        return {};
+    }
+
+    Result ICommonStateGetter::GetSettingsPlatformRegion(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u32>(1);
         return {};
     }
 }

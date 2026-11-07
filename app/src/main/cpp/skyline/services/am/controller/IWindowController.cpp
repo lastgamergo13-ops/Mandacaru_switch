@@ -12,6 +12,11 @@ namespace skyline::service::am {
         return {};
     }
 
+    Result IWindowController::GetAppletResourceUserIdOfCallerApplet(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push(static_cast<u64>(0));
+        return {};
+    }
+
     Result IWindowController::AcquireForegroundRights(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
     }

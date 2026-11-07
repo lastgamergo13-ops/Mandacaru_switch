@@ -24,6 +24,7 @@ namespace skyline::service::am {
         static constexpr i64 SaveDataSize{200000000};
         static constexpr i64 JournalSaveDataSize{200000000};
 
+        std::shared_ptr<type::KEvent> healthWarningDisappearedEvent; //!< Already signalled, the health warning isn't shown
         std::shared_ptr<type::KEvent> gpuErrorEvent; //!< The event signalled on GPU errors
         std::shared_ptr<type::KEvent> friendInvitationStorageChannelEvent; //!< The event signalled on friend invitations
         std::shared_ptr<type::KEvent> notificationStorageChannelEvent;
@@ -161,11 +162,43 @@ namespace skyline::service::am {
          */
         Result Unknown330(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Tells if the game can record its game play: it can't
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#IsGamePlayRecordingSupported
+         */
+        Result IsGamePlayRecordingSupported(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns the highest index of the cache storage and the biggest size (data and journal) of it, both from the NACP of the game
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#GetCacheStorageMax
+         */
+        Result GetCacheStorageMax(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Creating a cache storage always works: the storage is NAND (1) and no space is missing
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#CreateCacheStorage
+         */
+        Result CreateCacheStorage(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Extending the save data always works, no space is missing (0 is returned) but the size isn't changed
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#ExtendSaveData
+         */
+        Result ExtendSaveData(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief The event that is signalled when the health warning (the screen with the health advice) goes away: it already has
+         */
+        Result GetHealthWarningDisappearedSystemEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x1, IApplicationFunctions, PopLaunchParameter),
             SFUNC(0x14, IApplicationFunctions, EnsureSaveData),
             SFUNC(0x15, IApplicationFunctions, GetDesiredLanguage),
             SFUNC(0x16, IApplicationFunctions, SetTerminateResult),
+            SFUNC(0x19, IApplicationFunctions, ExtendSaveData),
+            SFUNC(0x1B, IApplicationFunctions, CreateCacheStorage),
+            SFUNC(0x1D, IApplicationFunctions, GetCacheStorageMax),
             SFUNC(0x17, IApplicationFunctions, GetDisplayVersion),
             SFUNC(0x1A, IApplicationFunctions, GetSaveDataSize),
             SFUNC(0x1C, IApplicationFunctions, GetSaveDataSizeMax),
@@ -173,6 +206,7 @@ namespace skyline::service::am {
             SFUNC(0x32, IApplicationFunctions, GetPseudoDeviceId),
             SFUNC(0x42, IApplicationFunctions, InitializeGamePlayRecording),
             SFUNC(0x43, IApplicationFunctions, SetGamePlayRecordingState),
+            SFUNC(0x41, IApplicationFunctions, IsGamePlayRecordingSupported),
             SFUNC(0x5A, IApplicationFunctions, EnableApplicationCrashReport),
             SFUNC(0x64, IApplicationFunctions, InitializeApplicationCopyrightFrameBuffer),
             SFUNC(0x65, IApplicationFunctions, SetApplicationCopyrightImage),
@@ -182,6 +216,7 @@ namespace skyline::service::am {
             SFUNC(0x7B, IApplicationFunctions, GetPreviousProgramIndex),
             SFUNC(0x82, IApplicationFunctions, GetGpuErrorDetectedSystemEvent),
             SFUNC(0x8C, IApplicationFunctions, GetFriendInvitationStorageChannelEvent),
+            SFUNC(0xA0, IApplicationFunctions, GetHealthWarningDisappearedSystemEvent),
             SFUNC(0x8D, IApplicationFunctions, TryPopFromFriendInvitationStorageChannel),
             SFUNC(0x96, IApplicationFunctions, GetNotificationStorageChannelEvent),
             SFUNC(0xD2, IApplicationFunctions, GetUnknownEvent210),

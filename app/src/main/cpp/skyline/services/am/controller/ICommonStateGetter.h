@@ -59,6 +59,8 @@ namespace skyline::service::am {
             ENUM_CASE_PAIR(PowerSaving, "Power Saving");
         })
 
+        std::shared_ptr<type::KEvent> sleepLockEvent; //!< Signalled when the sleep lock is acquired
+        std::shared_ptr<type::KEvent> hdcpAuthenticationStateChangeEvent; //!< Signalled when the HDCP state changes, it never does
         std::shared_ptr<type::KEvent> defaultDisplayResolutionChangeEvent; //!< Signalled when the default display resolution changes,
 
         bool vrModeEnabled{false};
@@ -150,12 +152,75 @@ namespace skyline::service::am {
          */
         Result SetRequestExitToLibraryAppletAtExecuteNextProgramEnabled(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief The sleep lock is acquired right away and nothing ever puts the console to sleep, so these only signal the event
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#RequestToAcquireSleepLock
+         */
+        Result RequestToAcquireSleepLock(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        Result ReleaseSleepLock(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns the event that is signalled when the sleep lock is acquired
+         */
+        Result GetAcquiredSleepLockEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns the boot mode of the console: 0 is a normal boot
+         * @url https://switchbrew.org/wiki/Applet_Manager_services#GetBootMode
+         */
+        Result GetBootMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns false, the controllers are never being updated
+         */
+        Result IsInControllerFirmwareUpdateSection(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns 1: the display is authenticated
+         */
+        Result GetHdcpAuthenticationState(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        Result GetHdcpAuthenticationStateChangeEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns 0, the built in display
+         */
+        Result GetBuiltInDisplayType(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns 0, no applet has been launched before the game
+         */
+        Result GetAppletLaunchedHistory(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns 0
+         */
+        Result GetOperationModeSystemInfo(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns the region of the settings platform: 1 is global
+         */
+        Result GetSettingsPlatformRegion(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x0, ICommonStateGetter, GetEventHandle),
             SFUNC(0x1, ICommonStateGetter, ReceiveMessage),
             SFUNC(0x5, ICommonStateGetter, GetOperationMode),
             SFUNC(0x6, ICommonStateGetter, GetPerformanceMode),
+            SFUNC(0x8, ICommonStateGetter, GetBootMode),
             SFUNC(0x9, ICommonStateGetter, GetCurrentFocusState),
+            SFUNC(0xA, ICommonStateGetter, RequestToAcquireSleepLock),
+            SFUNC(0xB, ICommonStateGetter, ReleaseSleepLock),
+            SFUNC(0xC, ICommonStateGetter, ReleaseSleepLock),
+            SFUNC(0xD, ICommonStateGetter, GetAcquiredSleepLockEvent),
+            SFUNC(0x37, ICommonStateGetter, IsInControllerFirmwareUpdateSection),
+            SFUNC(0x3E, ICommonStateGetter, GetHdcpAuthenticationState),
+            SFUNC(0x3F, ICommonStateGetter, GetHdcpAuthenticationStateChangeEvent),
+            SFUNC(0x44, ICommonStateGetter, GetBuiltInDisplayType),
+            SFUNC(0x78, ICommonStateGetter, GetAppletLaunchedHistory),
+            SFUNC(0xC8, ICommonStateGetter, GetOperationModeSystemInfo),
+            SFUNC(0x12C, ICommonStateGetter, GetSettingsPlatformRegion),
             SFUNC(0x32, ICommonStateGetter, IsVrModeEnabled),
             SFUNC(0x33, ICommonStateGetter, SetVrModeEnabled),
             SFUNC(0x34, ICommonStateGetter, SetLcdBacklighOffEnabled),

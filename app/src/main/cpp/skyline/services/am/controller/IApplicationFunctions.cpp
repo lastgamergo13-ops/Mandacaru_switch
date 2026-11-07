@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <cstring>
 #include <common/uuid.h>
 #include <mbedtls/sha1.h>
 #include <loader/loader.h>
@@ -13,6 +14,7 @@
 namespace skyline::service::am {
     IApplicationFunctions::IApplicationFunctions(const DeviceState &state, ServiceManager &manager)
         : BaseService(state, manager),
+          healthWarningDisappearedEvent(std::make_shared<type::KEvent>(state, true)),
           gpuErrorEvent(std::make_shared<type::KEvent>(state, false)),
           friendInvitationStorageChannelEvent(std::make_shared<type::KEvent>(state, false)),
           notificationStorageChannelEvent(std::make_shared<type::KEvent>(state, false)),
@@ -217,6 +219,45 @@ namespace skyline::service::am {
         auto handle{state.process->InsertItem(notificationStorageChannelEvent)};
         LOGW("Notification Storage Channel Event Handle: 0x{:X}", handle);
         response.copyHandles.push_back(handle);
+        return {};
+    }
+
+    Result IApplicationFunctions::IsGamePlayRecordingSupported(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(0);
+        return {};
+    }
+
+    Result IApplicationFunctions::GetCacheStorageMax(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        // The cache storage fields of the NACP: the highest index (u16) is at 0x31A0 and the biggest size of data and journal (u64) is at 0x3198
+        constexpr size_t CacheStorageDataAndJournalSizeMaxOffset{0x3198}, CacheStorageIndexMaxOffset{0x31A0};
+        u64 maxJournalSize{};
+        u16 indexMax{};
+        if (state.loader && state.loader->nacp) {
+            auto nacp{reinterpret_cast<const u8 *>(&state.loader->nacp->nacpContents)};
+            std::memcpy(&maxJournalSize, nacp + CacheStorageDataAndJournalSizeMaxOffset, sizeof(maxJournalSize));
+            std::memcpy(&indexMax, nacp + CacheStorageIndexMaxOffset, sizeof(indexMax));
+        }
+
+        response.Push<u32>(indexMax);
+        response.Push<u32>(0); // Padding
+        response.Push<u64>(maxJournalSize);
+        return {};
+    }
+
+    Result IApplicationFunctions::CreateCacheStorage(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u32>(1); // NAND
+        response.Push<u32>(0); // Padding
+        response.Push<u64>(0); // The size that is missing
+        return {};
+    }
+
+    Result IApplicationFunctions::ExtendSaveData(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u64>(0); // The size that is missing
+        return {};
+    }
+
+    Result IApplicationFunctions::GetHealthWarningDisappearedSystemEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(healthWarningDisappearedEvent));
         return {};
     }
 }
