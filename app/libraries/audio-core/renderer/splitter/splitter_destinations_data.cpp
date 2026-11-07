@@ -62,6 +62,10 @@ void SplitterDestinationData::Update(const InParameter& params) {
         need_update = false;
     }
 
+    if (params.reset_prev_volume) {
+        prev_mix_volumes = mix_volumes;
+    }
+
     in_use = params.in_use;
 }
 

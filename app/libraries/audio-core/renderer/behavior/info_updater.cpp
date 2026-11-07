@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: MPL-2.0
 
+#include <algorithm>
+#include <cstring>
+
 #include <audio_core/common/feature_support.h>
 #include <audio_core/renderer/behavior/behavior_info.h>
 #include <audio_core/renderer/behavior/info_updater.h>
@@ -55,14 +58,61 @@ Result InfoUpdater::UpdateVoiceChannelResources(VoiceContext& voice_context) {
     return ResultSuccess;
 }
 
+namespace {
+/**
+ * Size of a voice in the parameters of revision 15 and later: the same as before, but the two
+ * biquad filters have float coefficients (0x18 bytes each instead of 0xC).
+ */
+constexpr u32 VoiceInParameterV2Size = 0x188;
+constexpr size_t VoiceBiquadsOffset = 0x24;
+constexpr size_t VoiceBiquadsV2Size = 0x18 * MaxBiquadFilters;
+constexpr size_t VoiceTailOffset = 0x3C;
+constexpr size_t VoiceTailV2Offset = VoiceBiquadsOffset + VoiceBiquadsV2Size;
+constexpr size_t VoiceTailSize = sizeof(VoiceInfo::InParameter) - VoiceTailOffset;
+static_assert(VoiceTailV2Offset + VoiceTailSize == VoiceInParameterV2Size,
+              "The size of a voice of revision 15 is wrong!");
+
+s16 FloatToFixed(const f32 value) {
+    return static_cast<s16>(std::clamp(value * 16384.0f, -32768.0f, 32767.0f));
+}
+
+/**
+ * Convert the parameters of a voice of revision 15 to the ones of the older revisions. The float
+ * coefficients of the filters are converted to the 16 bit fixed point ones used by the renderer.
+ */
+VoiceInfo::InParameter ConvertVoiceInParameterV2(const u8* input) {
+    VoiceInfo::InParameter converted{};
+    auto* output{reinterpret_cast<u8*>(&converted)};
+
+    std::memcpy(output, input, VoiceBiquadsOffset);
+
+    for (size_t i = 0; i < MaxBiquadFilters; i++) {
+        const u8* filter{input + VoiceBiquadsOffset + i * 0x18};
+        std::array<f32, 5> coefficients{};
+        std::memcpy(coefficients.data(), filter + 0x4, sizeof(f32) * 5);
+
+        auto& biquad{converted.biquads[i]};
+        biquad.enabled = filter[0] != 0;
+        for (size_t j = 0; j < 3; j++) {
+            biquad.b[j] = FloatToFixed(coefficients[j]);
+        }
+        for (size_t j = 0; j < 2; j++) {
+            biquad.a[j] = FloatToFixed(coefficients[3 + j]);
+        }
+    }
+
+    std::memcpy(output + VoiceTailOffset, input + VoiceTailV2Offset, VoiceTailSize);
+    return converted;
+}
+} // namespace
+
 Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
                                  std::span<MemoryPoolInfo> memory_pools,
                                  const u32 memory_pool_count) {
     const PoolMapper pool_mapper(process_handle, memory_pools, memory_pool_count,
                                  behaviour.IsMemoryForceMappingEnabled());
     const auto voice_count{voice_context.GetCount()};
-    std::span<const VoiceInfo::InParameter> in_params{
-        reinterpret_cast<const VoiceInfo::InParameter*>(input), voice_count};
+    const bool use_voice_v2{behaviour.IsVoiceInParameterV2Supported()};
     std::span<VoiceInfo::OutStatus> out_params{reinterpret_cast<VoiceInfo::OutStatus*>(output),
                                                voice_count};
 
@@ -74,7 +124,15 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
     u32 new_voice_count{0};
 
     for (u32 i = 0; i < voice_count; i++) {
-        const auto& in_param{in_params[i]};
+        VoiceInfo::InParameter converted_param;
+        const VoiceInfo::InParameter* in_param_pointer;
+        if (use_voice_v2) {
+            converted_param = ConvertVoiceInParameterV2(input + i * VoiceInParameterV2Size);
+            in_param_pointer = &converted_param;
+        } else {
+            in_param_pointer = reinterpret_cast<const VoiceInfo::InParameter*>(input) + i;
+        }
+        const auto& in_param{*in_param_pointer};
         std::array<VoiceState*, MaxChannels> voice_states{};
 
         if (!in_param.in_use) {
@@ -118,7 +176,9 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
         new_voice_count += in_param.channel_count;
     }
 
-    auto consumed_input_size{voice_count * static_cast<u32>(sizeof(VoiceInfo::InParameter))};
+    const u32 voice_in_size{use_voice_v2 ? VoiceInParameterV2Size
+                                         : static_cast<u32>(sizeof(VoiceInfo::InParameter))};
+    auto consumed_input_size{voice_count * voice_in_size};
     auto consumed_output_size{voice_count * static_cast<u32>(sizeof(VoiceInfo::OutStatus))};
     if (consumed_input_size != in_header->voices_size) {
         LOG_ERROR(Service_Audio, "Consumed an incorrect voices size, header size={}, consumed={}",

@@ -82,6 +82,9 @@ bool SplitterContext::Initialize(const BehaviorInfo& behavior,
 
         Setup(splitter_infos, params.splitter_infos, splitter_destinations,
               params.splitter_destinations, behavior.IsSplitterBugFixed());
+        splitter_biquad_param_supported = behavior.IsBiquadFilterParameterForSplitterEnabled();
+        splitter_float_coeff_supported = behavior.IsSplitterDestinationV2bSupported();
+        splitter_prev_volume_reset_supported = behavior.IsSplitterPrevVolumeResetSupported();
     }
     return true;
 }
@@ -134,19 +137,55 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
 
 u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
     for (u32 i = 0; i < count; i++) {
-        auto data_header{
-            reinterpret_cast<const SplitterDestinationData::InParameter*>(input + offset)};
+        // The size of a destination depends on the revision of the game: 0x70 without biquad
+        // filters, 0x90 with them (revision 12), 0xA8 with float coefficients (revision 15).
+        // The filters themselves aren't applied, only the fields the renderer uses are kept.
+        SplitterDestinationData::InParameter mapped{};
+        u32 destination_size{};
 
-        if (data_header->magic != GetSplitterSendDataMagic()) {
+        if (!splitter_biquad_param_supported) {
+            auto data_header{
+                reinterpret_cast<const SplitterDestinationData::InParameter*>(input + offset)};
+            mapped = *data_header;
+            destination_size = sizeof(SplitterDestinationData::InParameter);
+        } else if (!splitter_float_coeff_supported) {
+            auto data_header{
+                reinterpret_cast<const SplitterDestinationData::InParameterVersion2a*>(input +
+                                                                                       offset)};
+            mapped.magic = data_header->magic;
+            mapped.id = data_header->id;
+            mapped.mix_volumes = data_header->mix_volumes;
+            mapped.mix_id = data_header->mix_id;
+            mapped.in_use = data_header->in_use;
+            mapped.reset_prev_volume = data_header->reset_prev_volume;
+            destination_size = sizeof(SplitterDestinationData::InParameterVersion2a);
+        } else {
+            auto data_header{
+                reinterpret_cast<const SplitterDestinationData::InParameterVersion2b*>(input +
+                                                                                       offset)};
+            mapped.magic = data_header->magic;
+            mapped.id = data_header->id;
+            mapped.mix_volumes = data_header->mix_volumes;
+            mapped.mix_id = data_header->mix_id;
+            mapped.in_use = data_header->in_use;
+            mapped.reset_prev_volume = data_header->reset_prev_volume;
+            destination_size = sizeof(SplitterDestinationData::InParameterVersion2b);
+        }
+
+        if (!splitter_prev_volume_reset_supported) {
+            mapped.reset_prev_volume = false;
+        }
+
+        if (mapped.magic != GetSplitterSendDataMagic()) {
             continue;
         }
 
-        if (data_header->id < 0 || data_header->id > destinations_count) {
+        if (mapped.id < 0 || mapped.id > destinations_count) {
             continue;
         }
 
-        splitter_destinations[data_header->id].Update(*data_header);
-        offset += sizeof(SplitterDestinationData::InParameter);
+        splitter_destinations[mapped.id].Update(mapped);
+        offset += destination_size;
     }
 
     return offset;

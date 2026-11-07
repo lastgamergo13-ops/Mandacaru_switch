@@ -74,6 +74,22 @@ bool BehaviorInfo::IsSplitterBugFixed() const {
     return CheckFeatureSupported(SupportTags::SplitterBugFix, user_revision);
 }
 
+bool BehaviorInfo::IsSplitterPrevVolumeResetSupported() const {
+    return CheckFeatureSupported(SupportTags::SplitterPrevVolumeReset, user_revision);
+}
+
+bool BehaviorInfo::IsBiquadFilterParameterForSplitterEnabled() const {
+    return CheckFeatureSupported(SupportTags::SplitterBiquadFilterParameter, user_revision);
+}
+
+bool BehaviorInfo::IsSplitterDestinationV2bSupported() const {
+    return CheckFeatureSupported(SupportTags::SplitterDestinationV2b, user_revision);
+}
+
+bool BehaviorInfo::IsVoiceInParameterV2Supported() const {
+    return CheckFeatureSupported(SupportTags::VoiceInParameterV2, user_revision);
+}
+
 bool BehaviorInfo::IsEffectInfoVersion2Supported() const {
     return CheckFeatureSupported(SupportTags::EffectInfoVer2, user_revision);
 }

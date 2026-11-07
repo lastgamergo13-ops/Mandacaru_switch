@@ -183,6 +183,12 @@ private:
     s32 destinations_count{};
     /// Is the splitter bug fixed?
     bool splitter_bug_fixed{};
+    /// Do the destinations have biquad filter parameters (revision 12)?
+    bool splitter_biquad_param_supported{};
+    /// Do the biquad filter parameters of the destinations have float coefficients (revision 15)?
+    bool splitter_float_coeff_supported{};
+    /// Is the explicit reset of the previous volumes supported (revision 13)?
+    bool splitter_prev_volume_reset_supported{};
 };
 
 } // namespace AudioRenderer

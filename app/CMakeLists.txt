@@ -488,6 +488,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/services/ts/IMeasurementServer.cpp
         ${source_DIR}/skyline/services/ngc/INgcService.cpp
         ${source_DIR}/skyline/services/fgm/IModule.cpp
+        ${source_DIR}/skyline/services/extra/IExtraServices.cpp
         ${source_DIR}/skyline/services/ts/ISession.cpp
         ${source_DIR}/skyline/services/ntc/IEnsureNetworkClockAvailabilityService.cpp
         )

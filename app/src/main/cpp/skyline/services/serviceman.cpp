@@ -66,6 +66,7 @@
 #include "ts/IMeasurementServer.h"
 #include "ngc/INgcService.h"
 #include "fgm/IModule.h"
+#include "extra/IExtraServices.h"
 #include "psm/IPsmServer.h"
 #include "ntc/IEnsureNetworkClockAvailabilityService.h"
 #include "serviceman.h"
@@ -173,6 +174,23 @@ namespace skyline::service {
             SERVICE_CASE(fgm::IModule, "fgm")
             SERVICE_CASE(fgm::IModule, "fgm:0")
             SERVICE_CASE(fgm::IModule, "fgm:9")
+            SERVICE_CASE(pdm::INotifyService, "pdm:ntfy")
+            SERVICE_CASE(pdm::IQueryService, "pdm:qry")
+            SERVICE_CASE(ovln::ISenderService, "ovln:snd")
+            SERVICE_CASE(pm::IInformationInterface, "pm:info")
+            SERVICE_CASE(nfc::IUser, "nfc:user")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:am2")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:ec")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:rid")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:rt")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:web")
+            SERVICE_CASE(ns::IServiceGetterInterface, "ns:ro")
+            SERVICE_CASE(placeholder::IPlaceholderService, "erpt:c")
+            SERVICE_CASE(placeholder::IPlaceholderService, "erpt:r")
+            SERVICE_CASE(placeholder::IPlaceholderService, "mnpp:app")
+            SERVICE_CASE(placeholder::IPlaceholderService, "bsdcfg")
+            SERVICE_CASE(placeholder::IPlaceholderService, "pcv")
+            SERVICE_CASE(placeholder::IPlaceholderService, "es")
             SERVICE_CASE(socket::IClient, "bsd:u")
             SERVICE_CASE(socket::IClient, "bsd:s")
             SERVICE_CASE(socket::IManager, "nsd:u")

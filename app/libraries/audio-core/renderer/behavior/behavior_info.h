@@ -144,6 +144,37 @@ public:
     bool IsSplitterBugFixed() const;
 
     /**
+     * Check if the splitter destinations have the reset of the previous volumes (revision 13).
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsSplitterPrevVolumeResetSupported() const;
+
+    /**
+     * Check if the splitter destinations have biquad filter parameters (revision 12), which
+     * makes them bigger.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsBiquadFilterParameterForSplitterEnabled() const;
+
+    /**
+     * Check if the splitter destinations have biquad filter parameters with float
+     * coefficients (revision 15), which makes them bigger again.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsSplitterDestinationV2bSupported() const;
+
+    /**
+     * Check if the voice parameters have biquad filter parameters with float
+     * coefficients (revision 15), which makes them bigger.
+     *
+     * @return True if supported, otherwise false.
+     */
+    bool IsVoiceInParameterV2Supported() const;
+
+    /**
      * Check if effects version 2 are supported.
      * This gives support for returning effect states from the AudioRenderer, currently only used
      * for Limiter statistics.

@@ -22,9 +22,67 @@ public:
         /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
         /* 0x68 */ u32 mix_id;
         /* 0x6C */ bool in_use;
+        /* 0x6D */ bool reset_prev_volume; // revision 13 and later, the byte was padding before
+        /* 0x6E */ u8 reserved[2];
     };
     static_assert(sizeof(InParameter) == 0x70,
                   "SplitterDestinationData::InParameter has the wrong size!");
+
+    /**
+     * The biquad filter of a destination with the coefficients as 16 bit fixed point values (revision 12 and 13).
+     * The renderer reads it to know how big a destination is but doesn't filter with it.
+     */
+    struct BiquadFilterParameterLegacy {
+        /* 0x00 */ bool enabled;
+        /* 0x02 */ std::array<s16, 3> b;
+        /* 0x08 */ std::array<s16, 2> a;
+    };
+    static_assert(sizeof(BiquadFilterParameterLegacy) == 0xC,
+                  "SplitterDestinationData::BiquadFilterParameterLegacy has the wrong size!");
+
+    /**
+     * The biquad filter of a destination with float coefficients (revision 15 and later).
+     */
+    struct BiquadFilterParameterFloat {
+        /* 0x00 */ bool enabled;
+        /* 0x01 */ u8 reserved[3];
+        /* 0x04 */ std::array<f32, 3> numerator;
+        /* 0x10 */ std::array<f32, 2> denominator;
+    };
+    static_assert(sizeof(BiquadFilterParameterFloat) == 0x18,
+                  "SplitterDestinationData::BiquadFilterParameterFloat has the wrong size!");
+
+    /**
+     * A destination of revision 12 and 13: the biquad filters come before the flags.
+     */
+    struct InParameterVersion2a {
+        /* 0x00 */ u32 magic; // 'SNDD'
+        /* 0x04 */ s32 id;
+        /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
+        /* 0x68 */ u32 mix_id;
+        /* 0x6C */ std::array<BiquadFilterParameterLegacy, MaxBiquadFilters> biquad_filters;
+        /* 0x84 */ bool in_use;
+        /* 0x85 */ bool reset_prev_volume;
+        /* 0x86 */ u8 reserved[10];
+    };
+    static_assert(sizeof(InParameterVersion2a) == 0x90,
+                  "SplitterDestinationData::InParameterVersion2a has the wrong size!");
+
+    /**
+     * A destination of revision 15 and later: the biquad filters have float coefficients.
+     */
+    struct InParameterVersion2b {
+        /* 0x00 */ u32 magic; // 'SNDD'
+        /* 0x04 */ s32 id;
+        /* 0x08 */ std::array<f32, MaxMixBuffers> mix_volumes;
+        /* 0x68 */ u32 mix_id;
+        /* 0x6C */ std::array<BiquadFilterParameterFloat, MaxBiquadFilters> biquad_filters;
+        /* 0x9C */ bool in_use;
+        /* 0x9D */ bool reset_prev_volume;
+        /* 0x9E */ u8 reserved[10];
+    };
+    static_assert(sizeof(InParameterVersion2b) == 0xA8,
+                  "SplitterDestinationData::InParameterVersion2b has the wrong size!");
 
     SplitterDestinationData(s32 id);
 
