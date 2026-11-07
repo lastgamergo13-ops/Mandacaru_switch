@@ -486,6 +486,8 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/services/psm/IPsmServer.cpp
         ${source_DIR}/skyline/services/psm/IPsmSession.cpp
         ${source_DIR}/skyline/services/ts/IMeasurementServer.cpp
+        ${source_DIR}/skyline/services/ngc/INgcService.cpp
+        ${source_DIR}/skyline/services/fgm/IModule.cpp
         ${source_DIR}/skyline/services/ts/ISession.cpp
         ${source_DIR}/skyline/services/ntc/IEnsureNetworkClockAvailabilityService.cpp
         )

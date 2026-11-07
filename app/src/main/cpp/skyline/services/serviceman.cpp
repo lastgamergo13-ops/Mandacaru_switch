@@ -64,6 +64,8 @@
 #include "olsc/IOlscServiceForApplication.h"
 #include "clkrst/IClkrstManager.h"
 #include "ts/IMeasurementServer.h"
+#include "ngc/INgcService.h"
+#include "fgm/IModule.h"
 #include "psm/IPsmServer.h"
 #include "ntc/IEnsureNetworkClockAvailabilityService.h"
 #include "serviceman.h"
@@ -160,9 +162,17 @@ namespace skyline::service {
             SERVICE_CASE(lm::ILogService, "lm")
             SERVICE_CASE(ldn::IUserServiceCreator, "ldn:u")
             SERVICE_CASE(account::IAccountServiceForApplication, "acc:u0")
+            SERVICE_CASE(account::IAccountServiceForApplication, "acc:u1")
             SERVICE_CASE(friends::IServiceCreator, "friend:u")
             SERVICE_CASE(nfp::IUserManager, "nfp:user")
             SERVICE_CASE(nifm::IStaticService, "nifm:u")
+            SERVICE_CASE(nifm::IStaticService, "nifm:s")
+            SERVICE_CASE(nifm::IStaticService, "nifm:a")
+            SERVICE_CASE(ngc::INgcService, "ngc:u")
+            SERVICE_CASE(ngc::ITextFilter, "ngct:u")
+            SERVICE_CASE(fgm::IModule, "fgm")
+            SERVICE_CASE(fgm::IModule, "fgm:0")
+            SERVICE_CASE(fgm::IModule, "fgm:9")
             SERVICE_CASE(socket::IClient, "bsd:u")
             SERVICE_CASE(socket::IClient, "bsd:s")
             SERVICE_CASE(socket::IManager, "nsd:u")
