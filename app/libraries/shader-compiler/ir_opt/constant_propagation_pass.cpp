@@ -3,6 +3,8 @@
 
 #include <range/v3/algorithm.hpp>
 #include <algorithm>
+#include <cmath>
+#include <bit>
 #include <functional>
 #include <tuple>
 #include <type_traits>
@@ -411,7 +413,50 @@ void FoldSelect(IR::Inst& inst) {
     }
 }
 
+void FoldFPAdd32(IR::Inst& inst) {
+    if (FoldWhenAllImmediates(inst, [](f32 a, f32 b) { return a + b; })) {
+        return;
+    }
+    const IR::Value lhs_value{inst.Arg(0)};
+    const IR::Value rhs_value{inst.Arg(1)};
+    const auto check_neutral = [](const IR::Value& one_operand) {
+        return one_operand.IsImmediate() && std::abs(one_operand.F32()) == 0.0f;
+    };
+    if (check_neutral(lhs_value)) {
+        inst.ReplaceUsesWith(rhs_value);
+    }
+    if (check_neutral(rhs_value)) {
+        inst.ReplaceUsesWith(lhs_value);
+    }
+}
+
+/// Folds the multiplication of the Y direction with the Y derivative, which the derivative already has
+bool FoldDerivativeYFromCorrection(IR::Inst& inst) {
+    const IR::Value lhs_value{inst.Arg(0)};
+    const IR::Value rhs_value{inst.Arg(1)};
+    IR::Inst* const lhs_op{lhs_value.InstRecursive()};
+    IR::Inst* const rhs_op{rhs_value.InstRecursive()};
+    if (lhs_op->GetOpcode() == IR::Opcode::YDirection) {
+        if (rhs_op->GetOpcode() != IR::Opcode::DPdyFine) {
+            return false;
+        }
+        inst.ReplaceUsesWith(rhs_value);
+        return true;
+    }
+    if (rhs_op->GetOpcode() != IR::Opcode::YDirection) {
+        return false;
+    }
+    if (lhs_op->GetOpcode() != IR::Opcode::DPdyFine) {
+        return false;
+    }
+    inst.ReplaceUsesWith(lhs_value);
+    return true;
+}
+
 void FoldFPMul32(IR::Inst& inst) {
+    if (FoldWhenAllImmediates(inst, [](f32 a, f32 b) { return a * b; })) {
+        return;
+    }
     const auto control{inst.Flags<IR::FpControl>()};
     if (control.no_contraction) {
         return;
@@ -420,6 +465,9 @@ void FoldFPMul32(IR::Inst& inst) {
     const IR::Value lhs_value{inst.Arg(0)};
     const IR::Value rhs_value{inst.Arg(1)};
     if (lhs_value.IsImmediate() || rhs_value.IsImmediate()) {
+        return;
+    }
+    if (FoldDerivativeYFromCorrection(inst)) {
         return;
     }
     IR::Inst* const lhs_op{lhs_value.InstRecursive()};
@@ -623,7 +671,13 @@ void FoldFSwizzleAdd(IR::Block& block, IR::Inst& inst) {
     }
     const IR::Value value_3{GetThroughCast(inst2->Arg(0).Resolve(), IR::Opcode::BitCastU32F32)};
     if (value_2 != value_3) {
-        return;
+        // The same value can be an F32 on one side and its raw U32 on the other
+        if (!value_2.IsImmediate() || !value_3.IsImmediate()) {
+            return;
+        }
+        if (std::bit_cast<u32>(value_2.F32()) != value_3.U32()) {
+            return;
+        }
     }
     const IR::Value index{inst2->Arg(1)};
     const IR::Value clamp{inst2->Arg(2)};
@@ -744,6 +798,12 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
     case IR::Opcode::SelectF32:
     case IR::Opcode::SelectF64:
         return FoldSelect(inst);
+    case IR::Opcode::FPNeg32:
+        FoldWhenAllImmediates(inst, [](f32 a) { return -a; });
+        return;
+    case IR::Opcode::FPAdd32:
+        FoldFPAdd32(inst);
+        return;
     case IR::Opcode::FPMul32:
         return FoldFPMul32(inst);
     case IR::Opcode::LogicalAnd:
