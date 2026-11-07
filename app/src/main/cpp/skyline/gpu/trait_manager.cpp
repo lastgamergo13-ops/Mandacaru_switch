@@ -79,6 +79,7 @@ namespace skyline::gpu {
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.logicOp, supportsLogicOp)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.multiViewport, supportsMultipleViewports)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderInt16, supportsInt16)
+        FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderFloat64, supportsFloat64)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderInt64, supportsInt64)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.shaderStorageImageReadWithoutFormat, supportsImageReadWithoutFormat)
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.robustBufferAccess, std::ignore)
