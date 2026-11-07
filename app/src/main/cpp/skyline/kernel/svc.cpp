@@ -922,6 +922,46 @@ namespace skyline::kernel::svc {
         ctx.w0 = state.os->serviceManager.SyncRequestHandler(static_cast<KHandle>(ctx.x0));
     }
 
+    /**
+     * @brief Handles a request whose message is in a buffer of the game instead of the TLS (SVC 0x22 and 0x23)
+     * @return The result of the request, or the error if the buffer isn't valid
+     */
+    static Result SendRequestWithUserBuffer(const DeviceState &state, u8 *buffer, u64 size, KHandle sessionHandle) {
+        if (buffer == nullptr || !util::IsPageAligned(buffer))
+            return result::InvalidAddress;
+        if (size == 0 || !util::IsPageAligned(size))
+            return result::InvalidSize;
+
+        SchedulerScopedLock schedulerLock(state);
+        ipc::userMessageBuffer = buffer;
+        Result requestResult;
+        try {
+            requestResult = state.os->serviceManager.SyncRequestHandler(sessionHandle);
+        } catch (...) {
+            ipc::userMessageBuffer = nullptr;
+            throw;
+        }
+        ipc::userMessageBuffer = nullptr;
+        return requestResult;
+    }
+
+    void SendSyncRequestWithUserBuffer(const DeviceState &state, SvcContext &ctx) {
+        ctx.w0 = SendRequestWithUserBuffer(state, reinterpret_cast<u8 *>(ctx.x0), ctx.x1, static_cast<KHandle>(ctx.w2));
+    }
+
+    void SendAsyncRequestWithUserBuffer(const DeviceState &state, SvcContext &ctx) {
+        // The request is handled right away and the event is already signalled when the game gets it, a game can't tell it from a request that finished very quickly
+        Result requestResult{SendRequestWithUserBuffer(state, reinterpret_cast<u8 *>(ctx.x1), ctx.x2, static_cast<KHandle>(ctx.w3))};
+        if (static_cast<u32>(requestResult) != 0) {
+            ctx.w0 = requestResult;
+            return;
+        }
+
+        auto [event, handle]{state.process->NewHandle<type::KEvent>(true)};
+        ctx.w1 = handle;
+        ctx.w0 = Result{};
+    }
+
     void GetThreadId(const DeviceState &state, SvcContext &ctx) {
         KHandle handle{ctx.w1};
         size_t tid{state.process->GetHandle<type::KThread>(handle)->id};
@@ -1531,8 +1571,8 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(ConnectToNamedPort), // 0x1F
         SVC_NONE, // 0x20
         SVC_ENTRY(SendSyncRequest), // 0x21
-        SVC_NONE, // 0x22
-        SVC_NONE, // 0x23
+        SVC_ENTRY(SendSyncRequestWithUserBuffer), // 0x22
+        SVC_ENTRY(SendAsyncRequestWithUserBuffer), // 0x23
         SVC_ENTRY(GetProcessId), // 0x24
         SVC_ENTRY(GetThreadId), // 0x25
         SVC_ENTRY(Break), // 0x26

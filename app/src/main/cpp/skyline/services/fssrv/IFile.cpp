@@ -72,4 +72,25 @@ namespace skyline::service::fssrv {
         response.Push<u64>(backing->size);
         return {};
     }
+
+    Result IFile::OperateRange(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto operationId{request.Pop<u32>()};
+        request.Skip<u32>();
+        auto offset{request.Pop<i64>()};
+        auto size{request.Pop<i64>()};
+
+        if (offset < 0)
+            return result::InvalidOffset;
+        if (size < 0)
+            return result::InvalidSize;
+
+        // 0 is Clear, 1 ClearSignature, 2 InvalidateCache and 3 QueryRange. The file is a plain file of the host (or a part of an NCA), so there is no cache to invalidate or signature to clear, and the information about the range (the kind of storage and the flags of it) that QueryRange returns is all zeros
+        if (operationId > 3) {
+            LOGW("Unknown IFile::OperateRange operation: {}", operationId);
+            return result::InvalidArgument;
+        }
+
+        response.Push(std::array<u8, 0x40>{});
+        return {};
+    }
 }

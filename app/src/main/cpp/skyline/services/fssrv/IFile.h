@@ -43,12 +43,19 @@ namespace skyline::service::fssrv {
          */
         Result GetSize(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Does an operation on a range of the file, only querying the range is meaningful for the files the emulator has
+         * @url https://switchbrew.org/wiki/Filesystem_services#OperateRange
+         */
+        Result OperateRange(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x0, IFile, Read),
             SFUNC(0x1, IFile, Write),
             SFUNC(0x2, IFile, Flush),
             SFUNC(0x3, IFile, SetSize),
-            SFUNC(0x4, IFile, GetSize)
+            SFUNC(0x4, IFile, GetSize),
+            SFUNC(0x5, IFile, OperateRange)
         )
     };
 }

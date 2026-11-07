@@ -187,7 +187,8 @@ namespace skyline::gpu {
         }
 
         [[nodiscard]] Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) final {
-            throw exception("ReadTexturePixelFormat not implemented");
+            // The compiler only asks for this when the host can't render to SNORM buffers (HostTranslateInfo::support_snorm_render_buffer, which is always set above) to patch texel fetches of buffer textures. OTHER means that no patch is needed, so this can't throw if that changes
+            return Shader::TexturePixelFormat::OTHER;
         }
 
         [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) final {
@@ -284,7 +285,8 @@ namespace skyline::gpu {
         }
 
         [[nodiscard]] Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) final {
-            throw exception("ReadTexturePixelFormat not implemented");
+            // The compiler only asks for this when the host can't render to SNORM buffers (HostTranslateInfo::support_snorm_render_buffer, which is always set above) to patch texel fetches of buffer textures. OTHER means that no patch is needed, so this can't throw if that changes
+            return Shader::TexturePixelFormat::OTHER;
         }
 
         [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) final {
@@ -346,7 +348,7 @@ namespace skyline::gpu {
         }
 
         [[nodiscard]] Shader::TexturePixelFormat ReadTexturePixelFormat(u32 handle) final {
-            throw exception("Not implemented");
+            return Shader::TexturePixelFormat::OTHER;
         }
 
         [[nodiscard]] u32 ReadViewportTransformState() final {

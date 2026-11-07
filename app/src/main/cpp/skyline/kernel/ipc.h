@@ -15,6 +15,12 @@ namespace skyline {
 
     namespace kernel::ipc {
         /**
+         * @brief The message buffer to use instead of the TLS one for the request being handled on this thread, null for the usual one in the TLS
+         * @note It is set by SendSyncRequestWithUserBuffer (SVC 0x22) for the length of the request, so the same code reads the request and writes the answer wherever the game put the message
+         */
+        inline thread_local u8 *userMessageBuffer{nullptr};
+
+        /**
          * @url https://switchbrew.org/wiki/IPC_Marshalling#Type
          */
         enum class CommandType : u16 {

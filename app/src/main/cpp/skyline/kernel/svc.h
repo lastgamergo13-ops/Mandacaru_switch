@@ -194,6 +194,18 @@ namespace skyline::kernel::svc {
     void SendSyncRequest(const DeviceState &state, SvcContext &ctx);
 
     /**
+     * @brief Send a synchronous IPC request to a service with the message in a buffer of the game (page aligned) instead of the TLS
+     * @url https://switchbrew.org/wiki/SVC#SendSyncRequestWithUserBuffer
+     */
+    void SendSyncRequestWithUserBuffer(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Send an asynchronous IPC request to a service with the message in a buffer of the game, it returns an event that is signalled when the request is done
+     * @url https://switchbrew.org/wiki/SVC#SendAsyncRequestWithUserBuffer
+     */
+    void SendAsyncRequestWithUserBuffer(const DeviceState &state, SvcContext &ctx);
+
+    /**
      * @brief Retrieves the PID of a specific thread
      * @url https://switchbrew.org/wiki/SVC#GetThreadId
      */
