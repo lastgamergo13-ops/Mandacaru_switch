@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <unordered_set>
 
 #include <sirit/sirit.h>
 
@@ -39,18 +40,21 @@ struct TextureDefinition {
 
 struct TextureBufferDefinition {
     Id id;
+    Id pointer_type;
     u32 count;
 };
 
 struct ImageBufferDefinition {
     Id id;
     Id image_type;
+    Id pointer_type;
     u32 count;
 };
 
 struct ImageDefinition {
     Id id;
     Id image_type;
+    Id pointer_type;
     u32 count;
 };
 
@@ -165,6 +169,13 @@ public:
 
     const Profile& profile;
     const RuntimeInfo& runtime_info;
+
+    /// Ids that were decorated with NonUniform, and the kinds of arrays that were indexed that way
+    std::unordered_set<u32> non_uniform_ids;
+    bool uses_nonuniform_sampled_image{};
+    bool uses_nonuniform_storage_image{};
+    bool uses_nonuniform_uniform_texel_buffer{};
+    bool uses_nonuniform_storage_texel_buffer{};
     Stage stage{};
 
     Id void_id{};

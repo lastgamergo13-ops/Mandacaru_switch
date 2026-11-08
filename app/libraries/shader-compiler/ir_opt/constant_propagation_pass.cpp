@@ -3,6 +3,7 @@
 
 #include <range/v3/algorithm.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <bit>
 #include <functional>
@@ -13,6 +14,7 @@
 #include <shader_compiler/environment.h>
 #include <shader_compiler/exception.h>
 #include <shader_compiler/frontend/ir/ir_emitter.h>
+#include <shader_compiler/frontend/ir/modifiers.h>
 #include <shader_compiler/frontend/ir/value.h>
 #include <shader_compiler/ir_opt/passes.h>
 
@@ -703,6 +705,179 @@ void FoldFSwizzleAdd(IR::Block& block, IR::Inst& inst) {
     }
 }
 
+bool FindGradient3DDerivatives(std::array<IR::Value, 3>& results, IR::Value coord) {
+    if (coord.IsImmediate()) {
+        return false;
+    }
+    const auto check_through_shuffle = [](IR::Value input, IR::Value& result) {
+        const IR::Value value_1{GetThroughCast(input.Resolve(), IR::Opcode::BitCastF32U32)};
+        IR::Inst* const inst2{value_1.InstRecursive()};
+        if (inst2->GetOpcode() != IR::Opcode::ShuffleIndex) {
+            return false;
+        }
+        const IR::Value index{inst2->Arg(1).Resolve()};
+        const IR::Value clamp{inst2->Arg(2).Resolve()};
+        const IR::Value segmentation_mask{inst2->Arg(3).Resolve()};
+        if (!index.IsImmediate() || !clamp.IsImmediate() || !segmentation_mask.IsImmediate()) {
+            return false;
+        }
+        if (index.U32() != 3 && clamp.U32() != 3) {
+            return false;
+        }
+        result = GetThroughCast(inst2->Arg(0).Resolve(), IR::Opcode::BitCastU32F32);
+        return true;
+    };
+    IR::Inst* const inst = coord.InstRecursive();
+    if (inst->GetOpcode() != IR::Opcode::FSwizzleAdd) {
+        return false;
+    }
+    std::array<IR::Value, 3> temporary_values;
+    IR::Value value_1 = inst->Arg(0).Resolve();
+    IR::Value value_2 = inst->Arg(1).Resolve();
+    IR::Value value_3 = inst->Arg(2).Resolve();
+    std::array<u32, 4> swizzles_mask_a{};
+    std::array<u32, 4> swizzles_mask_b{};
+    const auto resolve_mask = [](std::array<u32, 4>& mask_results, IR::Value mask) {
+        u32 value = mask.U32();
+        for (size_t i = 0; i < 4; i++) {
+            mask_results[i] = (value >> (i * 2)) & 0x3;
+        }
+    };
+    resolve_mask(swizzles_mask_a, value_3);
+    size_t coordinate_index = 0;
+    const auto resolve_pending = [&](IR::Value resolve_v) {
+        IR::Inst* const inst_r = resolve_v.InstRecursive();
+        if (inst_r->GetOpcode() != IR::Opcode::FSwizzleAdd) {
+            return false;
+        }
+        if (!check_through_shuffle(inst_r->Arg(0).Resolve(), temporary_values[1])) {
+            return false;
+        }
+        if (!check_through_shuffle(inst_r->Arg(1).Resolve(), temporary_values[2])) {
+            return false;
+        }
+        resolve_mask(swizzles_mask_b, inst_r->Arg(2).Resolve());
+        return true;
+    };
+    if (value_1.IsImmediate() || value_2.IsImmediate()) {
+        return false;
+    }
+    bool should_continue = false;
+    if (resolve_pending(value_1)) {
+        should_continue = check_through_shuffle(value_2, temporary_values[0]);
+        coordinate_index = 0;
+    }
+    if (resolve_pending(value_2)) {
+        should_continue = check_through_shuffle(value_1, temporary_values[0]);
+        coordinate_index = 2;
+    }
+    if (!should_continue) {
+        return false;
+    }
+    // figure which is which
+    size_t zero_mask_a = 0;
+    size_t zero_mask_b = 0;
+    for (size_t i = 0; i < 4; i++) {
+        if (swizzles_mask_a[i] == 2 || swizzles_mask_b[i] == 2) {
+            // last operand can be inversed, we cannot determine a result.
+            return false;
+        }
+        zero_mask_a |= static_cast<size_t>(swizzles_mask_a[i] == 3 ? 1 : 0) << i;
+        zero_mask_b |= static_cast<size_t>(swizzles_mask_b[i] == 3 ? 1 : 0) << i;
+    }
+    static constexpr size_t ddx_pattern = 0b1010;
+    static constexpr size_t ddx_pattern_inv = ~ddx_pattern & 0b00001111;
+    if (std::popcount(zero_mask_a) != 2) {
+        return false;
+    }
+    if (std::popcount(zero_mask_b) != 2) {
+        return false;
+    }
+    if (zero_mask_a == zero_mask_b) {
+        return false;
+    }
+    results[0] = temporary_values[coordinate_index];
+
+    if (coordinate_index == 0) {
+        if (zero_mask_b == ddx_pattern || zero_mask_b == ddx_pattern_inv) {
+            results[1] = temporary_values[1];
+            results[2] = temporary_values[2];
+            return true;
+        }
+        results[2] = temporary_values[1];
+        results[1] = temporary_values[2];
+    } else {
+        const auto assign_result = [&results](IR::Value temporary_value, size_t mask) {
+            if (mask == ddx_pattern || mask == ddx_pattern_inv) {
+                results[1] = temporary_value;
+                return;
+            }
+            results[2] = temporary_value;
+        };
+        assign_result(temporary_values[1], zero_mask_b);
+        assign_result(temporary_values[0], zero_mask_a);
+    }
+
+    return true;
+}
+
+void ConvertDerivatives(std::array<IR::Value, 3>& results, IR::IREmitter& ir) {
+    for (size_t i = 0; i < 3; i++) {
+        if (results[i].Type() == IR::Type::U32) {
+            results[i] = results[i].IsImmediate() ? ir.Imm32(std::bit_cast<f32>(results[i].U32()))
+                                                  : ir.BitCast<IR::F32>(IR::U32(results[i]));
+        }
+    }
+}
+
+void FoldImageSampleImplicitLod(IR::Block& block, IR::Inst& inst) {
+    IR::TextureInstInfo info = inst.Flags<IR::TextureInstInfo>();
+    auto orig_opcode = inst.GetOpcode();
+    if (info.ndv_is_active == 0) {
+        return;
+    }
+    if (info.type != TextureType::Color3D) {
+        return;
+    }
+    const IR::Value handle{inst.Arg(0)};
+    const IR::Value coords{inst.Arg(1)};
+    const IR::Value bias_lc{inst.Arg(2)};
+    const IR::Value offset{inst.Arg(3)};
+    if (!offset.IsImmediate()) {
+        return;
+    }
+    IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
+    IR::Inst* const inst2 = coords.InstRecursive();
+    std::array<std::array<IR::Value, 3>, 3> results_matrix;
+    for (size_t i = 0; i < 3; i++) {
+        if (!FindGradient3DDerivatives(results_matrix[i], inst2->Arg(i).Resolve())) {
+            return;
+        }
+        ConvertDerivatives(results_matrix[i], ir);
+    }
+    IR::F32 lod_clamp{};
+    if (info.has_lod_clamp != 0) {
+        if (!bias_lc.IsImmediate()) {
+            lod_clamp = IR::F32{bias_lc.InstRecursive()->Arg(1).Resolve()};
+        } else {
+            lod_clamp = IR::F32{bias_lc};
+        }
+    }
+    IR::Value new_coords =
+        ir.CompositeConstruct(results_matrix[0][0], results_matrix[1][0], results_matrix[2][0]);
+    IR::Value derivatives_1 = ir.CompositeConstruct(results_matrix[0][1], results_matrix[0][2],
+                                                    results_matrix[1][1], results_matrix[1][2]);
+    IR::Value derivatives_2 = ir.CompositeConstruct(results_matrix[2][1], results_matrix[2][2]);
+    info.num_derivates.Assign(3);
+    IR::Value new_gradient_instruction =
+        ir.ImageGradient(handle, new_coords, derivatives_1, derivatives_2, lod_clamp, info);
+    IR::Inst* const new_inst = new_gradient_instruction.InstRecursive();
+    if (orig_opcode == IR::Opcode::ImageSampleImplicitLod) {
+        new_inst->ReplaceOpcode(IR::Opcode::ImageGradient);
+    }
+    inst.ReplaceUsesWith(new_gradient_instruction);
+}
+
 void FoldConstBuffer(Environment& env, IR::Block& block, IR::Inst& inst) {
     const IR::Value bank{inst.Arg(0)};
     const IR::Value offset{inst.Arg(1)};
@@ -910,6 +1085,10 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
                                     IR::Opcode::CompositeInsertF16x4);
     case IR::Opcode::FSwizzleAdd:
         return FoldFSwizzleAdd(block, inst);
+    case IR::Opcode::BindlessImageSampleImplicitLod:
+    case IR::Opcode::BoundImageSampleImplicitLod:
+    case IR::Opcode::ImageSampleImplicitLod:
+        return FoldImageSampleImplicitLod(block, inst);
     case IR::Opcode::GetCbufF32:
     case IR::Opcode::GetCbufU32:
         if (env.HasHLEMacroState()) {

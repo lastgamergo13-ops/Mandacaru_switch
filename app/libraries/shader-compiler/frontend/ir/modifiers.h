@@ -42,6 +42,7 @@ union TextureInstInfo {
     BitField<23, 2, u32> gather_component;
     BitField<25, 2, u32> num_derivates;
     BitField<27, 3, ImageFormat> image_format;
+    BitField<30, 1, u32> ndv_is_active; ///< The TEX instruction has the NDV flag (no derivative vector): the derivatives of a 3D texture come from FSwizzleAdd
 };
 static_assert(sizeof(TextureInstInfo) <= sizeof(u32));
 

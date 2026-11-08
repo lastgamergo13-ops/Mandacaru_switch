@@ -552,6 +552,8 @@ void EmitImageGradient(EmitContext& ctx, IR::Inst& inst, const IR::Value& index,
     const auto info{inst.Flags<IR::TextureInstInfo>()};
     ScopedRegister dpdx, dpdy;
     const bool multi_component{info.num_derivates > 1 || info.has_lod_clamp};
+    // With 3 derivatives (a 3D texture) the "offset" is the second vector of derivatives
+    const bool is_3d{info.num_derivates >= 3};
     if (multi_component) {
         // Allocate this early to avoid aliasing other registers
         dpdx = ScopedRegister{ctx.reg_alloc};
@@ -561,9 +563,13 @@ void EmitImageGradient(EmitContext& ctx, IR::Inst& inst, const IR::Value& index,
     const std::string_view sparse_mod{sparse_inst ? ".SPARSE" : ""};
     const std::string_view type{TextureType(info)};
     const std::string texture{Texture(ctx, info, index)};
-    const std::string offset_vec{GradOffset(offset)};
+    const std::string offset_vec{is_3d ? std::string{} : GradOffset(offset)};
     const Register coord_vec{ctx.reg_alloc.Consume(coord)};
     const Register derivatives_vec{ctx.reg_alloc.Consume(derivatives)};
+    Register derivatives_2_vec;
+    if (is_3d) {
+        derivatives_2_vec = ctx.reg_alloc.Consume(offset);
+    }
     const Register ret{ctx.reg_alloc.Define(inst)};
     if (multi_component) {
         ctx.Add("MOV.F {}.x,{}.x;"
@@ -572,6 +578,11 @@ void EmitImageGradient(EmitContext& ctx, IR::Inst& inst, const IR::Value& index,
                 "MOV.F {}.y,{}.w;",
                 dpdx.reg, derivatives_vec, dpdx.reg, derivatives_vec, dpdy.reg, derivatives_vec,
                 dpdy.reg, derivatives_vec);
+        if (is_3d) {
+            ctx.Add("MOV.F {}.z,{}.x;"
+                    "MOV.F {}.z,{}.y;",
+                    dpdx.reg, derivatives_2_vec, dpdy.reg, derivatives_2_vec);
+        }
         if (info.has_lod_clamp) {
             const ScalarF32 lod_clamp_value{ctx.reg_alloc.Consume(lod_clamp)};
             ctx.Add("MOV.F {}.w,{};"

@@ -31,6 +31,11 @@ struct Profile {
     bool support_viewport_index_layer_non_geometry{};
     bool support_viewport_mask{};
     bool support_typeless_image_loads{};
+    /// Indexing arrays of sampled images / storage images / texel buffers with a value that can differ between invocations
+    bool support_sampled_image_array_nonuniform_indexing{};
+    bool support_storage_image_array_nonuniform_indexing{};
+    bool support_uniform_texel_buffer_array_nonuniform_indexing{};
+    bool support_storage_texel_buffer_array_nonuniform_indexing{};
     bool support_demote_to_helper_invocation{};
     bool support_int64_atomics{};
     bool support_derivative_control{};
