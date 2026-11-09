@@ -386,7 +386,7 @@ namespace skyline::gpu::interconnect {
         auto textureHeaders{texturePool.UpdateGet(ctx).textureHeaders};
         const auto &header{textureHeaders[index]};
         // Maxwell samples integer textures as integers: the component type is the same for all the components of the formats the shaders can sample
-        bool isInteger{header.componentR == TextureImageControl::ImageComponent::Sint || header.componentR == TextureImageControl::ImageComponent::Uint};
+        bool isInteger{header.formatWord.componentR == TextureImageControl::ImageComponent::Sint || header.formatWord.componentR == TextureImageControl::ImageComponent::Uint};
         return {GetShaderTextureType(header.textureType), isInteger};
     }
 
