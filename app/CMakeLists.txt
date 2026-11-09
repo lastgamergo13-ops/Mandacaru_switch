@@ -492,6 +492,12 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/services/ts/ISession.cpp
         ${source_DIR}/skyline/services/ntc/IEnsureNetworkClockAvailabilityService.cpp
         )
+
+# The version of the build is written at the start of the log. Only this file gets the definition so a new version doesn't recompile everything
+if(NOT MANDACARU_VERSION_NAME)
+    set(MANDACARU_VERSION_NAME "unknown")
+endif()
+set_source_files_properties(${source_DIR}/emu_jni.cpp PROPERTIES COMPILE_DEFINITIONS "MANDACARU_VERSION_NAME=\"${MANDACARU_VERSION_NAME}\"")
 target_include_directories(skyline PRIVATE ${source_DIR}/skyline ${source_DIR}/skyline/soc/host1x/video) # The second one is the root of the "eden/..." includes of the video decoder
 # target_precompile_headers(skyline PRIVATE ${source_DIR}/skyline/common.h) # PCH will currently break Intellisense
 target_compile_options(skyline PRIVATE -Wall -Wno-unknown-attributes -Wno-c++20-extensions -Wno-c++17-extensions -Wno-c99-designator -Wno-reorder -Wno-missing-braces -Wno-unused-variable -Wno-unused-private-field -Wno-dangling-else -Wconversion -fsigned-bitfields)

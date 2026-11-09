@@ -25,6 +25,13 @@ android {
         versionCode getGitVersionCode()
         versionName getGitVersionName()
 
+        // The version is also given to the native code, it's written at the start of the log (only emu_jni.cpp depends on it so changing it doesn't invalidate the rest of the build cache)
+        externalNativeBuild {
+            cmake {
+                arguments "-DMANDACARU_VERSION_NAME=${getGitVersionName().replaceAll(/[^A-Za-z0-9._+-]/, '_')}"
+            }
+        }
+
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters "arm64-v8a"

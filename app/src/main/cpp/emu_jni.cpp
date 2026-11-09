@@ -70,7 +70,11 @@ static void LogSystemInfo(skyline::Settings &settings) {
         return value[0] ? value : "(unknown)";
     }};
 
+#ifdef MANDACARU_VERSION_NAME
+    LOGINF("Mandacaru version: {}, build: {} {}, compiler: {}", MANDACARU_VERSION_NAME, __DATE__, __TIME__, __clang_version__);
+#else
     LOGINF("Mandacaru build: {} {}, compiler: {}", __DATE__, __TIME__, __clang_version__);
+#endif
     LOGINF("Host OS: Android {} (API level {}), build: {}", property("ro.build.version.release"), android_get_device_api_level(), property("ro.build.fingerprint"));
     LOGINF("Host device: {} {} ({}), board: {}, SoC: {} {}", property("ro.product.manufacturer"), property("ro.product.model"), property("ro.product.device"), property("ro.board.platform"), property("ro.soc.manufacturer"), property("ro.soc.model"));
 

@@ -335,6 +335,13 @@ namespace skyline::gpu {
                          VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion), VK_API_VERSION_PATCH(properties.apiVersion),
                          VK_API_VERSION_MAJOR(properties.driverVersion), VK_API_VERSION_MINOR(properties.driverVersion), VK_API_VERSION_PATCH(properties.driverVersion),
                          queueString, extensionString, traits.Summary(), traits.quirks.Summary());
+
+            // The memory heaps of the device, what the Eden log calls "Available VRAM" (a phone shares one memory between the CPU and the GPU, so the device local heap is a part of the RAM)
+            auto memoryProperties{physicalDevice.getMemoryProperties()};
+            std::string heapString;
+            for (u32 i{}; i < memoryProperties.memoryHeapCount; i++)
+                heapString += fmt::format("\n* Heap {}: {} MiB{}", i, memoryProperties.memoryHeaps[i].size / (1024 * 1024), memoryProperties.memoryHeaps[i].flags & vk::MemoryHeapFlagBits::eDeviceLocal ? " (device local)" : "");
+            LOGI("Vulkan memory heaps:{}", heapString);
         }
 
         return vk::raii::Device(physicalDevice, vk::DeviceCreateInfo{
