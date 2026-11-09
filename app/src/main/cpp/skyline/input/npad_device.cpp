@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <array>
+#include <atomic>
 #include <jvm.h>
 #include "npad_device.h"
 #include "npad.h"
@@ -354,6 +356,17 @@ namespace skyline::input {
     void NpadDevice::SetAxisValue(NpadAxisId axis, i32 value) {
         constexpr i16 threshold{std::numeric_limits<i16>::max() / 2}; // A 50% deadzone for the stick buttons
 
+        // Diagnostics: log only when an axis goes between centred and not centred (and a limited number of times) so reports like "the character keeps walking in one direction" can be told apart from a game side issue using Info level logs
+        static std::array<i32, 4> lastValue{};
+        static std::atomic<u32> loggedAxisEvents{};
+        const auto axisIndex{static_cast<size_t>(axis)};
+        if (axisIndex < lastValue.size()) {
+            const bool wasCentred{lastValue[axisIndex] == 0}, isCentred{value == 0};
+            if (wasCentred != isCentred && loggedAxisEvents.fetch_add(1) < 80)
+                LOGI("Axis {} changed to {} (npad type {}, joycon orientation {})", axisIndex, value, static_cast<u32>(type), static_cast<u32>(manager.orientation));
+            lastValue[axisIndex] = value;
+        }
+
         if (manager.orientation == NpadJoyOrientation::Vertical || (type != NpadControllerType::JoyconLeft && type != NpadControllerType::JoyconRight)) {
             switch (axis) {
                 case NpadAxisId::LX:
@@ -370,8 +383,8 @@ namespace skyline::input {
                     controllerState.leftY = value;
                     defaultState.leftY = value;
 
-                    defaultState.buttons.leftStickUp = controllerState.buttons.leftStickUp;
                     controllerState.buttons.leftStickUp = controllerState.leftY >= threshold;
+                    defaultState.buttons.leftStickUp = controllerState.buttons.leftStickUp;
 
                     controllerState.buttons.leftStickDown = controllerState.leftY <= -threshold;
                     defaultState.buttons.leftStickDown = controllerState.buttons.leftStickDown;
