@@ -249,6 +249,10 @@ namespace skyline::gpu::interconnect::maxwell3d {
             if (!packedState.shaderHashes[i] && !(i == stageIdx(PipelineStage::Geometry) && layerConversionSourceProgram))
                 continue;
 
+            // A passthrough geometry shader only forwards the vertex outputs, and the host never supports NV_geometry_shader_passthrough. Emulating it with a real geometry shader made pipeline creation fail on some drivers (Adreno: vkCreateGraphicsPipelines ErrorUnknown), which left games like Kingdom Come on a black screen, so the stage is left out: hasGeometry is already false for it, so the vertex stage does the work of the last vertex processing stage
+            if (i == stageIdx(PipelineStage::Geometry) && packedState.shaderHashes[i] && programs[i].is_geometry_passthrough)
+                continue;
+
             auto runtimeInfo{MakeRuntimeInfo(packedState, programs[i], lastProgram, hasGeometry)};
             shaderStages[i - (i >= 1 ? 1 : 0)] = {ConvertVkShaderStage(pipelineStage(i)),
                                                   gpu.shader->CompileShader(runtimeInfo, programs[i], bindings, packedState.shaderHashes[i]),

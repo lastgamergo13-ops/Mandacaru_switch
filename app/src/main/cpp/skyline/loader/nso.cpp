@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -254,7 +255,9 @@ namespace skyline::loader {
             std::vector<u8> compressedBuffer(compressedSize);
             backing->Read(compressedBuffer, segment.fileOffset);
 
-            LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize));
+            int decompressed{LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize))};
+            if (decompressed < 0 || static_cast<u32>(decompressed) != segment.decompressedSize)
+                LOGE("Failed to decompress an NSO segment: LZ4 returned {} for a segment of 0x{:X} bytes (compressed size 0x{:X}), the module will contain garbage", decompressed, segment.decompressedSize, compressedSize);
         } else {
             backing->Read(outputBuffer, segment.fileOffset);
         }
@@ -290,6 +293,20 @@ namespace skyline::loader {
         }
 
         ApplyExecutablePatches(state, header.buildId, executable, name);
+
+        {
+            // Diagnostics: the first thing the guest's rtld does with a module is check its MOD0 header, so log what it will find to make "stuck in rtld" reports debuggable from Info level logs
+            u32 modMagic{};
+            bool modFound{};
+            for (const auto *segment : {&executable.text, &executable.ro, &executable.data}) {
+                if (header.modOffset >= segment->offset && header.modOffset + sizeof(u32) <= segment->offset + segment->contents.size()) {
+                    std::memcpy(&modMagic, segment->contents.data() + (header.modOffset - segment->offset), sizeof(u32));
+                    modFound = true;
+                    break;
+                }
+            }
+            LOGI("Module layout of '{}': .text 0x{:X}+0x{:X}, .rodata 0x{:X}+0x{:X}, .data 0x{:X}+0x{:X}, .bss 0x{:X}, MOD0 offset 0x{:X} magic {} (0x{:X})", name, header.text.memoryOffset, executable.text.contents.size(), header.ro.memoryOffset, executable.ro.contents.size(), header.data.memoryOffset, executable.data.contents.size(), executable.bssSize, header.modOffset, modFound ? (modMagic == util::MakeMagic<u32>("MOD0") ? "valid" : "INVALID") : "not inside a segment", modMagic);
+        }
 
         PrintRoContentsInfo(executable.ro.contents);
 
