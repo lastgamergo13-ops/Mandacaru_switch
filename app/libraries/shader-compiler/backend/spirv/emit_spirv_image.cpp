@@ -584,7 +584,8 @@ Id EmitImageSampleExplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value&
                   Texture(ctx, info, index), coords, operands.Mask(), operands.Span())};
     if (!is_integer && ctx.profile.fix_bloom_effects) {
         // HACK: hides the over-bright bloom some games have on some GPUs
-        texel = ctx.OpVectorTimesScalar(ctx.F32[4], texel, ctx.Const(0.98f));
+        const Id scale{ctx.Const(0.98f)};
+        texel = ctx.OpFMul(ctx.F32[4], texel, ctx.ConstantComposite(ctx.F32[4], scale, scale, scale, scale));
     }
     return TexelResult(ctx, is_integer, texel);
 }
