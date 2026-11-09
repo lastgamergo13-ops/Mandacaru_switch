@@ -53,26 +53,26 @@ namespace skyline::service {
         }
 
         Result IQueryService::QueryLastPlayTime(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-            s32 entries{};
+            i32 entries{};
             if (!request.inputBuf.empty() && !request.outputBuf.empty()) {
-                entries = static_cast<s32>(request.inputBuf.at(0).size() / sizeof(s32));
+                entries = static_cast<i32>(request.inputBuf.at(0).size() / sizeof(i32));
                 std::memset(request.outputBuf.at(0).data(), 0, request.outputBuf.at(0).size());
             }
-            response.Push<s32>(entries);
+            response.Push<i32>(entries);
             return {};
         }
 
         Result IQueryService::QueryApplicationPlayStatisticsForSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-            s32 entries{};
+            i32 entries{};
             if (!request.inputBuf.empty() && !request.outputBuf.empty()) {
                 auto ids{request.inputBuf.at(0).cast<u64>()};
                 auto output{request.outputBuf.at(0).cast<ApplicationPlayStatistics>()};
                 size_t count{std::min(ids.size(), output.size())};
                 for (size_t i{}; i < count; i++)
                     output[i] = ApplicationPlayStatistics{.applicationId = ids[i], .playTimeNs = 0, .launchCount = 1};
-                entries = static_cast<s32>(count);
+                entries = static_cast<i32>(count);
             }
-            response.Push<s32>(entries);
+            response.Push<i32>(entries);
             return {};
         }
     }
@@ -125,7 +125,7 @@ namespace skyline::service {
         }
 
         Result IUser::ListDevices(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-            response.Push<s32>(0);
+            response.Push<i32>(0);
             return {};
         }
 
@@ -138,8 +138,8 @@ namespace skyline::service {
     namespace ns {
         namespace {
             constexpr size_t NacpSize{0x4000};
-            constexpr s64 StorageTotalSize{64LL * 1024 * 1024 * 1024};
-            constexpr s64 StorageFreeSize{32LL * 1024 * 1024 * 1024};
+            constexpr i64 StorageTotalSize{64LL * 1024 * 1024 * 1024};
+            constexpr i64 StorageFreeSize{32LL * 1024 * 1024 * 1024};
 
             /**
              * @brief Writes the NACP of the running game to the first output buffer
@@ -191,12 +191,12 @@ namespace skyline::service {
         }
 
         Result IApplicationManagerInterface::GetTotalSpaceSize(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-            response.Push<s64>(StorageTotalSize);
+            response.Push<i64>(StorageTotalSize);
             return {};
         }
 
         Result IApplicationManagerInterface::GetFreeSpaceSize(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-            response.Push<s64>(StorageFreeSize);
+            response.Push<i64>(StorageFreeSize);
             return {};
         }
 
