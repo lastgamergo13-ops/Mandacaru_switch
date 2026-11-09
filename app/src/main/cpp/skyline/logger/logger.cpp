@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright © 2023 Strato Team and Contributors (https://github.com/strato-emu/)
 
+#include <array>
+#include <span>
 #include <atomic>
 #include <chrono>
 #include <mutex>
@@ -59,10 +61,29 @@ namespace skyline {
         const char *function; //!< The name of the function that pushed this message
         std::string str; //!< The log message string
         log_time_point time; //!< The time when the message was pushed
-        ThreadLogContext *threadContext; //!< The context for the thread that pushed this message
+        std::array<char, PrefixLength + MaxThreadNameLength> threadTag; //!< A copy of the log tag (the prefix and the thread name) of the thread that pushed this message
 
-        LogMessage(LogLevel level, const char *function, std::string &&str, log_time_point time, ThreadLogContext *threadContext)
-            : level(level), function(function), str(std::move(str)), time(time), threadContext(threadContext) {}
+        /**
+         * @note The tag is copied instead of pointing at the thread_local context of the pushing thread: the writer thread reads it later and the pushing thread can be gone by then (the threads of the game are killed when it ends), which made the writer read freed memory and crash
+         */
+        LogMessage(LogLevel level, const char *function, std::string &&str, log_time_point time, const ThreadLogContext &context)
+            : level(level), function(function), str(std::move(str)), time(time), threadTag(context.threadNameStorage) {
+            threadTag.back() = '\0';
+        }
+
+        /**
+         * @return A span of the thread name
+         */
+        std::span<const char> GetThreadName() const {
+            return {threadTag.begin() + PrefixLength, threadTag.end()};
+        }
+
+        /**
+         * @return A span of the log tag
+         */
+        std::span<const char> GetLogTag() const {
+            return {threadTag.begin(), threadTag.end()};
+        }
 
         // Disable copy constructor to prevent copying the string
         LogMessage(const LogMessage &) = delete;
@@ -182,7 +203,7 @@ namespace skyline {
                 ANDROID_LOG_ERROR,
             }; // The LogLevel as Android NDK log level
 
-            __android_log_write(androidLevel[static_cast<u32>(message.level)], message.threadContext->GetLogTag().data(), message.str.c_str());
+            __android_log_write(androidLevel[static_cast<u32>(message.level)], message.GetLogTag().data(), message.str.c_str());
         }
 
         void WriteFile(const LogMessage &message) {
@@ -201,7 +222,7 @@ namespace skyline {
                 "{:7} | {:>10} | {:^15} | {}\n",
                 levelTag[static_cast<u32>(message.level)],
                 duration_cast<microseconds>(message.time - start).count(),
-                message.threadContext->GetThreadName().data(),
+                message.GetThreadName().data(),
                 message.str
             );
             logFile.flush();
@@ -234,7 +255,7 @@ namespace skyline {
             function,
             std::move(str),
             clock::now(),
-            &threadContext
+            threadContext
         });
     }
 
@@ -257,7 +278,7 @@ namespace skyline {
             function,
             std::move(str),
             clock::now(),
-            &threadContext
+            threadContext
         };
         impl.Write(message);
     }

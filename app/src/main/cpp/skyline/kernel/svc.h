@@ -243,6 +243,18 @@ namespace skyline::kernel::svc {
     void GetResourceLimitCurrentValue(const DeviceState &state, SvcContext &ctx);
 
     /**
+     * @brief Retrieves the highest amount of a resource that was used according to the (single, fake) resource limit of the process: it reports the current usage
+     * @url https://switchbrew.org/wiki/SVC#GetResourceLimitPeakValue
+     */
+    void GetResourceLimitPeakValue(const DeviceState &state, SvcContext &ctx);
+
+    /**
+     * @brief Synchronizes with the preemption of the kernel, this is a no-op as threads are scheduled by the host
+     * @url https://switchbrew.org/wiki/SVC#SynchronizePreemptionState
+     */
+    void SynchronizePreemptionState(const DeviceState &state, SvcContext &ctx);
+
+    /**
      * @brief Flushes the entire data cache, this is a no-op as the guest runs natively on a coherent host CPU
      * @url https://switchbrew.org/wiki/SVC#FlushEntireDataCache
      */

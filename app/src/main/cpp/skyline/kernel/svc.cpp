@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <atomic>
+#include <ctime>
 #include <os.h>
 #include <nce.h>
 #include <kernel/types/KProcess.h>
@@ -1075,6 +1076,16 @@ namespace skyline::kernel::svc {
         GetResourceLimitValue(state, ctx, true);
     }
 
+    void GetResourceLimitPeakValue(const DeviceState &state, SvcContext &ctx) {
+        // Nothing here records the highest usage of a resource, the current value is the best approximation
+        GetResourceLimitValue(state, ctx, true);
+    }
+
+    void SynchronizePreemptionState(const DeviceState &state, SvcContext &ctx) {
+        // Threads are scheduled by the host, there is no kernel preemption to synchronize with
+        ctx.w0 = Result{};
+    }
+
     void FlushEntireDataCache(const DeviceState &state, SvcContext &ctx) {
         ctx.w0 = Result{};
     }
@@ -1142,6 +1153,8 @@ namespace skyline::kernel::svc {
             FreeThreadCount = 24,
             // 13.0.0+
             AliasRegionExtraSize = 28,
+            // Pseudo IDs that don't belong to the process
+            ThreadTickCount = 0xF0000002,
         };
 
         InfoState info{static_cast<u32>(ctx.w1)};
@@ -1248,6 +1261,14 @@ namespace skyline::kernel::svc {
             case InfoState::FreeThreadCount:
                 out = 0x200; // The same limit GetResourceLimitLimitValue reports for threads, nothing here counts the threads in use
                 break;
+
+            case InfoState::ThreadTickCount: {
+                // The CPU time the calling thread has used, in the 19.2 MHz ticks of the system counter (the handle and core number the game passes aren't looked at)
+                timespec threadTime{};
+                clock_gettime(CLOCK_THREAD_CPUTIME_ID, &threadTime);
+                out = (static_cast<u64>(threadTime.tv_sec) * 19200000ULL) + (static_cast<u64>(threadTime.tv_nsec) * 19200000ULL / 1000000000ULL);
+                break;
+            }
 
             case InfoState::AliasRegionExtraSize:
                 out = 0; // The alias region is never extended, a game asking for this (SDK 20+, seen on Farming Simulator 26) aborts when the SVC fails
@@ -1591,8 +1612,8 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(GetThreadContext3), // 0x33
         SVC_ENTRY(WaitForAddress), // 0x34
         SVC_ENTRY(SignalToAddress), // 0x35
-        SVC_NONE, // 0x36
-        SVC_NONE, // 0x37
+        SVC_ENTRY(SynchronizePreemptionState), // 0x36
+        SVC_ENTRY(GetResourceLimitPeakValue), // 0x37
         SVC_NONE, // 0x38
         SVC_NONE, // 0x39
         SVC_NONE, // 0x3A
