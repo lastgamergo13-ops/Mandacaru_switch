@@ -456,6 +456,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 return vk::PrimitiveTopology::eLineList;
             case engine::DrawTopology::LineStrip:
                 return vk::PrimitiveTopology::eLineStrip;
+            case engine::DrawTopology::LineLoop:
+                return vk::PrimitiveTopology::eLineStrip; // Vulkan has no line loops, the segment that closes the loop is missing
             case engine::DrawTopology::Triangles:
                 return vk::PrimitiveTopology::eTriangleList;
             case engine::DrawTopology::TriangleStrip:
@@ -464,6 +466,10 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 return vk::PrimitiveTopology::eTriangleFan;
             case engine::DrawTopology::Quads:
                 return vk::PrimitiveTopology::eTriangleList; // Uses quad conversion
+            case engine::DrawTopology::QuadStrip:
+                return vk::PrimitiveTopology::eTriangleStrip; // The vertices of a quad strip (v0 v1 v2 v3 ...) cover the same area as a triangle strip made of them
+            case engine::DrawTopology::Polygon:
+                return vk::PrimitiveTopology::eTriangleFan; // A (convex) polygon is drawn as a fan around its first vertex
             case engine::DrawTopology::LineListAdjcy:
                 return vk::PrimitiveTopology::eLineListWithAdjacency;
             case engine::DrawTopology::LineStripAdjcy:
