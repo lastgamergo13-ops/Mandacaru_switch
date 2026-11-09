@@ -568,7 +568,7 @@ void EmitImageGradient(EmitContext& ctx, IR::Inst& inst, const IR::Value& index,
     const Register derivatives_vec{ctx.reg_alloc.Consume(derivatives)};
     Register derivatives_2_vec;
     if (is_3d) {
-        derivatives_2_vec = ctx.reg_alloc.Consume(offset);
+        derivatives_2_vec = Register{ctx.reg_alloc.Consume(offset)};
     }
     const Register ret{ctx.reg_alloc.Define(inst)};
     if (multi_component) {

@@ -97,6 +97,19 @@ namespace skyline {
 
         Settings() = default;
 
+        /**
+         * @brief Writes every setting and its value to the log (Info), so a log shows how the emulator was configured
+         */
+        void LogSettings() {
+            LOGINF("Settings:");
+            LOGINF("  System: docked: {}, language: {}, region: {}, internet: {}", *isDocked, static_cast<u32>(*systemLanguage), static_cast<u32>(*systemRegion), *isInternetEnabled);
+            LOGINF("  Display: force triple buffering: {}, disable frame throttling: {}, disable shader cache: {}", *forceTripleBuffering, *disableFrameThrottling, *disableShaderCache);
+            LOGINF("  GPU: driver: \"{}\", driver library: \"{}\", executor slot count scale: {}, executor flush threshold: {}, direct memory import: {}, force max GPU clocks: {}, free guest texture memory: {}", *gpuDriver, *gpuDriverLibraryName, *executorSlotCountScale, *executorFlushThreshold, *useDirectMemoryImport, *forceMaxGpuClocks, *freeGuestTextureMemory);
+            LOGINF("  Hacks: fast GPU readback: {}, fast readback writes: {}, disable subgroup shuffle: {}, fix bloom effects: {}", *enableFastGpuReadbackHack, *enableFastReadbackWrites, *disableSubgroupShuffle, *fixBloomEffects);
+            LOGINF("  Audio: output disabled: {}", *isAudioOutputDisabled);
+            LOGINF("  Debug: log level: {}, validation layer: {}", static_cast<u32>(*logLevel), *validationLayer);
+        }
+
         virtual ~Settings() = default;
 
         /**

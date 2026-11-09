@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <android/api-level.h>
+#include <fstream>
+#include <sys/sysinfo.h>
 #include <csignal>
 #include <pthread.h>
 #include <android/asset_manager_jni.h>
@@ -57,6 +60,50 @@ static std::string GetTimeZoneName() {
     return "GMT";
 }
 
+/**
+ * @brief Writes what a log needs to say about the build, the device and the settings, so a log can be understood without asking the user what they were running on
+ */
+static void LogSystemInfo(skyline::Settings &settings) {
+    auto property{[](const char *name) -> std::string {
+        char value[PROP_VALUE_MAX]{};
+        __system_property_get(name, value);
+        return value[0] ? value : "(unknown)";
+    }};
+
+    LOGINF("Mandacaru build: {} {}, compiler: {}", __DATE__, __TIME__, __clang_version__);
+    LOGINF("Host OS: Android {} (API level {}), build: {}", property("ro.build.version.release"), android_get_device_api_level(), property("ro.build.fingerprint"));
+    LOGINF("Host device: {} {} ({}), board: {}, SoC: {} {}", property("ro.product.manufacturer"), property("ro.product.model"), property("ro.product.device"), property("ro.board.platform"), property("ro.soc.manufacturer"), property("ro.soc.model"));
+
+    std::string cores;
+    long coreCount{sysconf(_SC_NPROCESSORS_CONF)};
+    for (long i{}; i < coreCount; i++) {
+        std::ifstream frequency{fmt::format("/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq", i)};
+        long khz{};
+        frequency >> khz;
+        cores += fmt::format("{}{}", i ? ", " : "", khz ? fmt::format("{} MHz", khz / 1000) : std::string{"?"});
+    }
+    LOGINF("Host CPU: {} cores, maximum frequencies: {}", coreCount, cores);
+
+    struct sysinfo memory{};
+    sysinfo(&memory);
+    std::string available{"?"};
+    {
+        std::ifstream meminfo{"/proc/meminfo"};
+        std::string label;
+        long kb;
+        while (meminfo >> label >> kb) {
+            if (label == "MemAvailable:") {
+                available = fmt::format("{} MiB", kb / 1024);
+                break;
+            }
+            meminfo.ignore(256, '\n');
+        }
+    }
+    LOGINF("Host memory: {} MiB total, {} available, page size: {} bytes", (memory.totalram * memory.mem_unit) / (1024 * 1024), available, sysconf(_SC_PAGESIZE));
+
+    settings.LogSettings();
+}
+
 extern "C" JNIEXPORT void Java_org_stratoemu_strato_EmulationActivity_executeApplication(
     JNIEnv *env,
     jobject instance,
@@ -86,6 +133,8 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_EmulationActivity_executeApp
     // The guest memory manager and the NCE assume the host uses the same 4 KB pages as the guest, make a mismatch obvious in the log (16 KB page devices aren't supported yet)
     if (sysconf(_SC_PAGESIZE) != static_cast<long>(skyline::constant::PageSize))
         LOGE("Host page size is {} bytes but 4096 bytes is required, memory mapping will likely fail on this device", sysconf(_SC_PAGESIZE));
+
+    LogSystemInfo(*settings);
 
     auto start{std::chrono::steady_clock::now()};
 
