@@ -327,7 +327,12 @@ namespace skyline::service {
                         case ipc::ControlCommand::CloneCurrentObjectEx: {
                             // The clone is a session of its own that talks to the same service object. It used to be the very same KSession under a second handle, so when the game closed the original (the Nintendo SDK does this right after cloning) the clone was closed too and every later request on it was dropped ("svcSendSyncRequest called on closed handle")
                             std::shared_ptr<BaseService> cloneServiceObject{session->serviceObject};
-                            KHandle cloneHandle{state.process->NewHandle<type::KSession>(cloneServiceObject).handle};
+                            auto clone{state.process->NewHandle<type::KSession>(cloneServiceObject)};
+                            // On real hardware a clone of a domain session is still a domain session (it shares the domain of the original), so its requests carry the domain header. Without this the header was parsed as the command payload and every request became command 0, which no service has ("Cannot find HIPC function ... 0x0") and made the SDK abort right after the FS init
+                            clone.item->isDomain = session->isDomain;
+                            clone.item->domains = session->domains;
+                            clone.item->handleIndex = session->handleIndex;
+                            KHandle cloneHandle{clone.handle};
                             response.moveHandles.push_back(cloneHandle);
                             ipcTrace.Add(fmt::format("handle 0x{:X} cloned into handle 0x{:X}", handle, cloneHandle), true);
                             break;
