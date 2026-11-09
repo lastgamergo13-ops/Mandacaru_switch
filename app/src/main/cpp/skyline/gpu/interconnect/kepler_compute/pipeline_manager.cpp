@@ -20,7 +20,7 @@ namespace skyline::gpu::interconnect::kepler_compute {
             [&](u32 index, u32 offset) {
                 return constantBuffers[index].Read<int>(ctx.executor, offset);
             }, [&](u32 index) {
-                return textures.GetTextureType(ctx, BindlessHandle{ .raw = index }.textureIndex);
+                return textures.GetTextureInfo(ctx, BindlessHandle{ .raw = index }.textureIndex);
             })};
 
         Shader::Backend::Bindings bindings{};
@@ -54,12 +54,12 @@ namespace skyline::gpu::interconnect::kepler_compute {
         pushBindings(vk::DescriptorType::eUniformTexelBuffer, stage.info.texture_buffer_descriptors, descriptorInfo.totalTexelBufferDescCount);
         pushBindings(vk::DescriptorType::eStorageTexelBuffer, stage.info.image_buffer_descriptors, descriptorInfo.totalTexelBufferDescCount);
         if (descriptorInfo.totalTexelBufferDescCount > 0)
-            LOGW("Image buffer descriptors are not supported");
+            LOGW("Texel buffer descriptors are bound to a null buffer view, they are not backed by the guest yet");
 
         pushBindings(vk::DescriptorType::eCombinedImageSampler, stage.info.texture_descriptors, descriptorInfo.totalImageDescCount);
         pushBindings(vk::DescriptorType::eStorageImage, stage.info.image_descriptors, descriptorInfo.totalImageDescCount);
         if (stage.info.image_descriptors.size() > 0)
-            LOGW("Image descriptors are not supported");
+            LOGW("Image descriptors are bound to a null image, they are not backed by the guest yet");
 
         return descriptorInfo;
     }
@@ -131,6 +131,8 @@ namespace skyline::gpu::interconnect::kepler_compute {
         auto bufferDescDynamicBindings{ctx.executor.allocator->AllocateUntracked<DynamicBufferBinding>(descriptorInfo.totalBufferDescCount)};
         u32 imageIdx{};
         auto imageDescs{ctx.executor.allocator->AllocateUntracked<vk::DescriptorImageInfo>(descriptorInfo.totalImageDescCount)};
+        u32 texelBufferIdx{};
+        auto texelBufferViews{ctx.executor.allocator->AllocateUntracked<vk::BufferView>(descriptorInfo.totalTexelBufferDescCount)};
 
         u32 storageBufferIdx{};
         u32 bindingIdx{};
@@ -191,6 +193,23 @@ namespace skyline::gpu::interconnect::kepler_compute {
                              return binding;
                          });
 
+        // Texel buffers and storage images aren't backed by the guest yet: every element is bound to a valid null descriptor so the shader reads zeros and writes nowhere instead of using an undefined descriptor. They still need to advance the binding index since the layout has them before the combined image samplers
+        auto writeNullTexelBufferDescs{[&](vk::DescriptorType type, const auto &descs) {
+            for (const auto &desc : descs) {
+                writes[writeIdx++] = {
+                    .dstBinding = bindingIdx++,
+                    .descriptorCount = desc.count,
+                    .descriptorType = type,
+                    .pTexelBufferView = &texelBufferViews[texelBufferIdx],
+                };
+
+                for (u32 arrayIdx{}; arrayIdx < desc.count; arrayIdx++)
+                    texelBufferViews[texelBufferIdx++] = textures.GetNullTexelBufferView(ctx);
+            }
+        }};
+        writeNullTexelBufferDescs(vk::DescriptorType::eUniformTexelBuffer, shaderStage.info.texture_buffer_descriptors);
+        writeNullTexelBufferDescs(vk::DescriptorType::eStorageTexelBuffer, shaderStage.info.image_buffer_descriptors);
+
         writeImageDescs(vk::DescriptorType::eCombinedImageSampler, shaderStage.info.texture_descriptors,
                         [&](const Shader::TextureDescriptor &desc, size_t arrayIdx) {
                             BindlessHandle handle{ReadBindlessHandle(ctx, constantBuffers, desc, arrayIdx)};
@@ -199,6 +218,14 @@ namespace skyline::gpu::interconnect::kepler_compute {
                                                            vk::PipelineStageFlagBits::eComputeShader,
                                                            srcStageMask, dstStageMask)};
                             return binding.first;
+                        });
+
+        writeImageDescs(vk::DescriptorType::eStorageImage, shaderStage.info.image_descriptors,
+                        [&](const Shader::ImageDescriptor &desc, size_t arrayIdx) {
+                            return vk::DescriptorImageInfo{
+                                .imageView = textures.GetNullTextureView(ctx)->GetView(),
+                                .imageLayout = vk::ImageLayout::eGeneral,
+                            };
                         });
 
         // Since we don't implement all descriptor types the number of writes might not match what's expected

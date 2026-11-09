@@ -43,7 +43,7 @@ namespace skyline::gpu::interconnect {
          */
         struct TextureTypeEntry {
             u32 index;
-            Shader::TextureType type;
+            Shader::TextureType type; //!< The low 8 bits are the type, bit 8 is set if the texture has an integer format (entries written before that flag existed have it clear, which is what they meant)
         };
         static_assert(sizeof(TextureTypeEntry) == 0x8);
 
@@ -73,7 +73,7 @@ namespace skyline::gpu::interconnect {
         /**
          * @brief Adds a texture type value for a given offset to the bundle
          */
-        void AddTextureType(u32 index, Shader::TextureType type);
+        void AddTextureType(u32 index, Shader::TextureType type, bool isInteger = false);
 
         /**
          * @brief Adds a constant buffer value for a given offset and shader stage to the bundle
@@ -98,7 +98,7 @@ namespace skyline::gpu::interconnect {
         /**
          * @brief Returns the texture type for a given offset
          */
-        Shader::TextureType LookupTextureType(u32 index);
+        ShaderManager::TextureInfo LookupTextureInfo(u32 index);
 
         /**
          * @brief Returns the constant buffer value for a given offset and shader stage

@@ -365,6 +365,15 @@ TextureType ReadTextureType(Environment& env, const ConstBufferAddr& cbuf) {
     return env.ReadTextureType(lhs_raw | rhs_raw);
 }
 
+bool ReadTextureIsInteger(Environment& env, const ConstBufferAddr& cbuf) {
+    const u32 secondary_index{cbuf.has_secondary ? cbuf.secondary_index : cbuf.index};
+    const u32 secondary_offset{cbuf.has_secondary ? cbuf.secondary_offset : cbuf.offset};
+    const u32 lhs_raw{env.ReadCbufValue(cbuf.index, cbuf.offset) << cbuf.shift_left};
+    const u32 rhs_raw{env.ReadCbufValue(secondary_index, secondary_offset)
+                      << cbuf.secondary_shift_left};
+    return env.ReadTextureIsInteger(lhs_raw | rhs_raw);
+}
+
 TexturePixelFormat ReadTexturePixelFormat(Environment& env, const ConstBufferAddr& cbuf) {
     const u32 secondary_index{cbuf.has_secondary ? cbuf.secondary_index : cbuf.index};
     const u32 secondary_offset{cbuf.has_secondary ? cbuf.secondary_offset : cbuf.offset};
@@ -404,11 +413,12 @@ public:
         })};
         image_buffer_descriptors[index].is_written |= desc.is_written;
         image_buffer_descriptors[index].is_read |= desc.is_read;
+        image_buffer_descriptors[index].is_integer |= desc.is_integer;
         return index;
     }
 
     u32 Add(const TextureDescriptor& desc) {
-        return Add(texture_descriptors, desc, [&desc](const auto& existing) {
+        const u32 index{Add(texture_descriptors, desc, [&desc](const auto& existing) {
             return desc.type == existing.type && desc.is_depth == existing.is_depth &&
                    desc.has_secondary == existing.has_secondary &&
                    desc.cbuf_index == existing.cbuf_index &&
@@ -418,7 +428,10 @@ public:
                    desc.secondary_cbuf_offset == existing.secondary_cbuf_offset &&
                    desc.secondary_shift_left == existing.secondary_shift_left &&
                    desc.count == existing.count && desc.size_shift == existing.size_shift;
-        });
+        })};
+        texture_descriptors[index].is_multisample |= desc.is_multisample;
+        texture_descriptors[index].is_integer |= desc.is_integer;
+        return index;
     }
 
     u32 Add(const ImageDescriptor& desc) {
@@ -430,6 +443,7 @@ public:
         })};
         image_descriptors[index].is_written |= desc.is_written;
         image_descriptors[index].is_read |= desc.is_read;
+        image_descriptors[index].is_integer |= desc.is_integer;
         return index;
     }
 
@@ -529,6 +543,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
 
         const auto& cbuf{texture_inst.cbuf};
         auto flags{inst->Flags<IR::TextureInstInfo>()};
+        bool is_multisample{false};
         switch (inst->GetOpcode()) {
         case IR::Opcode::ImageQueryDimensions:
             flags.type.Assign(ReadTextureType(env, cbuf));
@@ -543,6 +558,13 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             break;
         case IR::Opcode::ImageFetch:
+            if (flags.type == TextureType::Color2D || flags.type == TextureType::Color2DRect ||
+                flags.type == TextureType::ColorArray2D) {
+                // A sample index means that the texture is multisampled
+                is_multisample = !inst->Arg(4).IsEmpty();
+            } else {
+                inst->SetArg(4, IR::U32{});
+            }
             if (flags.type != TextureType::Color1D) {
                 break;
             }
@@ -577,11 +599,15 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
             const bool is_read{inst->GetOpcode() != IR::Opcode::ImageWrite};
+            // Every image format that has a name is an integer one, only the typeless images need the format of the texture
+            const bool is_integer{flags.image_format != ImageFormat::Typeless ||
+                                  ReadTextureIsInteger(env, cbuf)};
             if (flags.type == TextureType::Buffer) {
                 index = descriptors.Add(ImageBufferDescriptor{
                     .format = flags.image_format,
                     .is_written = is_written,
                     .is_read = is_read,
+                    .is_integer = is_integer,
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
@@ -593,6 +619,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .format = flags.image_format,
                     .is_written = is_written,
                     .is_read = is_read,
+                    .is_integer = is_integer,
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = cbuf.count,
@@ -615,9 +642,12 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .size_shift = DESCRIPTOR_SIZE_SHIFT,
                 });
             } else {
+                const bool is_integer{ReadTextureIsInteger(env, cbuf)};
                 index = descriptors.Add(TextureDescriptor{
                     .type = flags.type,
                     .is_depth = flags.is_depth != 0,
+                    .is_multisample = is_multisample,
+                    .is_integer = is_integer,
                     .has_secondary = cbuf.has_secondary,
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
@@ -628,6 +658,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .count = cbuf.count,
                     .size_shift = DESCRIPTOR_SIZE_SHIFT,
                 });
+                flags.is_integer.Assign(is_integer ? 1 : 0);
             }
             break;
         }

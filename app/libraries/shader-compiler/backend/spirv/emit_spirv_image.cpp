@@ -301,7 +301,7 @@ Id TextureImage(EmitContext& ctx, IR::TextureInstInfo info, const IR::Value& ind
     }
 }
 
-Id Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
+std::pair<Id, bool> Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
     if (info.type == TextureType::Buffer) {
         const ImageBufferDefinition def{ctx.image_buffers.at(info.descriptor_index)};
         if (def.count > 1) {
@@ -314,9 +314,9 @@ Id Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
                 DecorateNonUniform(ctx, ptr);
                 DecorateNonUniform(ctx, image);
             }
-            return image;
+            return {image, def.is_integer};
         }
-        return ctx.OpLoad(def.image_type, def.id);
+        return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     } else {
         const ImageDefinition def{ctx.images.at(info.descriptor_index)};
         if (def.count > 1) {
@@ -328,9 +328,9 @@ Id Image(EmitContext& ctx, const IR::Value& index, IR::TextureInstInfo info) {
                 DecorateNonUniform(ctx, ptr);
                 DecorateNonUniform(ctx, image);
             }
-            return image;
+            return {image, def.is_integer};
         }
-        return ctx.OpLoad(def.image_type, def.id);
+        return {ctx.OpLoad(def.image_type, def.id), def.is_integer};
     }
 }
 
@@ -386,6 +386,31 @@ Id BitTest(EmitContext& ctx, Id mask, Id bit) {
     const Id shifted{ctx.OpShiftRightLogical(ctx.U32[1], mask, bit)};
     const Id bit_value{ctx.OpBitwiseAnd(ctx.U32[1], shifted, ctx.Const(1u))};
     return ctx.OpINotEqual(ctx.U1, bit_value, ctx.u32_zero_value);
+}
+
+/// @return true if the sampled texture has an integer format, its texels are read as U32
+bool IsTextureInteger(EmitContext& ctx, const IR::TextureInstInfo& info) {
+    if (info.type == TextureType::Buffer) {
+        return false;
+    }
+    return ctx.textures.at(info.descriptor_index).is_integer;
+}
+
+/// @return true if the sampled texture is multisampled
+bool IsTextureMsaa(EmitContext& ctx, const IR::TextureInstInfo& info) {
+    if (info.type == TextureType::Buffer) {
+        return false;
+    }
+    return ctx.textures.at(info.descriptor_index).is_multisample;
+}
+
+/// The IR sees the texels as F32, an integer texture returns U32 that are bitcast
+Id TexelType(EmitContext& ctx, bool is_integer) {
+    return is_integer ? ctx.U32[4] : ctx.F32[4];
+}
+
+Id TexelResult(EmitContext& ctx, bool is_integer, Id texel) {
+    return is_integer ? ctx.OpBitcast(ctx.F32[4], texel) : texel;
 }
 
 /// OpImageFetch can't have an Offset operand in Vulkan, the offset is added to the coordinates
@@ -526,31 +551,42 @@ Id EmitBoundImageWrite(EmitContext&) {
 Id EmitImageSampleImplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
                               Id bias_lc, const IR::Value& offset) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
+    const bool is_integer{IsTextureInteger(ctx, info)};
     if (ctx.stage == Stage::Fragment) {
         const ImageOperands operands(ctx, info.has_bias != 0, false, info.has_lod_clamp != 0,
                                      bias_lc, offset);
-        return Emit(&EmitContext::OpImageSparseSampleImplicitLod,
-                    &EmitContext::OpImageSampleImplicitLod, ctx, inst, ctx.F32[4],
-                    Texture(ctx, info, index), coords, operands.MaskOptional(), operands.Span());
+        return TexelResult(
+            ctx, is_integer,
+            Emit(&EmitContext::OpImageSparseSampleImplicitLod,
+                 &EmitContext::OpImageSampleImplicitLod, ctx, inst, TexelType(ctx, is_integer),
+                 Texture(ctx, info, index), coords, operands.MaskOptional(), operands.Span()));
     } else {
         // We can't use implicit lods on non-fragment stages on SPIR-V. Maxwell hardware behaves as
         // if the lod was explicitly zero.  This may change on Turing with implicit compute
         // derivatives
         const Id lod{ctx.Const(0.0f)};
         const ImageOperands operands(ctx, false, true, info.has_lod_clamp != 0, lod, offset);
-        return Emit(&EmitContext::OpImageSparseSampleExplicitLod,
-                    &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
-                    Texture(ctx, info, index), coords, operands.Mask(), operands.Span());
+        return TexelResult(
+            ctx, is_integer,
+            Emit(&EmitContext::OpImageSparseSampleExplicitLod,
+                 &EmitContext::OpImageSampleExplicitLod, ctx, inst, TexelType(ctx, is_integer),
+                 Texture(ctx, info, index), coords, operands.Mask(), operands.Span()));
     }
 }
 
 Id EmitImageSampleExplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
                               Id lod, const IR::Value& offset) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
+    const bool is_integer{IsTextureInteger(ctx, info)};
     const ImageOperands operands(ctx, false, true, false, lod, offset);
-    return Emit(&EmitContext::OpImageSparseSampleExplicitLod,
-                &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
-                Texture(ctx, info, index), coords, operands.Mask(), operands.Span());
+    Id texel{Emit(&EmitContext::OpImageSparseSampleExplicitLod,
+                  &EmitContext::OpImageSampleExplicitLod, ctx, inst, TexelType(ctx, is_integer),
+                  Texture(ctx, info, index), coords, operands.Mask(), operands.Span())};
+    if (!is_integer && ctx.profile.fix_bloom_effects) {
+        // HACK: hides the over-bright bloom some games have on some GPUs
+        texel = ctx.OpVectorTimesScalar(ctx.F32[4], texel, ctx.Const(0.98f));
+    }
+    return TexelResult(ctx, is_integer, texel);
 }
 
 Id EmitImageSampleDrefImplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Value& index,
@@ -586,10 +622,13 @@ Id EmitImageSampleDrefExplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Va
 Id EmitImageGather(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
                    const IR::Value& offset, const IR::Value& offset2) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
+    const bool is_integer{IsTextureInteger(ctx, info)};
     const ImageOperands operands(ctx, offset, offset2);
-    return Emit(&EmitContext::OpImageSparseGather, &EmitContext::OpImageGather, ctx, inst,
-                ctx.F32[4], Texture(ctx, info, index), coords, ctx.Const(info.gather_component),
-                operands.MaskOptional(), operands.Span());
+    return TexelResult(
+        ctx, is_integer,
+        Emit(&EmitContext::OpImageSparseGather, &EmitContext::OpImageGather, ctx, inst,
+             TexelType(ctx, is_integer), Texture(ctx, info, index), coords,
+             ctx.Const(info.gather_component), operands.MaskOptional(), operands.Span()));
 }
 
 Id EmitImageGatherDref(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
@@ -612,31 +651,39 @@ Id EmitImageFetch(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id c
         // This image is multisampled, lod must be implicit
         lod = Id{};
     }
+    const bool is_integer{IsTextureInteger(ctx, info)};
     const ImageOperands operands(lod, ms);
-    return Emit(&EmitContext::OpImageSparseFetch, &EmitContext::OpImageFetch, ctx, inst, ctx.F32[4],
-                TextureImage(ctx, info, index), coords, operands.MaskOptional(), operands.Span());
+    return TexelResult(
+        ctx, is_integer,
+        Emit(&EmitContext::OpImageSparseFetch, &EmitContext::OpImageFetch, ctx, inst,
+             TexelType(ctx, is_integer), TextureImage(ctx, info, index), coords,
+             operands.MaskOptional(), operands.Span()));
 }
 
 Id EmitImageQueryDimensions(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id lod) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
     const Id image{TextureImage(ctx, info, index)};
     const Id zero{ctx.u32_zero_value};
-    const auto mips{[&] { return ctx.OpImageQueryLevels(ctx.U32[1], image); }};
+    // A multisampled image has a single level and can't be queried with a lod
+    const bool is_msaa{IsTextureMsaa(ctx, info)};
+    const auto mips{[&]() -> Id {
+        return is_msaa ? ctx.Const(1u) : ctx.OpImageQueryLevels(ctx.U32[1], image);
+    }};
+    const auto size{[&](Id type) -> Id {
+        return is_msaa ? ctx.OpImageQuerySize(type, image) : ctx.OpImageQuerySizeLod(type, image, lod);
+    }};
     switch (info.type) {
     case TextureType::Color1D:
-        return ctx.OpCompositeConstruct(ctx.U32[4], ctx.OpImageQuerySizeLod(ctx.U32[1], image, lod),
-                                        zero, zero, mips());
+        return ctx.OpCompositeConstruct(ctx.U32[4], size(ctx.U32[1]), zero, zero, mips());
     case TextureType::ColorArray1D:
     case TextureType::Color2D:
     case TextureType::ColorCube:
     case TextureType::Color2DRect:
-        return ctx.OpCompositeConstruct(ctx.U32[4], ctx.OpImageQuerySizeLod(ctx.U32[2], image, lod),
-                                        zero, mips());
+        return ctx.OpCompositeConstruct(ctx.U32[4], size(ctx.U32[2]), zero, mips());
     case TextureType::ColorArray2D:
     case TextureType::Color3D:
     case TextureType::ColorArrayCube:
-        return ctx.OpCompositeConstruct(ctx.U32[4], ctx.OpImageQuerySizeLod(ctx.U32[3], image, lod),
-                                        mips());
+        return ctx.OpCompositeConstruct(ctx.U32[4], size(ctx.U32[3]), mips());
     case TextureType::Buffer:
         return ctx.OpCompositeConstruct(ctx.U32[4], ctx.OpImageQuerySize(ctx.U32[1], image), zero,
                                         zero, mips());
@@ -661,9 +708,12 @@ Id EmitImageGradient(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, I
             ? ImageOperands(ctx, derivates, ctx.Def(offset), info.has_lod_clamp != 0, lod_clamp)
             : ImageOperands(ctx, info.has_lod_clamp != 0, derivates, info.num_derivates, offset,
                             lod_clamp);
-    return Emit(&EmitContext::OpImageSparseSampleExplicitLod,
-                &EmitContext::OpImageSampleExplicitLod, ctx, inst, ctx.F32[4],
-                Texture(ctx, info, index), coords, operands.Mask(), operands.Span());
+    const bool is_integer{IsTextureInteger(ctx, info)};
+    return TexelResult(
+        ctx, is_integer,
+        Emit(&EmitContext::OpImageSparseSampleExplicitLod,
+             &EmitContext::OpImageSampleExplicitLod, ctx, inst, TexelType(ctx, is_integer),
+             Texture(ctx, info, index), coords, operands.Mask(), operands.Span()));
 }
 
 Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords) {
@@ -672,13 +722,24 @@ Id EmitImageRead(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id co
         LOG_WARNING(Shader_SPIRV, "Typeless image read not supported by host");
         return ctx.ConstantNull(ctx.U32[4]);
     }
-    return Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst, ctx.U32[4],
-                Image(ctx, index, info), coords, std::nullopt, std::span<const Id>{});
+    const auto [image, is_integer] = Image(ctx, index, info);
+    const Id result_type{is_integer ? ctx.U32[4] : ctx.F32[4]};
+    Id color{Emit(&EmitContext::OpImageSparseRead, &EmitContext::OpImageRead, ctx, inst,
+                  result_type, image, coords, std::nullopt, std::span<const Id>{})};
+    if (!is_integer) {
+        // The IR sees the texels as raw 32 bit values
+        color = ctx.OpBitcast(ctx.U32[4], color);
+    }
+    return color;
 }
 
 void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords, Id color) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
-    ctx.OpImageWrite(Image(ctx, index, info), coords, color);
+    const auto [image, is_integer] = Image(ctx, index, info);
+    if (!is_integer) {
+        color = ctx.OpBitcast(ctx.F32[4], color);
+    }
+    ctx.OpImageWrite(image, coords, color);
 }
 
 Id EmitIsTextureScaled(EmitContext& ctx, const IR::Value& index) {

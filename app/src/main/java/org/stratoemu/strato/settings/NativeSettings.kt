@@ -43,6 +43,7 @@ data class NativeSettings(
     var enableFastGpuReadbackHack : Boolean,
     var enableFastReadbackWrites : Boolean,
     var disableSubgroupShuffle : Boolean,
+    var fixBloomEffects : Boolean,
 
     // Debug
     var logLevel : Int,
@@ -69,6 +70,7 @@ data class NativeSettings(
         pref.enableFastGpuReadbackHack,
         pref.enableFastReadbackWrites,
         pref.disableSubgroupShuffle,
+        pref.fixBloomEffects,
         pref.logLevel,
         BuildConfig.BUILD_TYPE != "release" && pref.validationLayer
     )

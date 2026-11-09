@@ -52,7 +52,15 @@ namespace skyline::gpu {
 
       public:
         using ConstantBufferRead = std::function<u32(u32 index, u32 offset)>; //!< A function which reads a constant buffer at the specified offset and returns the value
-        using GetTextureType = std::function<Shader::TextureType(u32 handle)>; //!< A function which determines the type of a texture from its handle by checking the corresponding TIC
+        /**
+         * @brief What the shader compiler needs to know about a texture, taken from its TIC
+         */
+        struct TextureInfo {
+            Shader::TextureType type;
+            bool isInteger; //!< If the texels of the texture are integers (SINT or UINT components), they must be read as such
+        };
+
+        using GetTextureType = std::function<TextureInfo(u32 handle)>; //!< A function which determines the type of a texture and if it has an integer format from its handle by checking the corresponding TIC
 
         ShaderManager(const DeviceState &state, GPU &gpu, std::string_view replacementDir, std::string_view dumpDir);
 

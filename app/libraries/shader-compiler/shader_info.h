@@ -97,6 +97,7 @@ struct ImageBufferDescriptor {
     ImageFormat format;
     bool is_written;
     bool is_read;
+    bool is_integer;
     u32 cbuf_index;
     u32 cbuf_offset;
     u32 count;
@@ -109,6 +110,8 @@ using ImageBufferDescriptors = boost::container::small_vector<ImageBufferDescrip
 struct TextureDescriptor {
     TextureType type;
     bool is_depth;
+    bool is_multisample;
+    bool is_integer;
     bool has_secondary;
     u32 cbuf_index;
     u32 cbuf_offset;
@@ -128,6 +131,7 @@ struct ImageDescriptor {
     ImageFormat format;
     bool is_written;
     bool is_read;
+    bool is_integer;
     u32 cbuf_index;
     u32 cbuf_offset;
     u32 count;

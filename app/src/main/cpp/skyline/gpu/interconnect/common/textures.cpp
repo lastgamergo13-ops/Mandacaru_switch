@@ -207,7 +207,7 @@ namespace skyline::gpu::interconnect {
         constexpr vk::ImageLayout NullImageInitialLayout{vk::ImageLayout::eUndefined};
         constexpr vk::ImageTiling NullImageTiling{vk::ImageTiling::eOptimal};
         constexpr vk::ImageCreateFlags NullImageFlags{};
-        constexpr vk::ImageUsageFlags NullImageUsage{vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled};
+        constexpr vk::ImageUsageFlags NullImageUsage{vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage}; // R8G8B8A8_UNORM always supports being a storage image
 
         auto vkImage{ctx.gpu.memory.AllocateImage(
             {
@@ -360,9 +360,8 @@ namespace skyline::gpu::interconnect {
         return texture.get();
     }
 
-    Shader::TextureType Textures::GetTextureType(InterconnectContext &ctx, u32 index) {
-        auto textureHeaders{texturePool.UpdateGet(ctx).textureHeaders};
-        switch (textureHeaders[index].textureType) {
+    static Shader::TextureType GetShaderTextureType(TextureImageControl::TextureType textureType) {
+        switch (textureType) {
             case TextureImageControl::TextureType::e1D:
                 return Shader::TextureType::Color1D;
             case TextureImageControl::TextureType::e1DArray:
@@ -381,5 +380,35 @@ namespace skyline::gpu::interconnect {
             case TextureImageControl::TextureType::eCubeArray:
                 return Shader::TextureType::ColorArrayCube;
         }
+    }
+
+    ShaderManager::TextureInfo Textures::GetTextureInfo(InterconnectContext &ctx, u32 index) {
+        auto textureHeaders{texturePool.UpdateGet(ctx).textureHeaders};
+        const auto &header{textureHeaders[index]};
+        // Maxwell samples integer textures as integers: the component type is the same for all the components of the formats the shaders can sample
+        bool isInteger{header.componentR == TextureImageControl::ImageComponent::Sint || header.componentR == TextureImageControl::ImageComponent::Uint};
+        return {GetShaderTextureType(header.textureType), isInteger};
+    }
+
+    TextureView *Textures::GetNullTextureView(InterconnectContext &ctx) {
+        if (!nullTextureView)
+            nullTextureView = CreateNullTexture(ctx);
+
+        return nullTextureView.get();
+    }
+
+    vk::BufferView Textures::GetNullTexelBufferView(InterconnectContext &ctx) {
+        if (!nullTexelBufferView) {
+            nullTexelBuffer.emplace(ctx.gpu.memory.AllocateBuffer(PAGE_SIZE));
+            // R8G8B8A8_UNORM is one of the formats that always support both uniform and storage texel buffers
+            nullTexelBufferView.emplace(ctx.gpu.vkDevice, vk::BufferViewCreateInfo{
+                .buffer = nullTexelBuffer->vkBuffer,
+                .format = vk::Format::eR8G8B8A8Unorm,
+                .offset = 0,
+                .range = PAGE_SIZE,
+            });
+        }
+
+        return **nullTexelBufferView;
     }
 }

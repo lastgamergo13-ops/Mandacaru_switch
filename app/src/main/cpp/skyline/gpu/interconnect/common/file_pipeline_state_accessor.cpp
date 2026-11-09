@@ -6,8 +6,8 @@
 namespace skyline::gpu::interconnect::maxwell3d {
     FilePipelineStateAccessor::FilePipelineStateAccessor(PipelineStateBundle &bundle) : bundle{bundle} {}
 
-    Shader::TextureType FilePipelineStateAccessor::GetTextureType(u32 index) const {
-        return bundle.LookupTextureType(index);
+    ShaderManager::TextureInfo FilePipelineStateAccessor::GetTextureInfo(u32 index) const {
+        return bundle.LookupTextureInfo(index);
     }
 
     u32 FilePipelineStateAccessor::GetConstantBufferValue(u32 shaderStage, u32 index, u32 offset) const {

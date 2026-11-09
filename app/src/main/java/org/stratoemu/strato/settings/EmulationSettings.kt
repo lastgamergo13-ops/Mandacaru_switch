@@ -58,6 +58,7 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var enableFastGpuReadbackHack by sharedPreferences(context, false, prefName = prefName)
     var enableFastReadbackWrites by sharedPreferences(context, false, prefName = prefName)
     var disableSubgroupShuffle by sharedPreferences(context, false, prefName = prefName)
+    var fixBloomEffects by sharedPreferences(context, false, prefName = prefName)
 
     // Debug
     var logLevel by sharedPreferences(context, 2, prefName = prefName) // Info by default

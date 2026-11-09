@@ -27,7 +27,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                              Textures &textures, ConstantBufferSet &constantBuffers,
                                              const std::array<ShaderBinary, engine::PipelineCount> &shaderBinaries);
 
-        Shader::TextureType GetTextureType(u32 index) const override;
+        ShaderManager::TextureInfo GetTextureInfo(u32 index) const override;
 
         u32 GetConstantBufferValue(u32 shaderStage, u32 index, u32 offset) const override;
 

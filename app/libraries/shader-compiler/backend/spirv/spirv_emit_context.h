@@ -36,6 +36,8 @@ struct TextureDefinition {
     Id pointer_type;
     Id image_type;
     u32 count;
+    bool is_multisample;
+    bool is_integer;
 };
 
 struct TextureBufferDefinition {
@@ -49,6 +51,7 @@ struct ImageBufferDefinition {
     Id image_type;
     Id pointer_type;
     u32 count;
+    bool is_integer;
 };
 
 struct ImageDefinition {
@@ -56,6 +59,7 @@ struct ImageDefinition {
     Id image_type;
     Id pointer_type;
     u32 count;
+    bool is_integer;
 };
 
 struct UniformDefinitions {

@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <optional>
 #include <tsl/robin_map.h>
 #include <shader_compiler/shader_info.h>
 #include <gpu/texture/texture.h>
+#include <gpu/shader_manager.h>
+#include <gpu/memory_manager.h>
 #include "common.h"
 #include "tic.h"
 
@@ -34,6 +37,8 @@ namespace skyline::gpu::interconnect {
     class Textures {
       private:
         std::shared_ptr<TextureView> nullTextureView{};
+        std::optional<memory::Buffer> nullTexelBuffer; //!< Backing of the buffer view that is bound to the texel buffer descriptors that aren't backed by a guest buffer
+        std::optional<vk::raii::BufferView> nullTexelBufferView;
         dirty::ManualDirtyState<TexturePoolState> texturePool;
 
         tsl::robin_map<TextureImageControl, std::shared_ptr<TextureView>, util::ObjectHash<TextureImageControl>> textureHeaderStore;
@@ -52,6 +57,16 @@ namespace skyline::gpu::interconnect {
 
         TextureView *GetTexture(InterconnectContext &ctx, u32 index, Shader::TextureType shaderType);
 
-        Shader::TextureType GetTextureType(InterconnectContext &ctx, u32 index);
+        ShaderManager::TextureInfo GetTextureInfo(InterconnectContext &ctx, u32 index);
+
+        /**
+         * @return A 1x1 texture that can be bound as a storage image, used for the storage image descriptors that don't have a texture so they never stay undefined
+         */
+        TextureView *GetNullTextureView(InterconnectContext &ctx);
+
+        /**
+         * @return A buffer view that can be bound as an uniform or storage texel buffer, used for the texel buffer descriptors that don't have a guest buffer so they never stay undefined
+         */
+        vk::BufferView GetNullTexelBufferView(InterconnectContext &ctx);
     };
 }

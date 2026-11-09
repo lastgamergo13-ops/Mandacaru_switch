@@ -89,6 +89,8 @@ struct Profile {
     bool has_broken_spirv_vector_access_chain{};
     /// HACK: Subgroup shuffle can be extremely costly to emulate on GPUs not supporting it in HW
     bool disable_subgroup_shuffle{};
+    /// HACK: Darken the result of the textures sampled with an explicit lod by 2%, it hides the over-bright bloom some games have on some GPUs
+    bool fix_bloom_effects{};
 
 
     u32 gl_max_compute_smem_size{};

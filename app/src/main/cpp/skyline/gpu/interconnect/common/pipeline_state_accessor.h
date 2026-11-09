@@ -14,9 +14,9 @@ namespace skyline::gpu::interconnect {
     class PipelineStateAccessor {
       public:
         /**
-         * @return The texture type for the TIC entry at the given index
+         * @return The texture type and if the format is an integer one for the TIC entry at the given index
          */
-        virtual Shader::TextureType GetTextureType(u32 index) const = 0;
+        virtual ShaderManager::TextureInfo GetTextureInfo(u32 index) const = 0;
 
         /**
          * @return The value of the constant buffer at the given index, offset and stage

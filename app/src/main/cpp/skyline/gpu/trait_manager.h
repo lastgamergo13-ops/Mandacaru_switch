@@ -32,6 +32,10 @@ namespace skyline::gpu {
         bool supportsShaderDemoteToHelper{}; //!< If a shader invocation can be demoted to a helper invocation (with VK_EXT_shader_demote_to_helper_invocation)
         bool supportsFloat16{}; //!< If 16-bit floating point integers are supported in shaders
         bool supportsFloat64{}; //!< If 64-bit floating point numbers are supported in shaders
+        bool supportsSampledImageArrayNonUniformIndexing{}; //!< If arrays of sampled images can be indexed with a value that differs between invocations
+        bool supportsStorageImageArrayNonUniformIndexing{}; //!< If arrays of storage images can be indexed with a value that differs between invocations
+        bool supportsUniformTexelBufferArrayNonUniformIndexing{}; //!< If arrays of uniform texel buffers can be indexed with a value that differs between invocations
+        bool supportsStorageTexelBufferArrayNonUniformIndexing{}; //!< If arrays of storage texel buffers can be indexed with a value that differs between invocations
         bool supportsInt8{}; //!< If 8-bit integers are supported in shaders
         bool supportsInt16{}; //!< If 16-bit integers are supported in shaders
         bool supportsInt64{}; //!< If 64-bit integers are supported in shaders
@@ -119,7 +123,8 @@ namespace skyline::gpu {
             vk::PhysicalDeviceTransformFeedbackFeaturesEXT,
             vk::PhysicalDeviceIndexTypeUint8FeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
-            vk::PhysicalDeviceRobustness2FeaturesEXT>;
+            vk::PhysicalDeviceRobustness2FeaturesEXT,
+            vk::PhysicalDeviceDescriptorIndexingFeatures>;
 
         TraitManager(const DeviceFeatures2 &deviceFeatures2, DeviceFeatures2 &enabledFeatures2, const std::vector<vk::ExtensionProperties> &deviceExtensions, std::vector<std::array<char, VK_MAX_EXTENSION_NAME_SIZE>> &enabledExtensions, const DeviceProperties2 &deviceProperties2, const vk::raii::PhysicalDevice &physicalDevice);
 

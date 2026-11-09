@@ -116,6 +116,10 @@ namespace skyline::gpu {
             .support_viewport_index_layer_non_geometry = traits.supportsShaderViewportIndexLayer,
             .support_viewport_mask = false,
             .support_typeless_image_loads = traits.supportsImageReadWithoutFormat,
+            .support_sampled_image_array_nonuniform_indexing = traits.supportsSampledImageArrayNonUniformIndexing,
+            .support_storage_image_array_nonuniform_indexing = traits.supportsStorageImageArrayNonUniformIndexing,
+            .support_uniform_texel_buffer_array_nonuniform_indexing = traits.supportsUniformTexelBufferArrayNonUniformIndexing,
+            .support_storage_texel_buffer_array_nonuniform_indexing = traits.supportsStorageTexelBufferArrayNonUniformIndexing,
             .support_demote_to_helper_invocation = traits.supportsShaderDemoteToHelper,
             .support_int64_atomics = traits.supportsAtomicInt64,
             .support_derivative_control = true,
@@ -130,6 +134,7 @@ namespace skyline::gpu {
             .max_subgroup_size = traits.subgroupSize,
             .has_broken_spirv_vector_access_chain = traits.quirks.brokenSpirvVectorAccessChain,
             .disable_subgroup_shuffle = *state.settings->disableSubgroupShuffle,
+            .fix_bloom_effects = *state.settings->fixBloomEffects,
         };
 
         Shader::Settings::values = {
@@ -193,7 +198,11 @@ namespace skyline::gpu {
         }
 
         [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) final {
-            return getTextureType(handle);
+            return getTextureType(handle).type;
+        }
+
+        [[nodiscard]] bool ReadTextureIsInteger(u32 handle) final {
+            return getTextureType(handle).isInteger;
         }
 
         [[nodiscard]] u32 ReadViewportTransformState() final {
@@ -291,7 +300,11 @@ namespace skyline::gpu {
         }
 
         [[nodiscard]] Shader::TextureType ReadTextureType(u32 handle) final {
-            return getTextureType(handle);
+            return getTextureType(handle).type;
+        }
+
+        [[nodiscard]] bool ReadTextureIsInteger(u32 handle) final {
+            return getTextureType(handle).isInteger;
         }
 
         [[nodiscard]] u32 ReadViewportTransformState() final {

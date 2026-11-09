@@ -41,6 +41,7 @@ class ExportCustomSettingsPreference @JvmOverloads constructor(context : Context
             val hackFastGpuReadback = emulationSettings.enableFastGpuReadbackHack;
             val hackFastReadbackWrite = emulationSettings.enableFastReadbackWrites;
             val hackDisableSubgroupShuffle = emulationSettings.disableSubgroupShuffle;
+            val hackFixBloomEffects = emulationSettings.fixBloomEffects;
 
             val settingsAsText = String.format(
                 """
@@ -57,6 +58,7 @@ class ExportCustomSettingsPreference @JvmOverloads constructor(context : Context
                 HACKS
                 - Fast GPU readback: $hackFastGpuReadback, fast readback writes $hackFastReadbackWrite
                 - Disable GPU subgroup shuffle: $hackDisableSubgroupShuffle
+                - Fix bloom effects: $hackFixBloomEffects
                 """.trimIndent().replace("true", "✔").replace("false", "✖")
             )
 

@@ -86,6 +86,7 @@ namespace skyline {
         Setting<bool> enableFastGpuReadbackHack; //!< If the CPU texture readback skipping hack should be used
         Setting<bool> enableFastReadbackWrites; //!< If buffers should be treated as CPU dirty when written with the readback hack
         Setting<bool> disableSubgroupShuffle; //!< If shader subgroup suffle operations should be ignored
+        Setting<bool> fixBloomEffects; //!< If textures sampled with an explicit lod should be darkened slightly to hide the over-bright bloom some games have on some GPUs
 
         // Audio
         Setting<bool> isAudioOutputDisabled; //!< Disables audio output

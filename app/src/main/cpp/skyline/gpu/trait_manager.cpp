@@ -6,7 +6,7 @@
 
 namespace skyline::gpu {
     TraitManager::TraitManager(const DeviceFeatures2 &deviceFeatures2, DeviceFeatures2 &enabledFeatures2, const std::vector<vk::ExtensionProperties> &deviceExtensions, std::vector<std::array<char, VK_MAX_EXTENSION_NAME_SIZE>> &enabledExtensions, const DeviceProperties2 &deviceProperties2, const vk::raii::PhysicalDevice &physicalDevice) : quirks(deviceProperties2.get<vk::PhysicalDeviceProperties2>().properties, deviceProperties2.get<vk::PhysicalDeviceDriverProperties>()) {
-        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasRobustness2Ext{};
+        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasDescriptorIndexingExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasRobustness2Ext{};
         bool supportsUniformBufferStandardLayout{}; // We require VK_KHR_uniform_buffer_standard_layout but assume it is implicitly supported even when not present
 
         for (auto &extension : deviceExtensions) {
@@ -60,6 +60,7 @@ namespace skyline::gpu {
                 EXT_SET("VK_EXT_transform_feedback", hasTransformFeedbackExt);
                 EXT_SET_COND("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt, !quirks.brokenDynamicStateVertexBindings);
                 EXT_SET("VK_EXT_robustness2", hasRobustness2Ext);
+                EXT_SET("VK_EXT_descriptor_indexing", hasDescriptorIndexingExt);
             }
 
             #undef EXT_SET_COND
@@ -93,6 +94,16 @@ namespace skyline::gpu {
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT, extendedDynamicState, supportsExtendedDynamicState)
         else
             enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+
+        if (hasDescriptorIndexingExt) {
+            // Only the features that decide how the shaders can index arrays of descriptors are enabled
+            FEAT_SET(vk::PhysicalDeviceDescriptorIndexingFeatures, shaderSampledImageArrayNonUniformIndexing, supportsSampledImageArrayNonUniformIndexing)
+            FEAT_SET(vk::PhysicalDeviceDescriptorIndexingFeatures, shaderStorageImageArrayNonUniformIndexing, supportsStorageImageArrayNonUniformIndexing)
+            FEAT_SET(vk::PhysicalDeviceDescriptorIndexingFeatures, shaderUniformTexelBufferArrayNonUniformIndexing, supportsUniformTexelBufferArrayNonUniformIndexing)
+            FEAT_SET(vk::PhysicalDeviceDescriptorIndexingFeatures, shaderStorageTexelBufferArrayNonUniformIndexing, supportsStorageTexelBufferArrayNonUniformIndexing)
+        } else {
+            enabledFeatures2.unlink<vk::PhysicalDeviceDescriptorIndexingFeatures>();
+        }
 
         if (hasRobustness2Ext) {
             FEAT_SET(vk::PhysicalDeviceRobustness2FeaturesEXT, nullDescriptor, supportsNullDescriptor)

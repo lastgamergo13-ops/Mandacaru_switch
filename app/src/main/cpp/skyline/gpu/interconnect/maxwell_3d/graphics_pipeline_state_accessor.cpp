@@ -13,10 +13,10 @@ namespace skyline::gpu::interconnect::maxwell3d {
         : bundle{std::move(bundle)}, ctx{ctx}, textures{textures}, constantBuffers{constantBuffers}, shaderBinaries{shaderBinaries} {}
 
 
-    Shader::TextureType RuntimeGraphicsPipelineStateAccessor::GetTextureType(u32 index) const {
-        Shader::TextureType type{textures.GetTextureType(ctx, index)};
-        bundle->AddTextureType(index, type);
-        return type;
+    ShaderManager::TextureInfo RuntimeGraphicsPipelineStateAccessor::GetTextureInfo(u32 index) const {
+        ShaderManager::TextureInfo info{textures.GetTextureInfo(ctx, index)};
+        bundle->AddTextureType(index, info.type, info.isInteger);
+        return info;
     }
 
     u32 RuntimeGraphicsPipelineStateAccessor::GetConstantBufferValue(u32 shaderStage, u32 index, u32 offset) const {

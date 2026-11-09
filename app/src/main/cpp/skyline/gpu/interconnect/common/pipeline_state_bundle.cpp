@@ -30,8 +30,11 @@ namespace skyline::gpu::interconnect {
         stageInfo.binaryBaseOffset = bin.baseOffset;
     }
 
-    void PipelineStateBundle::AddTextureType(u32 index, Shader::TextureType type) {
-        textureTypes.push_back({index, type});
+    static constexpr u32 TextureTypeIntegerFlag{1U << 8}; //!< Set in TextureTypeEntry::type if the texture has an integer format
+    static constexpr u32 TextureTypeMask{0xFF};
+
+    void PipelineStateBundle::AddTextureType(u32 index, Shader::TextureType type, bool isInteger) {
+        textureTypes.push_back({index, static_cast<Shader::TextureType>(static_cast<u32>(type) | (isInteger ? TextureTypeIntegerFlag : 0))});
     }
 
     void PipelineStateBundle::AddConstantBufferValue(u32 shaderStage, u32 index, u32 offset, u32 value) {
@@ -47,12 +50,13 @@ namespace skyline::gpu::interconnect {
         return {stageInfo.binary, stageInfo.binaryBaseOffset};
     }
 
-    Shader::TextureType PipelineStateBundle::LookupTextureType(u32 index) {
+    ShaderManager::TextureInfo PipelineStateBundle::LookupTextureInfo(u32 index) {
         auto it{ranges::find_if(textureTypes, [index](const auto &entry) { return entry.index == index; })};
         if (it == textureTypes.end())
             throw exception("Failed to find texture type for index: 0x{:X}", index);
 
-        return it->type;
+        u32 raw{static_cast<u32>(it->type)};
+        return {static_cast<Shader::TextureType>(raw & TextureTypeMask), (raw & TextureTypeIntegerFlag) != 0};
     }
 
     u32 PipelineStateBundle::LookupConstantBufferValue(u32 shaderStage, u32 index, u32 offset) {

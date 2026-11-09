@@ -201,6 +201,9 @@
     <string name="disable_subgroup_shuffle">Disable GPU Subgroup Shuffle</string>
     <string name="disable_subgroup_shuffle_enabled">Shader subgroup shuffle operations are disabled, may cause severe graphical issues</string>
     <string name="disable_subgroup_shuffle_disabled">Shader subgroup shuffle operations are enabled, ensures maximum accuracy</string>
+    <string name="fix_bloom_effects">Fix Bloom Effects</string>
+    <string name="fix_bloom_effects_enabled">Textures sampled with an explicit level of detail are darkened by 2%, which hides the over-bright bloom some games have on some GPUs</string>
+    <string name="fix_bloom_effects_disabled">Textures are sampled exactly as the game asks, ensures maximum accuracy</string>
     <!-- Settings - Debug -->
     <string name="debug">Debug</string>
     <string name="log_level">Log Level</string>

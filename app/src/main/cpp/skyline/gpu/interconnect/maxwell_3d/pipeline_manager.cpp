@@ -226,7 +226,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
                     u32 shaderStage{i > 0 ? (i - 1) : 0};
                     return accessor.GetConstantBufferValue(shaderStage, index, offset);
                 }, [&](u32 index) {
-                    return accessor.GetTextureType(BindlessHandle{ .raw = index }.textureIndex);
+                    return accessor.GetTextureInfo(BindlessHandle{ .raw = index }.textureIndex);
                 })};
             if (i == stageIdx(PipelineStage::Vertex) && packedState.shaderHashes[stageIdx(PipelineStage::VertexCullBeforeFetch)]) {
                 ignoreVertexCullBeforeFetch = true;
@@ -339,12 +339,12 @@ namespace skyline::gpu::interconnect::maxwell3d {
             pushBindings(vk::DescriptorType::eUniformTexelBuffer, stage.info.texture_buffer_descriptors,
                          stageDescInfo.uniformTexelBufferDescTotalCount, stageDescInfo.uniformTexelBufferDescs,
                          [](const auto &, u32) {
-                LOGW("Texture buffer descriptors are not supported");
+                LOGW("Texture buffer descriptors are bound to a null buffer view, they are not backed by the guest yet");
             });
             pushBindings(vk::DescriptorType::eStorageTexelBuffer, stage.info.image_buffer_descriptors,
                          stageDescInfo.storageTexelBufferDescTotalCount, stageDescInfo.storageTexelBufferDescs,
                          [](const auto &, u32) {
-                LOGW("Image buffer descriptors are not supported");
+                LOGW("Image buffer descriptors are bound to a null buffer view, they are not backed by the guest yet");
             });
             descriptorInfo.totalTexelBufferDescCount += stageDescInfo.uniformTexelBufferDescTotalCount + stageDescInfo.storageTexelBufferDescTotalCount;
 
@@ -367,7 +367,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
             pushBindings(vk::DescriptorType::eStorageImage, stage.info.image_descriptors,
                          stageDescInfo.storageImageDescTotalCount, stageDescInfo.storageImageDescs,
                          [](const auto &, u16) {
-                LOGW("Image descriptors are not supported");
+                LOGW("Image descriptors are bound to a null image, they are not backed by the guest yet");
             });
             descriptorInfo.totalImageDescCount += stageDescInfo.combinedImageSamplerDescTotalCount + stageDescInfo.storageImageDescTotalCount;
         }
@@ -742,6 +742,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
         auto bufferDescDynamicBindings{ctx.executor.allocator->AllocateUntracked<DynamicBufferBinding>(descriptorInfo.totalBufferDescCount)};
         u32 imageIdx{};
         auto imageDescs{ctx.executor.allocator->AllocateUntracked<vk::DescriptorImageInfo>(descriptorInfo.totalImageDescCount)};
+        u32 texelBufferIdx{};
+        auto texelBufferViews{ctx.executor.allocator->AllocateUntracked<vk::BufferView>(descriptorInfo.totalTexelBufferDescCount)};
 
         u32 storageBufferIdx{}; // Need to keep track of this to index into the cached view array
         u32 combinedImageSamplerIdx{}; // Need to keep track of this to index into the sampled image array
@@ -766,6 +768,22 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 for (const auto &desc : descs)
                     for (u32 arrayIdx{}; arrayIdx < desc.count; arrayIdx++)
                         bufferDescDynamicBindings[bufferIdx++] = getBufferCb(desc, arrayIdx);
+            }
+        }};
+
+        auto writeNullTexelBufferDescs{[&](vk::DescriptorType type, const auto &descs, u32 count) {
+            if (!descs.empty()) {
+                writes[writeIdx++] = {
+                    .dstBinding = bindingIdx,
+                    .descriptorCount = count,
+                    .descriptorType = type,
+                    .pTexelBufferView = &texelBufferViews[texelBufferIdx],
+                };
+
+                bindingIdx += descs.size();
+
+                for (u32 i{}; i < count; i++)
+                    texelBufferViews[texelBufferIdx++] = textures.GetNullTexelBufferView(ctx);
             }
         }};
 
@@ -821,8 +839,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                                                 srcStageMask, dstStageMask);
                              });
 
-            bindingIdx += stage.uniformTexelBufferDescs.size();
-            bindingIdx += stage.storageTexelBufferDescs.size();
+            // Texel buffers and storage images aren't backed by the guest yet: every element is bound to a valid null descriptor so the shader reads zeros and writes nowhere instead of using an undefined descriptor
+            writeNullTexelBufferDescs(vk::DescriptorType::eUniformTexelBuffer, stage.uniformTexelBufferDescs, stage.uniformTexelBufferDescTotalCount);
+            writeNullTexelBufferDescs(vk::DescriptorType::eStorageTexelBuffer, stage.storageTexelBufferDescs, stage.storageTexelBufferDescTotalCount);
 
             writeImageDescs(vk::DescriptorType::eCombinedImageSampler, stage.combinedImageSamplerDescs, stage.combinedImageSamplerDescTotalCount,
                             [&](const DescriptorInfo::StageDescriptorInfo::CombinedImageSamplerDesc &desc, size_t arrayIdx) {
@@ -835,7 +854,22 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                 return binding.first;
                             }, ctx.gpu.traits.quirks.needsIndividualTextureBindingWrites);
 
-            bindingIdx += stage.storageImageDescs.size();
+            if (!stage.storageImageDescs.empty()) {
+                writes[writeIdx++] = {
+                    .dstBinding = bindingIdx,
+                    .descriptorCount = stage.storageImageDescTotalCount,
+                    .descriptorType = vk::DescriptorType::eStorageImage,
+                    .pImageInfo = &imageDescs[imageIdx],
+                };
+
+                bindingIdx += stage.storageImageDescs.size();
+
+                for (u32 i{}; i < stage.storageImageDescTotalCount; i++)
+                    imageDescs[imageIdx++] = vk::DescriptorImageInfo{
+                        .imageView = textures.GetNullTextureView(ctx)->GetView(),
+                        .imageLayout = vk::ImageLayout::eGeneral,
+                    };
+            }
         }
 
         return ctx.executor.allocator->EmplaceUntracked<DescriptorUpdateInfo>(DescriptorUpdateInfo{

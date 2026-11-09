@@ -27,8 +27,9 @@ enum class Operation {
 
 Id ImageType(EmitContext& ctx, const TextureDescriptor& desc) {
     const spv::ImageFormat format{spv::ImageFormat::Unknown};
-    const Id type{ctx.F32[1]};
+    const Id type{desc.is_integer ? ctx.U32[1] : ctx.F32[1]};
     const bool depth{desc.is_depth};
+    const bool ms{desc.is_multisample};
     switch (desc.type) {
     case TextureType::Color1D:
         return ctx.TypeImage(type, spv::Dim::Dim1D, depth, false, false, 1, format);
@@ -36,9 +37,9 @@ Id ImageType(EmitContext& ctx, const TextureDescriptor& desc) {
         return ctx.TypeImage(type, spv::Dim::Dim1D, depth, true, false, 1, format);
     case TextureType::Color2D:
     case TextureType::Color2DRect:
-        return ctx.TypeImage(type, spv::Dim::Dim2D, depth, false, false, 1, format);
+        return ctx.TypeImage(type, spv::Dim::Dim2D, depth, false, ms, 1, format);
     case TextureType::ColorArray2D:
-        return ctx.TypeImage(type, spv::Dim::Dim2D, depth, true, false, 1, format);
+        return ctx.TypeImage(type, spv::Dim::Dim2D, depth, true, ms, 1, format);
     case TextureType::Color3D:
         return ctx.TypeImage(type, spv::Dim::Dim3D, depth, false, false, 1, format);
     case TextureType::ColorCube:
@@ -75,7 +76,7 @@ spv::ImageFormat GetImageFormat(ImageFormat format) {
 
 Id ImageType(EmitContext& ctx, const ImageDescriptor& desc) {
     const spv::ImageFormat format{GetImageFormat(desc.format)};
-    const Id type{ctx.U32[1]};
+    const Id type{desc.is_integer ? ctx.U32[1] : ctx.F32[1]};
     switch (desc.type) {
     case TextureType::Color1D:
         return ctx.TypeImage(type, spv::Dim::Dim1D, false, false, false, 2, format);
@@ -1263,7 +1264,8 @@ void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
     image_buffers.reserve(info.image_buffer_descriptors.size());
     for (const ImageBufferDescriptor& desc : info.image_buffer_descriptors) {
         const spv::ImageFormat format{GetImageFormat(desc.format)};
-        const Id image_type{TypeImage(U32[1], spv::Dim::Buffer, false, false, false, 2, format)};
+        const Id sampled_type{desc.is_integer ? U32[1] : F32[1]};
+        const Id image_type{TypeImage(sampled_type, spv::Dim::Buffer, false, false, false, 2, format)};
         const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, image_type)};
         const Id desc_type{DescType(*this, image_type, pointer_type, desc.count)};
         const Id id{AddGlobalVariable(desc_type, spv::StorageClass::UniformConstant)};
@@ -1275,6 +1277,7 @@ void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
             .image_type = image_type,
             .pointer_type = pointer_type,
             .count = desc.count,
+            .is_integer = desc.is_integer,
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);
@@ -1300,6 +1303,8 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
             .pointer_type = pointer_type,
             .image_type = image_type,
             .count = desc.count,
+            .is_multisample = desc.is_multisample,
+            .is_integer = desc.is_integer,
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);
@@ -1327,6 +1332,7 @@ void EmitContext::DefineImages(const Info& info, u32& binding, u32& scaling_inde
             .image_type = image_type,
             .pointer_type = pointer_type,
             .count = desc.count,
+            .is_integer = desc.is_integer,
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);

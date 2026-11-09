@@ -24,6 +24,11 @@ public:
 
     [[nodiscard]] virtual TexturePixelFormat ReadTexturePixelFormat(u32 raw_handle) = 0;
 
+    /// @return true if the texture bound to the handle has an integer (SINT or UINT) format
+    [[nodiscard]] virtual bool ReadTextureIsInteger(u32 raw_handle) {
+        return false;
+    }
+
     [[nodiscard]] virtual u32 ReadViewportTransformState() = 0;
 
     [[nodiscard]] virtual u32 TextureBoundBuffer() const = 0;
