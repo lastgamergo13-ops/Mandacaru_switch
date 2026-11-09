@@ -198,6 +198,7 @@ namespace skyline::service {
             SERVICE_CASE(socket::IResolver, "sfdnsres")
             SERVICE_CASE(spl::IRandomInterface, "csrng")
             SERVICE_CASE(ssl::ISslService, "ssl")
+            SERVICE_CASE(ssl::ISslService, "ssl:s")
             SERVICE_CASE(prepo::IPrepoService, "prepo:u")
             SERVICE_CASE(prepo::IPrepoService, "prepo:a")
             SERVICE_CASE(mmnv::IRequest, "mm:u")
@@ -228,9 +229,8 @@ namespace skyline::service {
         auto serviceObject{CreateOrGetService(name)};
         KHandle handle{};
         if (session.isDomain) {
-            session.domains.push_back(serviceObject);
-            response.domainObjects.push_back(session.handleIndex);
-            handle = session.handleIndex++;
+            handle = session.domainTable->Add(serviceObject);
+            response.domainObjects.push_back(handle);
         } else {
             handle = state.process->NewHandle<type::KSession>(serviceObject).handle;
             response.moveHandles.push_back(handle);
@@ -245,9 +245,8 @@ namespace skyline::service {
         KHandle handle{};
 
         if (session.isDomain) {
-            session.domains.push_back(serviceObject);
-            response.domainObjects.push_back(session.handleIndex);
-            handle = session.handleIndex++;
+            handle = session.domainTable->Add(serviceObject);
+            response.domainObjects.push_back(handle);
         } else {
             handle = state.process->NewHandle<type::KSession>(serviceObject).handle;
             response.moveHandles.push_back(handle);
@@ -261,7 +260,7 @@ namespace skyline::service {
         auto session{state.process->GetHandle<type::KSession>(handle)};
         if (session->isOpen) {
             if (session->isDomain) {
-                for (const auto &domainService : session->domains)
+                for (const auto &domainService : session->domainTable->Snapshot())
                     std::erase_if(serviceMap, [domainService](const auto &entry) {
                         return entry.second == domainService;
                     });
@@ -291,7 +290,7 @@ namespace skyline::service {
                 case ipc::CommandType::RequestWithContext:
                     if (session->isDomain) {
                         try {
-                            auto service{session->domains.at(request.domain->objectId)};
+                            auto service{session->domainTable->Get(request.domain->objectId)};
                             if (service == nullptr)
                                 throw exception("Domain request used an expired handle");
                             switch (request.domain->command) {
@@ -303,7 +302,7 @@ namespace skyline::service {
                                     std::erase_if(serviceMap, [service](const auto &entry) {
                                         return entry.second == service;
                                     });
-                                    session->domains.at(request.domain->objectId).reset();
+                                    session->domainTable->Reset(request.domain->objectId);
                                     break;
                             }
                         } catch (std::out_of_range &) {
@@ -328,10 +327,9 @@ namespace skyline::service {
                             // The clone is a session of its own that talks to the same service object. It used to be the very same KSession under a second handle, so when the game closed the original (the Nintendo SDK does this right after cloning) the clone was closed too and every later request on it was dropped ("svcSendSyncRequest called on closed handle")
                             std::shared_ptr<BaseService> cloneServiceObject{session->serviceObject};
                             auto clone{state.process->NewHandle<type::KSession>(cloneServiceObject)};
-                            // On real hardware a clone of a domain session is still a domain session (it shares the domain of the original), so its requests carry the domain header. Without this the header was parsed as the command payload and every request became command 0, which no service has ("Cannot find HIPC function ... 0x0") and made the SDK abort right after the FS init
+                            // On real hardware a clone of a domain session is still a domain session (it shares the domain table of the original, so objects created through either session work on both), so its requests carry the domain header. Without this the header was parsed as the command payload and every request became command 0, which no service has ("Cannot find HIPC function ... 0x0") and made the SDK abort right after the FS init
                             clone.item->isDomain = session->isDomain;
-                            clone.item->domains = session->domains;
-                            clone.item->handleIndex = session->handleIndex;
+                            clone.item->domainTable = session->domainTable;
                             KHandle cloneHandle{clone.handle};
                             response.moveHandles.push_back(cloneHandle);
                             ipcTrace.Add(fmt::format("handle 0x{:X} cloned into handle 0x{:X}", handle, cloneHandle), true);
