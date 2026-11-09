@@ -4,6 +4,7 @@
 #pragma once
 
 #include <shader_compiler/shader_info.h>
+#include <gpu/shader_manager.h>
 #include "common.h"
 
 namespace skyline::gpu::interconnect {
