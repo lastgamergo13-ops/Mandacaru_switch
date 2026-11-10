@@ -20,8 +20,15 @@ namespace skyline::service::bcat {
 
         Result RequestSyncDeliveryCache(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Takes the name of a directory (it isn't used, nothing is synchronised) and returns an #IDeliveryCacheProgressService like #RequestSyncDeliveryCache
+         * @url https://switchbrew.org/wiki/BCAT_services#RequestSyncDeliveryCacheWithDirectoryName
+         */
+        Result RequestSyncDeliveryCacheWithDirectoryName(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
-        SFUNC(0x2774, IBcatService, RequestSyncDeliveryCache)
+        SFUNC(0x2774, IBcatService, RequestSyncDeliveryCache),
+        SFUNC(0x2775, IBcatService, RequestSyncDeliveryCacheWithDirectoryName)
         )
     };
 }

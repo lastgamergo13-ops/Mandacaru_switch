@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <kernel/types/KProcess.h>
 #include "IParentalControlService.h"
 
 namespace skyline::service::pctl {
-    IParentalControlService::IParentalControlService(const DeviceState &state, ServiceManager &manager) : BaseService(state, manager) {}
+    IParentalControlService::IParentalControlService(const DeviceState &state, ServiceManager &manager)
+        : BaseService(state, manager),
+          synchronizationEvent(std::make_shared<type::KEvent>(state, false)),
+          requestSuspensionEvent(std::make_shared<type::KEvent>(state, false)),
+          unlinkedEvent(std::make_shared<type::KEvent>(state, false)) {}
 
     Result IParentalControlService::Initialize(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
@@ -77,5 +82,20 @@ namespace skyline::service::pctl {
             return result::StereoVisionDenied;
         else
             return {};
+    }
+
+    Result IParentalControlService::GetSynchronizationEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(synchronizationEvent));
+        return {};
+    }
+
+    Result IParentalControlService::GetPlayTimerEventToRequestSuspension(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(requestSuspensionEvent));
+        return {};
+    }
+
+    Result IParentalControlService::GetUnlinkedEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(unlinkedEvent));
+        return {};
     }
 }

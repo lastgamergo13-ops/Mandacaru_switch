@@ -11,4 +11,9 @@ namespace skyline::service::bcat {
         manager.RegisterService(SRVREG(IDeliveryCacheProgressService), session, response);
         return {};
     }
+
+    Result IBcatService::RequestSyncDeliveryCacheWithDirectoryName(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        manager.RegisterService(SRVREG(IDeliveryCacheProgressService), session, response);
+        return {};
+    }
 }

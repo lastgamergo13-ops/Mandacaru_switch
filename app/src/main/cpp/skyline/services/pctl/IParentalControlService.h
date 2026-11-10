@@ -22,6 +22,11 @@ namespace skyline::service::pctl {
         bool stereoVisionRestrictionConfigurable{true};
         bool stereoVisionRestriction{false};
 
+        // The events are never signalled as there is nothing that would synchronise, unlink or suspend the parental control
+        std::shared_ptr<type::KEvent> synchronizationEvent;
+        std::shared_ptr<type::KEvent> requestSuspensionEvent;
+        std::shared_ptr<type::KEvent> unlinkedEvent;
+
         Result IsStereoVisionPermittedImpl();
 
       public:
@@ -50,6 +55,24 @@ namespace skyline::service::pctl {
 
         Result IsStereoVisionPermitted(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Returns an event that is signalled when the parental control settings were synchronised with the server
+         * @url https://switchbrew.org/wiki/Parental_Control_services#GetSynchronizationEvent
+         */
+        Result GetSynchronizationEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns an event that is signalled when the play timer asks for the application to be suspended
+         * @url https://switchbrew.org/wiki/Parental_Control_services#GetPlayTimerEventToRequestSuspension
+         */
+        Result GetPlayTimerEventToRequestSuspension(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns an event that is signalled when the console is unlinked from the parental control application
+         * @url https://switchbrew.org/wiki/Parental_Control_services#GetUnlinkedEvent
+         */
+        Result GetUnlinkedEvent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
       SERVICE_DECL(
             SFUNC(0x1, IParentalControlService, Initialize),
             SFUNC(0x3E9, IParentalControlService, CheckFreeCommunicationPermission),
@@ -60,7 +83,10 @@ namespace skyline::service::pctl {
             SFUNC(0x426, IParentalControlService, GetStereoVisionRestriction),
             SFUNC(0x427, IParentalControlService, SetStereoVisionRestriction),
             SFUNC(0x428, IParentalControlService, ResetConfirmedStereoVisionPermission),
-            SFUNC(0x429, IParentalControlService, IsStereoVisionPermitted)
+            SFUNC(0x429, IParentalControlService, IsStereoVisionPermitted),
+            SFUNC(0x598, IParentalControlService, GetSynchronizationEvent),
+            SFUNC(0x5B1, IParentalControlService, GetPlayTimerEventToRequestSuspension),
+            SFUNC(0x5C1, IParentalControlService, GetUnlinkedEvent)
         )
     };
 }

@@ -14,6 +14,7 @@ namespace skyline::service::am {
           stateChangeEvent(std::make_shared<type::KEvent>(state, false)),
           popNormalOutDataEvent((std::make_shared<type::KEvent>(state, false))),
           popInteractiveOutDataEvent((std::make_shared<type::KEvent>(state, false))),
+          unknownEvent(std::make_shared<type::KEvent>(state, false)),
           applet(skyline::applet::CreateApplet(state, manager, appletId, stateChangeEvent, popNormalOutDataEvent, popInteractiveOutDataEvent, appletMode)) {
         stateChangeEventHandle = state.process->InsertItem(stateChangeEvent);
         popNormalOutDataEventHandle = state.process->InsertItem(popNormalOutDataEvent);
@@ -76,6 +77,11 @@ namespace skyline::service::am {
 
         u64 indirectLayerConsumerHandle{1};
         response.Push<u64>(indirectLayerConsumerHandle);
+        return {};
+    }
+
+    Result ILibraryAppletAccessor::Unknown170(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.copyHandles.push_back(state.process->InsertItem(unknownEvent));
         return {};
     }
 }

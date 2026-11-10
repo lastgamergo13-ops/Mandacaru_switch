@@ -48,7 +48,8 @@ namespace skyline::service::aocsrv {
             SFUNC(0x8, IAddOnContentManager, GetAddOnContentListChangedEvent),
             SFUNC(0xA, IAddOnContentManager, GetAddOnContentListChangedEventWithProcessId),
             SFUNC(0x32, IAddOnContentManager, CheckAddOnContentMountStatus),
-            SFUNC(0x64, IAddOnContentManager, CreateEcPurchasedEventManager)
+            SFUNC(0x64, IAddOnContentManager, CreateEcPurchasedEventManager),
+            SFUNC(0x65, IAddOnContentManager, CreateEcPurchasedEventManager) // CreatePermanentEcPurchasedEventManager (9.0.0+), it returns the same kind of object
         )
     };
 }

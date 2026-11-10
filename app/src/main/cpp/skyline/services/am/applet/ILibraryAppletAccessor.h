@@ -24,6 +24,7 @@ namespace skyline::service::am {
         std::shared_ptr<kernel::type::KEvent> stateChangeEvent;
         std::shared_ptr<kernel::type::KEvent> popNormalOutDataEvent;
         std::shared_ptr<kernel::type::KEvent> popInteractiveOutDataEvent;
+        std::shared_ptr<kernel::type::KEvent> unknownEvent; //!< The event of command 170 (22.0.0+), which has no known use and is never signalled
 
         KHandle stateChangeEventHandle{};
         KHandle popNormalOutDataEventHandle{};
@@ -93,6 +94,11 @@ namespace skyline::service::am {
          */
         Result GetIndirectLayerConsumerHandle(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Returns an event that has no known use, it was added in 22.0.0 (Eden calls it Unknown170 too)
+         */
+        Result Unknown170(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x0, ILibraryAppletAccessor, GetAppletStateChangedEvent),
             SFUNC(0xA, ILibraryAppletAccessor, Start),
@@ -103,7 +109,8 @@ namespace skyline::service::am {
             SFUNC(0x68, ILibraryAppletAccessor, PopInteractiveOutData),
             SFUNC(0x69, ILibraryAppletAccessor, GetPopOutDataEvent),
             SFUNC(0x6A, ILibraryAppletAccessor, GetPopInteractiveOutDataEvent),
-            SFUNC(0xA0, ILibraryAppletAccessor, GetIndirectLayerConsumerHandle)
+            SFUNC(0xA0, ILibraryAppletAccessor, GetIndirectLayerConsumerHandle),
+            SFUNC(0xAA, ILibraryAppletAccessor, Unknown170)
         )
     };
 }

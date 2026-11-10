@@ -30,7 +30,8 @@ namespace skyline::service::bcat {
 
         SERVICE_DECL(
             SFUNC(0x0, IServiceCreator, CreateBcatService),
-            SFUNC(0x1, IServiceCreator, CreateDeliveryCacheStorageService)
+            SFUNC(0x1, IServiceCreator, CreateDeliveryCacheStorageService),
+            SFUNC(0x2, IServiceCreator, CreateDeliveryCacheStorageService) // CreateDeliveryCacheStorageServiceWithApplicationId, it takes the application ID instead of the process ID and returns the same service
         )
     };
 }
