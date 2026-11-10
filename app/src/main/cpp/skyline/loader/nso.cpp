@@ -13,6 +13,7 @@
 #include <kernel/types/KProcess.h>
 #include <boost/regex/v5/regex.hpp>
 #include "nso.h"
+#include "zbic_compression.h"
 
 namespace skyline::loader {
     namespace {
@@ -248,12 +249,19 @@ namespace skyline::loader {
             throw exception("Invalid NSO magic! 0x{0:X}", magic);
     }
 
-    std::vector<u8> NsoLoader::GetSegment(const std::shared_ptr<vfs::Backing> &backing, const NsoSegmentHeader &segment, u32 compressedSize) {
+    std::vector<u8> NsoLoader::GetSegment(const std::shared_ptr<vfs::Backing> &backing, const NsoSegmentHeader &segment, u32 compressedSize, bool zbic) {
         std::vector<u8> outputBuffer(segment.decompressedSize);
 
         if (compressedSize) {
             std::vector<u8> compressedBuffer(compressedSize);
             backing->Read(compressedBuffer, segment.fileOffset);
+
+            if (zbic) {
+                int decompressed{DecompressDataZBIC(outputBuffer, compressedBuffer)};
+                if (decompressed < 0 || static_cast<u32>(decompressed) != segment.decompressedSize)
+                    throw exception("Failed to decompress an NSO segment with ZBIC: 0x{:X} bytes were expected but got {} (compressed size 0x{:X})", segment.decompressedSize, decompressed, compressedSize);
+                return outputBuffer;
+            }
 
             int decompressed{LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize))};
             if (decompressed < 0 || static_cast<u32>(decompressed) != segment.decompressedSize)
@@ -273,15 +281,15 @@ namespace skyline::loader {
 
         Executable executable{};
 
-        executable.text.contents = GetSegment(backing, header.text, header.flags.textCompressed ? header.textCompressedSize : 0);
+        executable.text.contents = GetSegment(backing, header.text, header.flags.textCompressed ? header.textCompressedSize : 0, header.flags.zbicCompressed);
         executable.text.contents.resize(util::AlignUp(executable.text.contents.size(), constant::PageSize));
         executable.text.offset = header.text.memoryOffset;
 
-        executable.ro.contents = GetSegment(backing, header.ro, header.flags.roCompressed ? header.roCompressedSize : 0);
+        executable.ro.contents = GetSegment(backing, header.ro, header.flags.roCompressed ? header.roCompressedSize : 0, header.flags.zbicCompressed);
         executable.ro.contents.resize(util::AlignUp(executable.ro.contents.size(), constant::PageSize));
         executable.ro.offset = header.ro.memoryOffset;
 
-        executable.data.contents = GetSegment(backing, header.data, header.flags.dataCompressed ? header.dataCompressedSize : 0);
+        executable.data.contents = GetSegment(backing, header.data, header.flags.dataCompressed ? header.dataCompressedSize : 0, header.flags.zbicCompressed);
         executable.data.offset = header.data.memoryOffset;
 
         // Data and BSS are aligned together

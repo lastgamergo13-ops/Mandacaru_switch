@@ -57,6 +57,17 @@ else ()
 endif ()
 include_directories(SYSTEM "${ZSTD_SOURCE_DIR}/lib")
 
+# Zstandard with ZBIC support (https://github.com/kinnay/zbic), the compression of the NSO files of the newer SDKs (22.x), like in Eden. Only zstd.c and zstd.h of it are used and they are compiled into loader/zbic_compression.cpp with all symbols static. It is downloaded while configuring, pinned to the same commit as Eden
+include(FetchContent)
+FetchContent_Declare(zbic URL "https://github.com/kinnay/zbic/archive/11b08f2712264bbed731545085cbd9702096ceb7.tar.gz")
+FetchContent_GetProperties(zbic)
+if (NOT zbic_POPULATED)
+    FetchContent_Populate(zbic)
+endif ()
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/main/cpp/skyline/loader/zbic_compression.cpp" PROPERTIES
+    INCLUDE_DIRECTORIES "${zbic_SOURCE_DIR}/src"
+    COMPILE_OPTIONS "-Wno-unused-function;-Wno-missing-declarations;-Wno-shadow")
+
 # FFmpeg, used to decode the videos of the games (the NVDEC video decoder of the console), only the software decoders of H.264, VP8 and VP9 are built.
 # The source is downloaded and built for Android while the app is built. Set this to OFF to build without videos (cutscenes stay empty), no download or FFmpeg build happens then.
 option(MANDACARU_ENABLE_VIDEO "Decode the videos of the games with FFmpeg" ON)
@@ -314,6 +325,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/loader/loader.cpp
         ${source_DIR}/skyline/loader/nro.cpp
         ${source_DIR}/skyline/loader/nso.cpp
+        ${source_DIR}/skyline/loader/zbic_compression.cpp
         ${source_DIR}/skyline/loader/nca.cpp
         ${source_DIR}/skyline/loader/xci.cpp
         ${source_DIR}/skyline/loader/nsp.cpp
