@@ -3,6 +3,7 @@
 // Copyright © 2026 Mandacaru Contributors
 
 #include <audio.h>
+#include <jvm.h>
 #include <audio_core/audio_in_manager.h>
 #include <audio_core/core/hle/service/audio/errors.h>
 #include <kernel/types/KProcess.h>
