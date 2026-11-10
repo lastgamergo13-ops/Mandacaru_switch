@@ -43,6 +43,10 @@ namespace skyline::service::audio {
         std::string_view deviceName{request.inputBuf.at(0).as_string(true)};
         auto handle{request.copyHandles.at(0)};
 
+        // The microphone can only be captured with the permission of the user, which is asked for when a game opens an audio input (and not before). If it isn't given the game gets silence
+        if (!state.jvm->RequestMicrophonePermission())
+            LOGW("The microphone isn't allowed, the game will capture silence");
+
         auto &audioInManager{*state.audio->audioInManager};
         if (auto result{audioInManager.LinkToManager()}; result.IsError()) {
             LOGW("Failed to link Audio In to manager");

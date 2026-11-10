@@ -69,7 +69,8 @@ namespace skyline {
           updatePipelineLoadingProgressId{environ->GetMethodID(instanceClass, "updatePipelineLoadingProgress", "(I)V")},
           hidePipelineLoadingScreenId{environ->GetMethodID(instanceClass, "hidePipelineLoadingScreen", "()V")},
           getVersionCodeId{environ->GetMethodID(instanceClass, "getVersionCode", "()I")},
-          getDhcpInfoId{environ->GetMethodID(instanceClass, "getDhcpInfo", "()Landroid/net/DhcpInfo;")} {
+          getDhcpInfoId{environ->GetMethodID(instanceClass, "getDhcpInfo", "()Landroid/net/DhcpInfo;")},
+          requestMicrophonePermissionId{environ->GetMethodID(instanceClass, "requestMicrophonePermission", "()Z")} {
         env.Initialize(environ);
     }
 
@@ -184,5 +185,9 @@ namespace skyline {
 
     i32 JvmManager::GetVersionCode() {
         return env->CallIntMethod(instance, getVersionCodeId);
+    }
+
+    bool JvmManager::RequestMicrophonePermission() {
+        return env->CallBooleanMethod(instance, requestMicrophonePermissionId) == JNI_TRUE;
     }
 }

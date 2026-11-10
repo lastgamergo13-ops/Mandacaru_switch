@@ -215,6 +215,12 @@ namespace skyline {
          */
         DhcpInfo GetDhcpInfo();
 
+        /**
+         * @brief A call to EmulationActivity.requestMicrophonePermission in Kotlin, it shows the permission request if the microphone wasn't allowed yet and waits for the answer so it must not be called from the UI thread
+         * @return If the microphone can be used
+         */
+        bool RequestMicrophonePermission();
+
       private:
         jmethodID initializeControllersId;
         jmethodID vibrateDeviceId;
@@ -234,5 +240,7 @@ namespace skyline {
         jmethodID getVersionCodeId;
 
         jmethodID getDhcpInfoId;
+
+        jmethodID requestMicrophonePermissionId;
     };
 }

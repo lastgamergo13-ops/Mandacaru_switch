@@ -5,6 +5,7 @@
 
 package org.stratoemu.strato
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -14,6 +15,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -33,6 +35,8 @@ import android.view.*
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -71,7 +75,9 @@ import org.stratoemu.strato.utils.serializable
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.abs
 
@@ -942,6 +948,44 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
             listOf(0u, 0u, 0u)
         }
         return ((major shl 22) or (minor shl 12) or (patch)).toInt()
+    }
+
+    /**
+     * Set when the user denied the microphone so it isn't asked for again until the next time the activity is created
+     */
+    @Volatile
+    private var microphoneDenied = false
+
+    /**
+     * Called by native code (from a thread of the guest, never the UI thread) when a game opens an audio input (the microphone)
+     * It shows the permission request if the microphone wasn't allowed yet and waits for the answer of the user
+     * @return If the microphone can be used
+     */
+    @Suppress("unused")
+    fun requestMicrophonePermission() : Boolean {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+            return true
+        if (microphoneDenied)
+            return false
+
+        val answered = CountDownLatch(1)
+        var granted = false
+        runOnUiThread {
+            // This is registered in the registry directly because the activity is already started (see ActivityResultUtils)
+            lateinit var launcher : ActivityResultLauncher<String>
+            launcher = activityResultRegistry.register("microphone_permission_${System.nanoTime()}", ActivityResultContracts.RequestPermission()) { result ->
+                granted = result
+                launcher.unregister()
+                answered.countDown()
+            }
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+
+        // A request that is never answered (the activity was closed in the meantime) must not hold the game forever
+        answered.await(60, TimeUnit.SECONDS)
+        if (!granted)
+            microphoneDenied = true
+        return granted
     }
 
     @Suppress("unused")
