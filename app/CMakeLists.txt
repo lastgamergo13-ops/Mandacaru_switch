@@ -357,6 +357,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/services/sm/IUserInterface.cpp
         ${source_DIR}/skyline/services/fatalsrv/IService.cpp
         ${source_DIR}/skyline/services/audio/IAudioInManager.cpp
+        ${source_DIR}/skyline/services/audio/IAudioIn.cpp
         ${source_DIR}/skyline/services/audio/IAudioOutManager.cpp
         ${source_DIR}/skyline/services/audio/IAudioOut.cpp
         ${source_DIR}/skyline/services/audio/IAudioDevice.cpp

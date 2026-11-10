@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <audio_core/audio_core.h>
+#include <audio_core/audio_in_manager.h>
 #include <audio_core/audio_out_manager.h>
 #include <audio_core/common/settings.h>
 #include <common/settings.h>
@@ -38,7 +39,8 @@ namespace Core::Timing {
 
 namespace skyline::audio {
     Audio::Audio(const DeviceState &state)
-        : audioOutManager{std::make_unique<AudioCore::AudioOut::Manager>(audioSystem)},
+        : audioInManager{std::make_unique<AudioCore::AudioIn::Manager>(audioSystem)},
+          audioOutManager{std::make_unique<AudioCore::AudioOut::Manager>(audioSystem)},
           audioRendererManager{std::make_unique<AudioCore::AudioRenderer::Manager>(audioSystem)} {
         AudioCore::Settings::values.volume  = *state.settings->isAudioOutputDisabled ? 0 : 200;
     }

@@ -6,6 +6,10 @@
 #include <audio_core/core/core.h>
 #include <common.h>
 
+namespace AudioCore::AudioIn {
+    class Manager;
+}
+
 namespace AudioCore::AudioOut {
     class Manager;
 }
@@ -21,6 +25,7 @@ namespace skyline::audio {
     class Audio {
       public:
         Core::System audioSystem{};
+        std::unique_ptr<AudioCore::AudioIn::Manager> audioInManager;
         std::unique_ptr<AudioCore::AudioOut::Manager> audioOutManager;
         std::unique_ptr<AudioCore::AudioRenderer::Manager> audioRendererManager;
 
