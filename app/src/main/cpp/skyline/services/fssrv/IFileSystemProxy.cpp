@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <cstring>
 #include <os.h>
 #include <vfs/os_filesystem.h>
 #include <vfs/nca.h>
@@ -179,8 +180,38 @@ namespace skyline::service::fssrv {
         return result::EntityNotFound;
     }
 
+    Result IFileSystemProxy::ReadSaveDataFileSystemExtraData(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        // The caller's buffer would keep whatever was in it otherwise
+        for (auto &buffer : request.outputBuf)
+            std::memset(buffer.data(), 0, buffer.size());
+        return {};
+    }
+
+    Result IFileSystemProxy::IsExFatSupported(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(true);
+        return {};
+    }
+
+    Result IFileSystemProxy::IsSdCardAccessible(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u8>(true);
+        return {};
+    }
+
+    Result IFileSystemProxy::SetGlobalAccessLogMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        accessLogMode = request.Pop<u32>();
+        return {};
+    }
+
     Result IFileSystemProxy::GetGlobalAccessLogMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-        response.Push<u32>(0);
+        response.Push<u32>(accessLogMode);
+        return {};
+    }
+
+    Result IFileSystemProxy::GetProgramIndexForAccessLog(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        constexpr u32 AccessLogVersionLatest{2}; // 7.0.0, the same as Eden
+
+        response.Push<u32>(AccessLogVersionLatest);
+        response.Push<u32>(0); // The program index, a program that isn't one of several in the same application has 0
         return {};
     }
 

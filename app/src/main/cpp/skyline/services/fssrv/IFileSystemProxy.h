@@ -58,6 +58,7 @@ namespace skyline::service::fssrv {
     class IFileSystemProxy : public BaseService {
       public:
         u64 process{}; //!< The PID as set by SetCurrentProcess
+        u32 accessLogMode{}; //!< The filesystem log access mode as set by SetGlobalAccessLogMode
 
         IFileSystemProxy(const DeviceState &state, ServiceManager &manager);
 
@@ -116,10 +117,40 @@ namespace skyline::service::fssrv {
         Result OpenPatchDataStorageByCurrentProcess(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
+          * @brief Reads the extra data of a save data (the sizes, the flags and the owner of it), which isn't stored anywhere so it's returned as all zeros like Eden does. It serves commands 0x39, 0x3A, 0x45 and 0x47, that only differ in how the save data is selected
+          * @url https://switchbrew.org/wiki/Filesystem_services#ReadSaveDataFileSystemExtraData
+          */
+        Result ReadSaveDataFileSystemExtraData(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+          * @brief Returns whether exFAT is supported by the SD card file system, which the emulated one (a host folder) always is
+          * @url https://switchbrew.org/wiki/Filesystem_services#IsExFatSupported
+          */
+        Result IsExFatSupported(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+          * @brief Returns whether the SD card can be accessed, #OpenSdCardFileSystem always opens a host folder so it can
+          * @url https://switchbrew.org/wiki/Filesystem_services#IsSdCardAccessible
+          */
+        Result IsSdCardAccessible(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+          * @brief Sets the filesystem log access mode, which is only kept so GetGlobalAccessLogMode returns it (nothing is logged)
+          * @url https://switchbrew.org/wiki/Filesystem_services#SetGlobalAccessLogMode
+          */
+        Result SetGlobalAccessLogMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
           * @brief Returns the filesystem log access mode
           * @url https://switchbrew.org/wiki/Filesystem_services#GetGlobalAccessLogMode
           */
         Result GetGlobalAccessLogMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+          * @brief Returns the version of the access log and the index of the program in it
+          * @url https://switchbrew.org/wiki/Filesystem_services#GetProgramIndexForAccessLog
+          */
+        Result GetProgramIndexForAccessLog(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         /**
           * @url https://switchbrew.org/wiki/Filesystem_services#OpenMultiCommitManager
@@ -129,16 +160,24 @@ namespace skyline::service::fssrv {
         SERVICE_DECL(
             SFUNC(0x1, IFileSystemProxy, SetCurrentProcess),
             SFUNC(0x12, IFileSystemProxy, OpenSdCardFileSystem),
+            SFUNC(0x1B, IFileSystemProxy, IsExFatSupported),
             SFUNC(0x22, IFileSystemProxy, GetCacheStorageSize),
             SFUNC(0x33, IFileSystemProxy, OpenSaveDataFileSystem),
             SFUNC(0x35, IFileSystemProxy, OpenReadOnlySaveDataFileSystem),
+            SFUNC(0x39, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
+            SFUNC(0x3A, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
             SFUNC(0x3C, IFileSystemProxy, OpenSaveDataInfoReader),
             SFUNC(0x3D, IFileSystemProxy, OpenSaveDataInfoReaderBySaveDataSpaceId),
             SFUNC(0x3E, IFileSystemProxy, OpenSaveDataInfoReaderOnlyCacheStorage),
+            SFUNC(0x45, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
+            SFUNC(0x47, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
             SFUNC(0xC8, IFileSystemProxy, OpenDataStorageByCurrentProcess),
             SFUNC(0xCA, IFileSystemProxy, OpenDataStorageByDataId),
             SFUNC(0xCB, IFileSystemProxy, OpenPatchDataStorageByCurrentProcess),
+            SFUNC(0x277, IFileSystemProxy, IsSdCardAccessible),
+            SFUNC(0x3EC, IFileSystemProxy, SetGlobalAccessLogMode),
             SFUNC(0x3ED, IFileSystemProxy, GetGlobalAccessLogMode),
+            SFUNC(0x3F3, IFileSystemProxy, GetProgramIndexForAccessLog),
             SFUNC(0x4B0, IFileSystemProxy, OpenMultiCommitManager)
         )
     };
