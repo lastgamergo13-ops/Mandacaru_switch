@@ -52,6 +52,41 @@ namespace skyline::service::fssrv {
     };
 
     /**
+     * @url https://switchbrew.org/wiki/Filesystem_services#SaveDataCreationInfo
+     */
+    struct SaveDataCreationInfo {
+        i64 size; //!< The size of the savedata
+        i64 journalSize; //!< The size of the journal of the savedata
+        i64 blockSize;
+        u64 ownerId;
+        u32 flags;
+        u8 spaceId; //!< The SaveDataSpaceId the savedata is created in
+        bool pseudo;
+        u8 _pad_[0x1A];
+    };
+    static_assert(sizeof(SaveDataCreationInfo) == 0x40);
+
+    /**
+     * @url https://switchbrew.org/wiki/Filesystem_services#SaveDataCreationInfo2
+     */
+    struct SaveDataCreationInfo2 {
+        u32 version;
+        u32 _pad0_;
+        SaveDataAttribute attribute;
+        i64 size;
+        i64 journalSize;
+        i64 blockSize;
+        u64 ownerId;
+        u32 flags;
+        u8 spaceId; //!< The SaveDataSpaceId the savedata is created in
+        u8 formatType;
+        bool pseudo;
+        u8 _pad1_;
+        u8 _pad2_[0x30];
+    };
+    static_assert(sizeof(SaveDataCreationInfo2) == 0xA0);
+
+    /**
      * @brief IFileSystemProxy or fsp-srv is responsible for providing handles to file systems
      * @url https://switchbrew.org/wiki/Filesystem_services#fsp-srv
      */
@@ -73,6 +108,59 @@ namespace skyline::service::fssrv {
          * @url https://switchbrew.org/wiki/Filesystem_services#IFileSystem with type SDCard
          */
         Result OpenSdCardFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns a handle to an instance of #IFileSystem for the RomFS of the current process (the same contents #OpenDataStorageByCurrentProcess serves as a storage)
+         * @url https://switchbrew.org/wiki/Filesystem_services#OpenDataFileSystemByCurrentProcess
+         */
+        Result OpenDataFileSystemByCurrentProcess(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Opens the file system of a program with its patch, which is only used for the manual (HTML document) of a program, those aren't available so this always fails like an absent content would
+         * @url https://switchbrew.org/wiki/Filesystem_services#OpenFileSystemWithPatch
+         */
+        Result OpenFileSystemWithPatch(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Creates the directory of a user savedata (the savedata of the application is created when it's opened too, this only makes it exist earlier)
+         * @url https://switchbrew.org/wiki/Filesystem_services#CreateSaveDataFileSystem
+         */
+        Result CreateSaveDataFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Creates the directory of a system savedata
+         * @url https://switchbrew.org/wiki/Filesystem_services#CreateSaveDataFileSystemBySystemSaveDataId
+         */
+        Result CreateSaveDataFileSystemBySystemSaveDataId(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Creates the directory of a savedata in the space it specifies
+         * @url https://switchbrew.org/wiki/Filesystem_services#CreateSaveDataFileSystemWithCreationInfo2
+         */
+        Result CreateSaveDataFileSystemWithCreationInfo2(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Extends a savedata, which succeeds without doing anything because the host directory has no size limit (Eden doesn't extend it either)
+         * @url https://switchbrew.org/wiki/Filesystem_services#ExtendSaveDataFileSystem
+         */
+        Result ExtendSaveDataFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Looks for the savedata that matches a filter, there is no index of savedata so none is ever found (like Eden)
+         * @url https://switchbrew.org/wiki/Filesystem_services#FindSaveDataWithFilter
+         */
+        Result FindSaveDataWithFilter(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @url https://switchbrew.org/wiki/Filesystem_services#OpenSaveDataTransferProhibiter
+         */
+        Result OpenSaveDataTransferProhibiter(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Returns a storage with the RomFS of the program with the given index, only the index of the current program (0) exists
+         * @url https://switchbrew.org/wiki/Filesystem_services#OpenDataStorageWithProgramIndex
+         */
+        Result OpenDataStorageWithProgramIndex(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
         Result GetCacheStorageSize(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
@@ -159,21 +247,31 @@ namespace skyline::service::fssrv {
 
         SERVICE_DECL(
             SFUNC(0x1, IFileSystemProxy, SetCurrentProcess),
+            SFUNC(0x2, IFileSystemProxy, OpenDataFileSystemByCurrentProcess),
+            SFUNC(0x7, IFileSystemProxy, OpenFileSystemWithPatch),
             SFUNC(0x12, IFileSystemProxy, OpenSdCardFileSystem),
+            SFUNC(0x16, IFileSystemProxy, CreateSaveDataFileSystem),
+            SFUNC(0x17, IFileSystemProxy, CreateSaveDataFileSystemBySystemSaveDataId),
             SFUNC(0x1B, IFileSystemProxy, IsExFatSupported),
+            SFUNC(0x20, IFileSystemProxy, ExtendSaveDataFileSystem),
             SFUNC(0x22, IFileSystemProxy, GetCacheStorageSize),
+            SFUNC(0x25, IFileSystemProxy, CreateSaveDataFileSystemWithCreationInfo2),
             SFUNC(0x33, IFileSystemProxy, OpenSaveDataFileSystem),
+            SFUNC(0x34, IFileSystemProxy, OpenSaveDataFileSystem), // By the system savedata ID, it takes the same arguments
             SFUNC(0x35, IFileSystemProxy, OpenReadOnlySaveDataFileSystem),
             SFUNC(0x39, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
             SFUNC(0x3A, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
             SFUNC(0x3C, IFileSystemProxy, OpenSaveDataInfoReader),
             SFUNC(0x3D, IFileSystemProxy, OpenSaveDataInfoReaderBySaveDataSpaceId),
             SFUNC(0x3E, IFileSystemProxy, OpenSaveDataInfoReaderOnlyCacheStorage),
+            SFUNC(0x43, IFileSystemProxy, FindSaveDataWithFilter),
             SFUNC(0x45, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
             SFUNC(0x47, IFileSystemProxy, ReadSaveDataFileSystemExtraData),
+            SFUNC(0x53, IFileSystemProxy, OpenSaveDataTransferProhibiter),
             SFUNC(0xC8, IFileSystemProxy, OpenDataStorageByCurrentProcess),
             SFUNC(0xCA, IFileSystemProxy, OpenDataStorageByDataId),
             SFUNC(0xCB, IFileSystemProxy, OpenPatchDataStorageByCurrentProcess),
+            SFUNC(0xCD, IFileSystemProxy, OpenDataStorageWithProgramIndex),
             SFUNC(0x277, IFileSystemProxy, IsSdCardAccessible),
             SFUNC(0x3EC, IFileSystemProxy, SetGlobalAccessLogMode),
             SFUNC(0x3ED, IFileSystemProxy, GetGlobalAccessLogMode),

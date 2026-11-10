@@ -4,6 +4,7 @@
 #include <cstring>
 #include <os.h>
 #include <vfs/os_filesystem.h>
+#include <vfs/rom_filesystem.h>
 #include <vfs/nca.h>
 #include <vfs/layered_romfs.h>
 #include <vfs/installed_content.h>
@@ -11,6 +12,7 @@
 #include "results.h"
 #include "IStorage.h"
 #include "IMultiCommitManager.h"
+#include "ISaveDataTransferProhibiter.h"
 #include "IFileSystemProxy.h"
 #include "ISaveDataInfoReader.h"
 
@@ -33,43 +35,95 @@ namespace skyline::service::fssrv {
         return {};
     }
 
+    /**
+     * @return The path of the directory of the savedata, relative to the directory of the emulated Switch
+     */
+    static std::string GetSaveDataPath(const DeviceState &state, SaveDataSpaceId spaceId, SaveDataAttribute attribute) {
+        if (attribute.programId == 0)
+            attribute.programId = state.loader->nacp->nacpContents.saveDataOwnerId;
+
+        std::string spaceIdStr{[spaceId]() {
+            switch (spaceId) {
+                case SaveDataSpaceId::System:
+                    return "/nand/system";
+                case SaveDataSpaceId::User:
+                    return "/nand/user";
+                case SaveDataSpaceId::Temporary:
+                    return "/nand/temp";
+                default:
+                    throw exception("Unsupported savedata ID: {}", spaceId);
+            }
+        }()};
+
+        switch (attribute.type) {
+            case SaveDataType::System:
+                return fmt::format("{}/save/{:016X}/{:016X}{:016X}/", spaceIdStr, attribute.saveDataId, attribute.userId.lower, attribute.userId.upper);
+            case SaveDataType::Account:
+            case SaveDataType::Device:
+                return fmt::format("{}/save/{:016X}/{:016X}{:016X}/{:016X}/", spaceIdStr, 0, attribute.userId.lower, attribute.userId.upper, attribute.programId);
+            case SaveDataType::Temporary:
+                return fmt::format("{}/{:016X}/{:016X}{:016X}/{:016X}/", spaceIdStr, 0, attribute.userId.lower, attribute.userId.upper, attribute.programId);
+            case SaveDataType::Cache:
+                return fmt::format("{}/save/cache/{:016X}/", spaceIdStr, attribute.programId);
+            default:
+                throw exception("Unsupported savedata type: {}", attribute.type);
+        }
+    }
+
     Result IFileSystemProxy::OpenSaveDataFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         auto spaceId{request.Pop<SaveDataSpaceId>()};
         auto attribute{request.Pop<SaveDataAttribute>()};
 
-        if (attribute.programId == 0)
-            attribute.programId = state.loader->nacp->nacpContents.saveDataOwnerId;
-
-        std::string saveDataPath{[spaceId, &attribute]() {
-            std::string spaceIdStr{[spaceId]() {
-                switch (spaceId) {
-                    case SaveDataSpaceId::System:
-                        return "/nand/system";
-                    case SaveDataSpaceId::User:
-                        return "/nand/user";
-                    case SaveDataSpaceId::Temporary:
-                        return "/nand/temp";
-                    default:
-                        throw exception("Unsupported savedata ID: {}", spaceId);
-                }
-            }()};
-
-            switch (attribute.type) {
-                case SaveDataType::System:
-                    return fmt::format("{}/save/{:016X}/{:016X}{:016X}/", spaceIdStr, attribute.saveDataId, attribute.userId.lower, attribute.userId.upper);
-                case SaveDataType::Account:
-                case SaveDataType::Device:
-                    return fmt::format("{}/save/{:016X}/{:016X}{:016X}/{:016X}/", spaceIdStr, 0, attribute.userId.lower, attribute.userId.upper, attribute.programId);
-                case SaveDataType::Temporary:
-                    return fmt::format("{}/{:016X}/{:016X}{:016X}/{:016X}/", spaceIdStr, 0, attribute.userId.lower, attribute.userId.upper, attribute.programId);
-                case SaveDataType::Cache:
-                    return fmt::format("{}/save/cache/{:016X}/", spaceIdStr, attribute.programId);
-                default:
-                    throw exception("Unsupported savedata type: {}", attribute.type);
-            }
-        }()};
+        auto saveDataPath{GetSaveDataPath(state, spaceId, attribute)};
 
         manager.RegisterService(std::make_shared<IFileSystem>(std::make_shared<vfs::OsFileSystem>(state.os->publicAppFilesPath + "/switch" + saveDataPath), state, manager), session, response);
+        return {};
+    }
+
+    /**
+     * @brief Creates the directory of a savedata, a savedata that can't be placed on the host (like the ones of SD card spaces) is reported as created because nothing can use it
+     */
+    static void CreateSaveDataDirectory(const DeviceState &state, SaveDataSpaceId spaceId, const SaveDataAttribute &attribute) {
+        try {
+            vfs::OsFileSystem{state.os->publicAppFilesPath + "/switch" + GetSaveDataPath(state, spaceId, attribute)}; // The directory is created when it's opened
+        } catch (const std::exception &e) {
+            LOGW("Cannot create the savedata: {}", e.what());
+        }
+    }
+
+    Result IFileSystemProxy::CreateSaveDataFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        request.Skip<SaveDataCreationInfo>();
+        auto attribute{request.Pop<SaveDataAttribute>()};
+        // The user ID the savedata is for follows, which is the same one that is in the attribute for the savedata of a user
+
+        CreateSaveDataDirectory(state, SaveDataSpaceId::User, attribute);
+        return {};
+    }
+
+    Result IFileSystemProxy::CreateSaveDataFileSystemBySystemSaveDataId(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto attribute{request.Pop<SaveDataAttribute>()};
+
+        CreateSaveDataDirectory(state, SaveDataSpaceId::System, attribute);
+        return {};
+    }
+
+    Result IFileSystemProxy::CreateSaveDataFileSystemWithCreationInfo2(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto creationInfo{request.Pop<SaveDataCreationInfo2>()};
+
+        CreateSaveDataDirectory(state, static_cast<SaveDataSpaceId>(creationInfo.spaceId), creationInfo.attribute);
+        return {};
+    }
+
+    Result IFileSystemProxy::ExtendSaveDataFileSystem(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
+
+    Result IFileSystemProxy::FindSaveDataWithFilter(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return result::EntityNotFound;
+    }
+
+    Result IFileSystemProxy::OpenSaveDataTransferProhibiter(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        manager.RegisterService(SRVREG(ISaveDataTransferProhibiter), session, response);
         return {};
     }
 
@@ -125,6 +179,31 @@ namespace skyline::service::fssrv {
 
         manager.RegisterService(std::make_shared<IStorage>(GetModdedRomFs(state), state, manager), session, response);
         return {};
+    }
+
+    Result IFileSystemProxy::OpenDataFileSystemByCurrentProcess(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        if (!state.loader->romFs)
+            return result::NoRomFsAvailable;
+
+        manager.RegisterService(std::make_shared<IFileSystem>(std::make_shared<vfs::RomFileSystem>(GetModdedRomFs(state)), state, manager), session, response);
+        return {};
+    }
+
+    Result IFileSystemProxy::OpenFileSystemWithPatch(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto type{request.Pop<u32>()};
+        auto programId{request.Pop<u64>()};
+        LOGW("OpenFileSystemWithPatch is only available for the manual of a program which isn't supported, type: {}, program ID: 0x{:X}", type, programId);
+        return result::NoRomFsAvailable;
+    }
+
+    Result IFileSystemProxy::OpenDataStorageWithProgramIndex(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        auto programIndex{request.Pop<u8>()};
+        if (programIndex != 0) {
+            LOGW("Cannot open the storage of the program with index {}, only the current program (0) is available", programIndex);
+            return result::NoRomFsAvailable;
+        }
+
+        return OpenDataStorageByCurrentProcess(session, request, response);
     }
 
     Result IFileSystemProxy::OpenDataStorageByDataId(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
