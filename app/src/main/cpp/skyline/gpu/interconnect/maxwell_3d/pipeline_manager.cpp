@@ -411,6 +411,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         switch (componentBitWidths | numericalType) {
             /* 8-bit components */
             FORMAT_NORM_INT_SCALED_CASE(R8, eR8);
+            FORMAT_NORM_INT_SCALED_CASE(A8, eR8);
             FORMAT_NORM_INT_SCALED_CASE(R8_G8, eR8G8);
             FORMAT_NORM_INT_SCALED_CASE(G8R8, eR8G8);
             FORMAT_NORM_INT_SCALED_CASE(R8_G8_B8, eR8G8B8);
@@ -446,6 +447,57 @@ namespace skyline::gpu::interconnect::maxwell3d {
         #undef FORMAT_INT_FLOAT_CASE
         #undef FORMAT_NORM_INT_SCALED_CASE
         #undef FORMAT_NORM_INT_SCALED_FLOAT_CASE
+    }
+
+    /**
+     * @brief Replaces a vertex format the host can't read from a vertex buffer with an alternative that has the same components and an extra one, which the shader never reads
+     * @note Many mobile GPUs lack the 3 component 8 and 16-bit formats for vertex buffers (Eden has the same replacements for some of them in its format alternatives)
+     */
+    static vk::Format GetSupportedVertexFormat(GPU &gpu, vk::Format format) {
+        auto supported{[&](vk::Format candidate) {
+            return static_cast<bool>(gpu.vkPhysicalDevice.getFormatProperties(candidate).bufferFeatures & vk::FormatFeatureFlagBits::eVertexBuffer);
+        }};
+
+        if (supported(format))
+            return format;
+
+        vk::Format alternative;
+        switch (format) {
+            case vk::Format::eR8G8B8Unorm:
+                alternative = vk::Format::eR8G8B8A8Unorm;
+                break;
+            case vk::Format::eR8G8B8Snorm:
+                alternative = vk::Format::eR8G8B8A8Snorm;
+                break;
+            case vk::Format::eR8G8B8Uint:
+                alternative = vk::Format::eR8G8B8A8Uint;
+                break;
+            case vk::Format::eR8G8B8Sint:
+                alternative = vk::Format::eR8G8B8A8Sint;
+                break;
+            case vk::Format::eR16G16B16Unorm:
+                alternative = vk::Format::eR16G16B16A16Unorm;
+                break;
+            case vk::Format::eR16G16B16Snorm:
+                alternative = vk::Format::eR16G16B16A16Snorm;
+                break;
+            case vk::Format::eR16G16B16Uint:
+                alternative = vk::Format::eR16G16B16A16Uint;
+                break;
+            case vk::Format::eR16G16B16Sint:
+                alternative = vk::Format::eR16G16B16A16Sint;
+                break;
+            case vk::Format::eR16G16B16Sfloat:
+                alternative = vk::Format::eR16G16B16A16Sfloat;
+                break;
+            default:
+                return format;
+        }
+
+        if (supported(alternative))
+            return alternative;
+
+        return format;
     }
 
     static vk::PrimitiveTopology ConvertPrimitiveTopology(engine::DrawTopology topology) {
@@ -541,7 +593,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 attributeDescs.push_back({
                                              .location = i,
                                              .binding = attribute.stream,
-                                             .format = ConvertVertexInputAttributeFormat(attribute.componentBitWidths, attribute.numericalType),
+                                             .format = GetSupportedVertexFormat(gpu, ConvertVertexInputAttributeFormat(attribute.componentBitWidths, attribute.numericalType)),
                                              .offset = attribute.offset,
                                          });
         }
