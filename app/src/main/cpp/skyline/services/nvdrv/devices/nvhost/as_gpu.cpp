@@ -104,6 +104,7 @@ namespace skyline::service::nvdrv::device::nvhost {
             asCtx->gmmu.Map(offset, GMMU::SparsePlaceholderAddress(), mapping->size, {true});
         else
             asCtx->gmmu.Unmap(offset, mapping->size);
+        asCtx->kinds.Clear(offset, mapping->size);
 
         mappingMap.erase(offset);
     }
@@ -126,8 +127,10 @@ namespace skyline::service::nvdrv::device::nvhost {
                 FreeMappingLocked(mapping->offset);
 
             // Unset sparse flag if required
-            if (allocation.sparse)
+            if (allocation.sparse) {
                 asCtx->gmmu.Unmap(offset, allocation.size);
+                asCtx->kinds.Clear(offset, allocation.size);
+            }
 
             bool bigPage{pageSize != VM::PageSize};
             auto &allocator{bigPage ? *vm.bigPageAllocator : *vm.smallPageAllocator};
@@ -184,6 +187,7 @@ namespace skyline::service::nvdrv::device::nvhost {
                 u8 *cpuPtr{mapping->ptr + bufferOffset};
 
                 asCtx->gmmu.Map(gpuAddress, cpuPtr, mappingSize);
+                asCtx->kinds.Set(gpuAddress, mappingSize, static_cast<u8>(kind));
 
                 return PosixResult::Success;
             } catch (const std::out_of_range &e) {
@@ -206,6 +210,7 @@ namespace skyline::service::nvdrv::device::nvhost {
                 throw exception("Cannot perform a fixed mapping into an unallocated region!");
 
             asCtx->gmmu.Map(offset, cpuPtr, size);
+            asCtx->kinds.Set(offset, size, static_cast<u8>(kind));
 
             auto mapping{std::make_shared<Mapping>(cpuPtr, offset, size, true, false, alloc->second.sparse)};
             alloc->second.mappings.push_back(mapping);
@@ -229,6 +234,7 @@ namespace skyline::service::nvdrv::device::nvhost {
                 throw exception("Failed to allocate free space in the GPU AS!");
 
             asCtx->gmmu.Map(offset, cpuPtr, util::AlignUp(size, pageSize));
+            asCtx->kinds.Set(offset, util::AlignUp(size, pageSize), static_cast<u8>(kind));
 
             auto mapping{std::make_shared<Mapping>(cpuPtr, offset, size, false, bigPage, false)};
             mappingMap[offset] = mapping;
@@ -340,6 +346,7 @@ namespace skyline::service::nvdrv::device::nvhost {
 
             if (!entry.handle) {
                 asCtx->gmmu.Map(virtAddr, GMMU::SparsePlaceholderAddress(), size, {true});
+                asCtx->kinds.Clear(virtAddr, size);
             } else {
                 auto h{core.nvMap.GetHandle(entry.handle)};
                 if (!h)
@@ -348,6 +355,7 @@ namespace skyline::service::nvdrv::device::nvhost {
                 u8 *cpuPtr{reinterpret_cast<u8 *>(h->address + (static_cast<u64>(entry.handleOffsetBigPages) << vm.bigPageSizeBits))};
 
                 asCtx->gmmu.Map(virtAddr, cpuPtr, size);
+                asCtx->kinds.Set(virtAddr, size, static_cast<u8>(entry.kind));
             }
         }
 

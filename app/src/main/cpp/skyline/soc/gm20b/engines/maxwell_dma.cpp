@@ -59,7 +59,6 @@ namespace skyline::soc::gm20b::engine {
             }
         } else {
             // 1D copy
-            // TODO: implement swizzled 1D copies based on VMM 'kind'
             LOGD("src: 0x{:X} dst: 0x{:X} size: 0x{:X}", u64{*registers.offsetIn}, u64{*registers.offsetOut}, *registers.lineLengthIn);
 
             size_t dstBpp{registers.launchDma->remapEnable ? static_cast<size_t>(registers.remapComponents->NumDstComponents() * registers.remapComponents->ComponentSize()) : 1};
@@ -80,10 +79,39 @@ namespace skyline::soc::gm20b::engine {
                     LOGW("Remapped DMA copies are unimplemented!");
                 }
             } else {
-                if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]]
+                // When exactly one side of a 1D copy is block linear memory (a kind other than pitch), the data of it is swizzled inside the GOBs (blocks of 512 bytes), so the copy has to move it 16 bytes at a time between the linear and the swizzled address
+                u64 srcAddress{*registers.offsetIn}, dstAddress{*registers.offsetOut};
+                u32 length{*registers.lineLengthIn};
+                // Memory that wasn't mapped with a kind is treated as linear so copies through it stay as they were
+                auto isLinear{[](u8 kind) { return pte_kind::IsPitch(kind) || kind == pte_kind::Invalid; }};
+                bool srcPitch{isLinear(channelCtx.asCtx->kinds.Get(srcAddress))}, dstPitch{isLinear(channelCtx.asCtx->kinds.Get(dstAddress))};
+
+                if (srcPitch != dstPitch) {
+                    if (length % 16 != 0 || srcAddress % 16 != 0 || dstAddress % 16 != 0) [[unlikely]] {
+                        LOGW("Swizzled 1D DMA copies that aren't aligned to 16 bytes are unimplemented! src: 0x{:X} dst: 0x{:X} size: 0x{:X}", srcAddress, dstAddress, length);
+                        return;
+                    }
+
+                    // The address of the same 16 byte chunk in swizzled memory (the bit layout of the GOB of the Maxwell GPU)
+                    auto swizzle{[](u64 address) -> u64 {
+                        return (address & ~0x1F0ULL) | ((address & 0x40) >> 2) | ((address & 0x10) << 1) | ((address & 0x180) >> 1) | ((address & 0x20) << 3);
+                    }};
+
+                    channelCtx.executor.Submit();
+
+                    std::array<u8, 16> chunk;
+                    for (u32 offset{}; offset < length; offset += 16) {
+                        u64 srcChunk{srcPitch ? srcAddress + offset : swizzle(srcAddress + offset)};
+                        u64 dstChunk{dstPitch ? dstAddress + offset : swizzle(dstAddress + offset)};
+
+                        channelCtx.asCtx->gmmu.Read(chunk.data(), srcChunk, chunk.size());
+                        channelCtx.asCtx->gmmu.Write(dstChunk, chunk.data(), chunk.size());
+                    }
+                } else if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]] {
                     channelCtx.asCtx->gmmu.Copy(u64{*registers.offsetOut}, u64{*registers.offsetIn}, *registers.lineLengthIn);
-                else
+                } else {
                     interconnect.Copy(dstMappings.front(), srcMappings.front());
+                }
             }
         }
     }

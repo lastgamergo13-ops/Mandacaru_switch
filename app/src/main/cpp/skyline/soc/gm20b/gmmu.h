@@ -4,6 +4,8 @@
 #pragma once
 
 #include <bit>
+#include <map>
+#include <mutex>
 #include <common/address_space.h>
 
 namespace skyline::soc::gm20b {
@@ -21,8 +23,98 @@ namespace skyline::soc::gm20b {
      */
     using GMMU = FlatMemoryManager<u64, 0, GmmuAddressSpaceBits, GmmuSmallPageSizeBits, GmmuMinBigPageSizeBits>;
 
+    /**
+     * @brief The values of the 'kind' that is given to the GPU when mapping memory, which tells how the contents of the memory are laid out
+     * @note Only the values that tell whether memory is linear are needed, all others are block linear in some way
+     * @url https://github.com/envytools/envytools/blob/master/docs/hw/memory/g80-vm.rst
+     */
+    namespace pte_kind {
+        constexpr u8 Pitch{0x0};
+        constexpr u8 PitchNoSwizzle{0xFD};
+        constexpr u8 Invalid{0xFF}; //!< The kind of memory that wasn't mapped with one
+
+        constexpr bool IsPitch(u8 kind) {
+            return kind == Pitch || kind == PitchNoSwizzle;
+        }
+    }
+
+    /**
+     * @brief Keeps the 'kind' that the GPU address space was mapped with, the GMMU itself doesn't store it
+     */
+    class KindMap {
+      private:
+        struct Entry {
+            u64 size;
+            u8 kind;
+        };
+
+        std::mutex mutex;
+        std::map<u64, Entry> entries; //!< Ranges that don't overlap, by their start address
+
+        void EraseLocked(u64 start, u64 size) {
+            u64 end{start + size};
+
+            auto it{entries.upper_bound(start)};
+            if (it != entries.begin())
+                --it;
+
+            while (it != entries.end() && it->first < end) {
+                u64 entryStart{it->first}, entryEnd{it->first + it->second.size};
+                Entry entry{it->second};
+
+                if (entryEnd <= start) {
+                    ++it;
+                    continue;
+                }
+
+                it = entries.erase(it);
+
+                // Keep the parts of the range that are outside of the erased one
+                if (entryStart < start)
+                    entries[entryStart] = {start - entryStart, entry.kind};
+                if (entryEnd > end)
+                    it = entries.emplace(end, Entry{entryEnd - end, entry.kind}).first;
+            }
+        }
+
+      public:
+        void Set(u64 start, u64 size, u8 kind) {
+            if (!size)
+                return;
+
+            std::scoped_lock lock{mutex};
+            EraseLocked(start, size);
+            entries[start] = {size, kind};
+        }
+
+        void Clear(u64 start, u64 size) {
+            if (!size)
+                return;
+
+            std::scoped_lock lock{mutex};
+            EraseLocked(start, size);
+        }
+
+        /**
+         * @return The kind that the address was mapped with or pte_kind::Invalid if there isn't one
+         */
+        u8 Get(u64 address) {
+            std::scoped_lock lock{mutex};
+
+            auto it{entries.upper_bound(address)};
+            if (it == entries.begin())
+                return pte_kind::Invalid;
+
+            --it;
+            if (address < it->first + it->second.size)
+                return it->second.kind;
+            return pte_kind::Invalid;
+        }
+    };
+
     struct AddressSpaceContext {
         GMMU gmmu;
+        KindMap kinds;
     };
 
     /**
