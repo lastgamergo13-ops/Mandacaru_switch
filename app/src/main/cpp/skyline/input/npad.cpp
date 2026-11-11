@@ -19,8 +19,8 @@ namespace skyline::input {
         if (!activated)
             return;
 
-        for (auto &controller : controllers)
-            controller.device = nullptr;
+        // The new mapping is built in a local array and only published at the end, resetting 'controller.device' to null up front made the input thread drop button/stick events (including the release of a pressed button) that arrived while the mapping was being recomputed, which left inputs stuck or ignored by the guest
+        std::array<NpadDevice *, constant::ControllerCount> newDevices{};
 
         for (auto &id : supportedIds) {
             if (id == NpadId::Unknown || !IsNpadIdValid(id))
@@ -29,7 +29,7 @@ namespace skyline::input {
             auto &device{at(id)};
 
             for (auto &controller : controllers) {
-                if (controller.device)
+                if (newDevices[static_cast<size_t>(&controller - controllers.data())])
                     continue;
 
                 NpadStyleSet style{};
@@ -52,13 +52,13 @@ namespace skyline::input {
                         device.Connect(controller.type);
                         device.index = static_cast<i8>(&controller - controllers.data());
                         device.partnerIndex = -1;
-                        controller.device = &device;
+                        newDevices[static_cast<size_t>(&controller - controllers.data())] = &device;
                     } else if (style.joyconDual && orientation == NpadJoyOrientation::Vertical && device.GetAssignment() == NpadJoyAssignment::Dual) {
                         device.Connect(NpadControllerType::JoyconDual);
                         device.index = static_cast<i8>(&controller - controllers.data());
                         device.partnerIndex = controller.partnerIndex;
-                        controller.device = &device;
-                        controllers.at(static_cast<size_t>(controller.partnerIndex)).device = &device;
+                        newDevices[static_cast<size_t>(&controller - controllers.data())] = &device;
+                        newDevices.at(static_cast<size_t>(controller.partnerIndex)) = &device;
                     } else {
                         continue;
                     }
@@ -66,6 +66,9 @@ namespace skyline::input {
                 }
             }
         }
+
+        for (size_t i{}; i < controllers.size(); i++)
+            controllers[i].device = newDevices[i];
 
         // We do this to prevent triggering the event unless there's a real change in a device's style, which would be caused if we disconnected all controllers then reconnected them
         for (auto &device : npads) {
@@ -89,7 +92,12 @@ namespace skyline::input {
         std::scoped_lock guard{mutex};
         if (!activated) {
             supportedIds = {NpadId::Handheld, NpadId::Player1, NpadId::Player2, NpadId::Player3, NpadId::Player4, NpadId::Player5, NpadId::Player6, NpadId::Player7, NpadId::Player8};
-            styles = {.proController = true, .joyconHandheld = true, .joyconDual = true, .joyconLeft = true, .joyconRight = true};
+            styles = NpadStyleSet{}; // The padding bits of the union were left uninitialised by the designated initialiser (logs showed values like 0x8D001F), so the whole word is cleared first
+            styles.proController = true;
+            styles.joyconHandheld = true;
+            styles.joyconDual = true;
+            styles.joyconLeft = true;
+            styles.joyconRight = true;
             activated = true;
 
             Update();

@@ -31,7 +31,7 @@ namespace skyline::input {
         std::array<NpadDevice, constant::NpadCount> npads;
         std::array<GuestController, constant::ControllerCount> controllers;
         std::vector<NpadId> supportedIds; //!< The NPadId(s) that are supported by the application
-        NpadStyleSet styles; //!< The styles that are supported by the application
+        NpadStyleSet styles{}; //!< The styles that are supported by the application
         NpadJoyOrientation orientation{}; //!< The orientation all of Joy-Cons are in (This affects stick transformation for them)
         NpadHandheldActivationMode handheldActivationMode{NpadHandheldActivationMode::Dual}; //!< By default two controllers are required to activate handheld mode
 
