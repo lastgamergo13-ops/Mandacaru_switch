@@ -325,4 +325,8 @@ namespace skyline::service::hid {
     Result IHidServer::SetPalmaBoostMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return {};
     }
+
+    Result IHidServer::UnknownCommand1004(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return {};
+    }
 }

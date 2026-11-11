@@ -122,7 +122,8 @@ namespace skyline::gpu {
             constexpr bool IsCompatible(const FormatBase &other) const {
                 return vkFormat == other.vkFormat
                     || (vkFormat == vk::Format::eD32Sfloat && other.vkFormat == vk::Format::eR32Sfloat)
-                    || (componentCount(vkFormat) == componentCount(other.vkFormat) &&
+                    || (bpb == other.bpb && blockWidth == other.blockWidth && blockHeight == other.blockHeight && // Formats with a different block size (e.g. BC1 8-byte 4x4 vs ASTC 8x5 16-byte) never share a texel layout even when the component metadata of the compressed formats happens to match
+                        componentCount(vkFormat) == componentCount(other.vkFormat) &&
                         ranges::all_of(ranges::views::iota(u8{0}, componentCount(vkFormat)), [this, other](auto i) {
                             return componentBits(vkFormat, i) == componentBits(other.vkFormat, i);
                         }) && (vkAspect & other.vkAspect) != vk::ImageAspectFlags{});

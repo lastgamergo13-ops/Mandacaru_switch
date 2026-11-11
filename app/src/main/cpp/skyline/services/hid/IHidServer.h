@@ -250,6 +250,11 @@ namespace skyline::service::hid {
          */
         Result SetPalmaBoostMode(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Command 1004 of 'hid', called by newer SDKs (seen in Farming Simulator 26) right before the Npad setup, it only configures the touch screen so it is acknowledged without doing anything
+         */
+        Result UnknownCommand1004(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         SERVICE_DECL(
             SFUNC(0x0, IHidServer, CreateAppletResource),
             SFUNC(0x1, IHidServer, ActivateDebugPad),
@@ -290,6 +295,7 @@ namespace skyline::service::hid {
             SFUNC(0x12C, IHidServer, ActivateConsoleSixAxisSensor),
             SFUNC(0x132, IHidServer, InitializeSevenSixAxisSensor),
             SFUNC(0x136, IHidServer, ResetSevenSixAxisSensorTimestamp),
+            SFUNC(0x3EC, IHidServer, UnknownCommand1004),
             SFUNC(0x20A, IHidServer, SetIsPalmaAllConnectable),
             SFUNC(0x20D, IHidServer, SetPalmaBoostMode)
         )

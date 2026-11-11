@@ -1099,7 +1099,14 @@ namespace skyline::kernel::svc {
         if (reason & (1ULL << 31)) {
             LOGD("Debugger is being engaged ({})", reason);
         } else {
-            LOGE("Exit Stack Trace ({}){}", reason, state.loader->GetStackTrace());
+            // The info buffer of a guest abort starts with the Result that caused it (module in the low 9 bits, description in the next 13), which tells why the game gave up
+            std::string info;
+            if (ctx.x1 && ctx.x2 >= sizeof(u32) && ctx.x2 <= 0x1000 && util::IsWordAligned(reinterpret_cast<u32 *>(ctx.x1))) {
+                u32 code{*reinterpret_cast<u32 *>(ctx.x1)};
+                info = fmt::format(", info: 0x{:X} size: 0x{:X} first word: 0x{:X} (module {} description {})", ctx.x1, ctx.x2, code, code & 0x1FF, (code >> 9) & 0x1FFF);
+            }
+
+            LOGE("Exit Stack Trace ({}{}){}", reason, info, state.loader->GetStackTrace());
             if (state.thread->id)
                 state.process->Kill(false);
             std::longjmp(state.thread->originalCtx, true);
