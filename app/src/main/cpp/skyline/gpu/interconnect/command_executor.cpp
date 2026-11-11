@@ -379,7 +379,20 @@ namespace skyline::gpu::interconnect {
             }
             renderPass = &std::get<node::RenderPassNode>(slot->nodes.emplace_back(std::in_place_type_t<node::RenderPassNode>(), renderArea));
             renderPassIt = std::prev(slot->nodes.end());
-            Breadcrumbs::Get().Add("Render pass #{}: area {}x{} at ({}, {}), {} color attachment(s), depth/stencil: {}", renderPassIndex, renderArea.extent.width, renderArea.extent.height, renderArea.offset.x, renderArea.offset.y, colorAttachments.size(), depthStencilAttachment != nullptr);
+            {
+                // Only the attachments that are really bound are described, the span always has one slot per Maxwell render target and the unused ones are null
+                std::string attachments;
+                size_t boundColorAttachments{};
+                for (auto *view : colorAttachments) {
+                    if (!view)
+                        continue;
+                    boundColorAttachments++;
+                    attachments += fmt::format(" color{}x{}:{}", view->texture->dimensions.width, view->texture->dimensions.height, vk::to_string(view->format->vkFormat));
+                }
+                if (depthStencilAttachment)
+                    attachments += fmt::format(" depth{}x{}:{}", depthStencilAttachment->texture->dimensions.width, depthStencilAttachment->texture->dimensions.height, vk::to_string(depthStencilAttachment->format->vkFormat));
+                Breadcrumbs::Get().Add("Render pass #{}: area {}x{} at ({}, {}), {} color attachment(s) bound of {} slots, depth/stencil: {}{}", renderPassIndex, renderArea.extent.width, renderArea.extent.height, renderArea.offset.x, renderArea.offset.y, boundColorAttachments, colorAttachments.size(), depthStencilAttachment != nullptr, attachments);
+            }
             addSubpass();
             subpassCount = 1;
         } else if (!attachmentsMatch) {
@@ -615,6 +628,7 @@ namespace skyline::gpu::interconnect {
         if (renderPass)
             FinishRenderPass();
 
+        Breadcrumbs::Get().submissions.fetch_add(1, std::memory_order_relaxed);
         Breadcrumbs::Get().Add("Submission #{}: {} render pass(es), {} attached texture(s), {} attached buffer(s)", submissionNumber, renderPassIndex, attachedTextures.size(), attachedBuffers.size());
 
         slot->nodes.splice(slot->nodes.end(), slot->pendingPostRenderPassNodes);

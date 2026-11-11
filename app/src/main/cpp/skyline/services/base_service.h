@@ -87,5 +87,8 @@ namespace skyline::service {
          * @brief Handles an IPC Request to a service
          */
         Result HandleRequest(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+      private:
+        void LogFailedRequest(const char *functionName, Result result);
     };
 }

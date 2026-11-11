@@ -72,6 +72,7 @@ namespace skyline {
 
             std::atomic<i32> currentSvc{-1}; //!< The SVC this thread is inside of right now, -1 when it runs guest code (read by the stall watchdog)
             std::atomic<i32> lastSvc{-1}; //!< The last SVC this thread made
+            std::atomic<u64> svcCount{}; //!< How many SVCs this thread made, the stall watchdog uses it to tell for how long a thread has been waiting inside the same SVC
             std::array<std::atomic<u64>, 3> lastSvcArgs{}; //!< X0-X2 of that SVC
 
             std::array<std::atomic<u64>, 31> sampledRegs{}; //!< X0-X30 of the last time the stall watchdog asked this thread for its registers (see NCE::SampleHandler)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <atomic>
 #include <common/trace.h>
 #include "texture_manager.h"
 
@@ -132,6 +133,18 @@ namespace skyline::gpu {
 
         for (auto &texture : matches)
             texture->SynchronizeGuest(false, true);
+
+        {
+            // Which textures the game really asks for (size, format, tiling) is what is needed to tell a texture that is read with the wrong layout from a driver problem, the first ones and every one that replaces others are written
+            static std::atomic<u32> createdTextures{}, replacingTextures{};
+            u32 number{createdTextures.fetch_add(1, std::memory_order_relaxed)};
+            bool replacing{!matches.empty() && replacingTextures.fetch_add(1, std::memory_order_relaxed) < 300};
+            if (number < 600 || replacing) {
+                const auto &tile{guestTexture.tileConfig};
+                std::string tiling{tile.mode == texture::TileMode::Pitch ? fmt::format("pitch {}", tile.pitch) : tile.mode == texture::TileMode::Block ? fmt::format("block height {} depth {}", tile.blockHeight, tile.blockDepth) : "linear"};
+                LOGI("Texture #{} created: {}x{}x{} {}, {} layer(s), {} mip(s), tiling: {}, {} overlapping texture(s) synchronized", number, guestTexture.dimensions.width, guestTexture.dimensions.height, guestTexture.dimensions.depth, guestTexture.format ? vk::to_string(guestTexture.format->vkFormat) : "no format", guestTexture.layerCount, guestTexture.mipLevelCount, tiling, matches.size());
+            }
+        }
 
         // Create a texture as we cannot find one that matches
         auto texture{std::make_shared<Texture>(gpu, guestTexture)};

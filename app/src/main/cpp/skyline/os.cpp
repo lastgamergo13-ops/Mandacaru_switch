@@ -2,8 +2,11 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <atomic>
+#include <string>
 #include <thread>
+#include <unordered_map>
 #include "gpu.h"
+#include "gpu/breadcrumbs.h"
 #include "nce.h"
 #include "nce/guest.h"
 #include "kernel/svc.h"
@@ -44,15 +47,68 @@ namespace skyline::kernel {
         std::atomic<bool> stop{};
         std::thread thread;
 
+        struct ThreadProgress {
+            u64 svcCount{};
+            u32 unchangedSeconds{}; //!< For how many seconds the thread made no SVC
+        };
+        std::unordered_map<u64, ThreadProgress> threadProgress; //!< Keyed by the ID of the guest thread, only touched by the watchdog thread
+
+        /**
+         * @brief Remembers for how long each guest thread has been inside the same SVC
+         */
+        void UpdateThreadProgress() {
+            if (!state.process)
+                return;
+
+            state.process->ForEachThread([&](kernel::type::KThread &thread) {
+                auto &progress{threadProgress[static_cast<u64>(thread.id)]};
+                u64 count{thread.svcCount.load(std::memory_order_relaxed)};
+                if (count != progress.svcCount) {
+                    progress.svcCount = count;
+                    progress.unchangedSeconds = 0;
+                } else {
+                    progress.unchangedSeconds++;
+                }
+            });
+        }
+
         void Run() {
             pthread_setname_np(pthread_self(), "Sky-Watchdog");
             AsyncLogger::UpdateTag();
 
+            auto &breadcrumbs{gpu::Breadcrumbs::Get()};
             u64 lastCount{kernel::svc::SvcCounter.load()};
-            u32 stalledSeconds{}, reports{};
+            u64 lastFrames{breadcrumbs.presentedFrames.load()}, lastSubmissions{breadcrumbs.submissions.load()}, frameStalledFrames{lastFrames};
+            u32 stalledSeconds{}, reports{}, frameStalledSeconds{}, frameReports{}, seconds{};
             while (!stop.load()) {
                 for (int i{}; i < 10 && !stop.load(); i++)
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                seconds++;
+                UpdateThreadProgress();
+
+                u64 frames{breadcrumbs.presentedFrames.load()}, submissions{breadcrumbs.submissions.load()};
+
+                // A line every 10 seconds shows when the game stopped drawing, it is the first thing to look at in the log of a game that shows a black screen
+                if (seconds % 10 == 0)
+                    LOGI("Watchdog: {} frame(s) presented (+{} in the last 10 seconds), {} GPU submission(s) (+{}), {} SVC(s) made by the guest", frames, frames - lastFrames, submissions, submissions - lastSubmissions, kernel::svc::SvcCounter.load());
+                if (seconds % 10 == 0) {
+                    lastFrames = frames;
+                    lastSubmissions = submissions;
+                }
+
+                // The guest can keep making SVCs (audio, timers) while nothing is ever drawn, which the check for SVCs below never sees. This one looks at the frames instead
+                if (frames != frameStalledFrames) {
+                    frameStalledFrames = frames;
+                    frameStalledSeconds = 0;
+                } else {
+                    frameStalledSeconds++;
+                    if (frameStalledSeconds >= 20 && (frameStalledSeconds - 20) % 40 == 0 && frameReports < 5) {
+                        frameReports++;
+                        Report(fmt::format("No frame has been presented for {} seconds ({} frame(s) so far, {} GPU submission(s)), threads (the time is for how long a thread has been inside the same SVC):", frameStalledSeconds, frames, submissions), true);
+                        breadcrumbs.Dump("no frame is being presented");
+                    }
+                }
 
                 u64 count{kernel::svc::SvcCounter.load()};
                 if (count != lastCount) {
@@ -64,7 +120,7 @@ namespace skyline::kernel {
                 stalledSeconds++;
                 if (stalledSeconds >= 8 && (stalledSeconds - 8) % 10 == 0 && reports < 6) {
                     reports++;
-                    Report(stalledSeconds);
+                    Report(fmt::format("The guest has not made any SVC for {} seconds (SVCs so far: {}), threads:", stalledSeconds, kernel::svc::SvcCounter.load()), false);
                 }
             }
         }
@@ -97,11 +153,11 @@ namespace skyline::kernel {
             return text;
         }
 
-        void Report(u32 seconds) {
+        void Report(const std::string &header, bool showBlockedTime) {
             if (!state.process)
                 return;
 
-            std::string report{fmt::format("The guest has not made any SVC for {} seconds (SVCs so far: {}), threads:", seconds, kernel::svc::SvcCounter.load())};
+            std::string report{header};
             auto describe{[](i32 svcId) -> std::string {
                 if (svcId < 0 || static_cast<size_t>(svcId) >= kernel::svc::SvcTable.size())
                     return fmt::format("0x{:X}", svcId);
@@ -116,6 +172,9 @@ namespace skyline::kernel {
                 if (current < 0 && thread.GetHostThread())
                     sample = SampleThread(thread);
                 report += current >= 0 ? fmt::format("waiting inside SVC {}", describe(current)) : "running guest code without calling the kernel";
+                if (showBlockedTime)
+                    if (auto progress{threadProgress.find(static_cast<u64>(thread.id))}; progress != threadProgress.end())
+                        report += fmt::format(" for {}s", progress->second.unchangedSeconds);
                 report += fmt::format(", last SVC {} (X0=0x{:X} X1=0x{:X} X2=0x{:X})", describe(thread.lastSvc.load()), thread.lastSvcArgs[0].load(), thread.lastSvcArgs[1].load(), thread.lastSvcArgs[2].load());
                 report += sample;
             });

@@ -37,6 +37,7 @@ namespace skyline::gpu {
             u32 vertexOffset{};
             bool indexed{};
             bool indirect{};
+            std::array<u64, 6> shaders{}; //!< The hashes of the guest shaders of the pipeline the draw used (zero for stages that aren't used), the same hashes the shader cache is keyed by
         };
 
         static constexpr size_t DrawCapacity{48};
@@ -47,10 +48,21 @@ namespace skyline::gpu {
         /**
          * @brief Remembers a draw, a draw is only a few numbers so this is cheap enough to do for every one of them (nothing is formatted until the history is dumped)
          */
-        void RecordDraw(u32 topology, bool indexed, bool indirect, u32 count, u32 instanceCount, u32 vertexOffset) {
+        u32 RecordDraw(u32 topology, bool indexed, bool indirect, u32 count, u32 instanceCount, u32 vertexOffset) {
             u32 slot{static_cast<u32>(drawHead.fetch_add(1, std::memory_order_relaxed) % DrawCapacity)};
             draws[slot] = DrawRecord{topology, count, instanceCount, vertexOffset, indexed, indirect};
+            return slot;
         }
+
+        /**
+         * @brief Attaches the shader hashes of the pipeline to a draw that was recorded with RecordDraw (they are only known after the pipeline was resolved)
+         */
+        void SetDrawShaders(u32 slot, const std::array<u64, 6> &shaders) {
+            draws[slot % DrawCapacity].shaders = shaders;
+        }
+
+        std::atomic<u64> presentedFrames{}; //!< How many frames reached the presentation engine, a game that shows a black screen has this stuck
+        std::atomic<u64> submissions{}; //!< How many command buffers were submitted to the GPU
 
         static Breadcrumbs &Get() {
             static Breadcrumbs instance;
@@ -84,7 +96,11 @@ namespace skyline::gpu {
             LOGE("The last {} draw calls, oldest first (topology is the value of the Maxwell enum):", shown);
             for (u32 i{head - shown}; i != head; i++) {
                 const auto &draw{draws[i % DrawCapacity]};
-                LOGE("  topology {} count {} instances {} vertex offset {}{}{}", draw.topology, draw.count, draw.instanceCount, draw.vertexOffset, draw.indexed ? " indexed" : "", draw.indirect ? " indirect" : "");
+                std::string shaders;
+                for (size_t stage{}; stage < draw.shaders.size(); stage++)
+                    if (draw.shaders[stage])
+                        shaders += fmt::format(" stage{}:{:016X}", stage, draw.shaders[stage]);
+                LOGE("  topology {} count {} instances {} vertex offset {}{}{}{}", draw.topology, draw.count, draw.instanceCount, draw.vertexOffset, draw.indexed ? " indexed" : "", draw.indirect ? " indirect" : "", shaders.empty() ? "" : " shaders" + shaders);
             }
         }
     };

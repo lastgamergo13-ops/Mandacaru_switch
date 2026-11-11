@@ -297,7 +297,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
     void Maxwell3D::Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices) {
         TRACE_EVENT("gpu", "Draw", "indexed", indexed, "count", count, "instanceCount", instanceCount);
-        Breadcrumbs::Get().RecordDraw(static_cast<u32>(topology), indexed, false, count, instanceCount, vertexOffset);
+        u32 breadcrumbDrawSlot{Breadcrumbs::Get().RecordDraw(static_cast<u32>(topology), indexed, false, count, instanceCount, vertexOffset)};
 
         StateUpdateBuilder builder{*ctx.executor.allocator};
         vk::PipelineStageFlags srcStageMask{}, dstStageMask{};
@@ -306,6 +306,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
         // Host supplied indices don't use the guest index buffer so it must not be bound/flushed by PrepareDraw
         PrepareDraw(builder, topology, indexed && !hostIndexed, false, first, count, srcStageMask, dstStageMask);
+        if (auto *drawPipeline{activeState.GetPipeline()})
+            Breadcrumbs::Get().SetDrawShaders(breadcrumbDrawSlot, drawPipeline->sourcePackedState.shaderHashes);
 
         if (hostIndexed) {
             // Upload the CPU-supplied indices to the megabuffer and bind them as a 32-bit index buffer, this mirrors the quad conversion path below

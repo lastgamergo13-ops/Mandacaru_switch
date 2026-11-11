@@ -309,6 +309,13 @@ namespace skyline::input {
     }
 
     void NpadDevice::SetButtonState(NpadButton mask, bool pressed) {
+        {
+            // Together with the axis log this shows exactly what the guest is given, so a game that reacts wrongly can be told apart from one that is fed wrong values. Only the first events are written
+            static std::atomic<u32> loggedButtonEvents{};
+            if (loggedButtonEvents.fetch_add(1, std::memory_order_relaxed) < 300)
+                LOGI("Button mask 0x{:X} {} on a controller of type {} (buttons now 0x{:X})", mask.raw, pressed ? "pressed" : "released", static_cast<u32>(type), controllerState.buttons.raw);
+        }
+
         if (pressed)
             controllerState.buttons.raw |= mask.raw;
         else

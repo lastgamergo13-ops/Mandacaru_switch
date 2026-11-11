@@ -33,6 +33,7 @@ namespace skyline::nce {
         if (state.thread) {
             state.thread->currentSvc.store(svcId, std::memory_order_relaxed);
             state.thread->lastSvc.store(svcId, std::memory_order_relaxed);
+            state.thread->svcCount.fetch_add(1, std::memory_order_relaxed);
             for (size_t i{}; i < state.thread->lastSvcArgs.size(); i++)
                 state.thread->lastSvcArgs[i].store(reinterpret_cast<kernel::svc::SvcContext *>(ctx)->regs[i], std::memory_order_relaxed);
         }

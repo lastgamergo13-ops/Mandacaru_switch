@@ -99,7 +99,7 @@ namespace skyline::gpu {
     }
 
     void PresentationEngine::PresentFrame(const PresentableFrame &frame) {
-        Breadcrumbs::Get().Add("Present frame");
+        Breadcrumbs::Get().Add("Present frame #{}", Breadcrumbs::Get().presentedFrames.fetch_add(1, std::memory_order_relaxed) + 1);
         std::unique_lock lock(mutex);
         surfaceCondition.wait(lock, [this]() { return vkSurface.has_value(); });
 

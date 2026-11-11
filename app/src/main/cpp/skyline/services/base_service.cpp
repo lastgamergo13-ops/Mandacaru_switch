@@ -2,6 +2,8 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <cxxabi.h>
+#include <mutex>
+#include <unordered_map>
 #include <common/trace.h>
 #include "base_service.h"
 
@@ -19,6 +21,25 @@ namespace skyline::service {
         return name;
     }
 
+    /**
+     * @brief Writes the error a service function returned to the guest to the log, a game that behaves wrongly after one of these is usually reacting to it
+     * @note Only the first few failures of each function are written, a game that polls a function that keeps failing would otherwise flood the log
+     */
+    void BaseService::LogFailedRequest(const char *functionName, Result result) {
+        static std::mutex failureMutex;
+        static std::unordered_map<std::string, u32> failureCounts;
+
+        std::string key{functionName}; // Already in the "Class::Function" format
+        u32 count;
+        {
+            std::scoped_lock lock{failureMutex};
+            count = ++failureCounts[key];
+        }
+
+        if (count <= 5 || count == 100 || count == 1000 || count == 10000)
+            LOGW("{} returned error 0x{:X} (module {}, description {}) to the guest, {} time(s) so far", key, result.raw, result.raw & 0x1FF, (result.raw >> 9) & 0x1FFF, count);
+    }
+
     Result service::BaseService::HandleRequest(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         ServiceFunctionDescriptor function;
         u32 functionId{request.isTipc ? static_cast<u32>(request.header->type) : request.payload->value};
@@ -32,7 +53,10 @@ namespace skyline::service {
         }
         TRACE_EVENT("service", perfetto::StaticString{function.name});
         try {
-            return function(session, request, response);
+            Result result{function(session, request, response)};
+            if (result.raw) [[unlikely]]
+                LogFailedRequest(function.name, result);
+            return result;
         } catch (exception &e) {
             // We need to forward any skyline::exception objects without modification even though they inherit from std::exception
             std::rethrow_exception(std::current_exception());
