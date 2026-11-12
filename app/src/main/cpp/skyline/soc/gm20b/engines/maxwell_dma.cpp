@@ -36,6 +36,59 @@ namespace skyline::soc::gm20b::engine {
         ReleaseSemaphore();
     }
 
+    namespace {
+        /**
+         * @return If any part of the translated range isn't backed by host memory (the guest unmapped it or never mapped it)
+         */
+        bool HasUnmappedRange(const TranslatedAddressRange &mappings) {
+            for (const auto &mapping : mappings)
+                if (mapping.data() == nullptr)
+                    return true;
+            return false;
+        }
+
+        /**
+         * @brief Reads from the GMMU without letting a page fault take the whole emulator down, anything that can't be read is returned as zeroes
+         * @note Games (e.g. Stray) can issue DMA copies that touch pages that aren't mapped (anymore), real hardware just reads/ignores those accesses
+         */
+        void SafeGmmuRead(GMMU &gmmu, u8 *destination, u64 address, size_t size) {
+            try {
+                gmmu.Read(destination, address, size);
+                return;
+            } catch (const std::exception &) {}
+
+            // Fall back to page by page so that everything that is mapped still gets copied
+            std::memset(destination, 0, size);
+            for (size_t offset{}; offset < size;) {
+                size_t chunk{std::min<size_t>(GmmuSmallPageSize - ((address + offset) & (GmmuSmallPageSize - 1)), size - offset)};
+                try {
+                    gmmu.Read(destination + offset, address + offset, chunk);
+                } catch (const std::exception &) {
+                    std::memset(destination + offset, 0, chunk);
+                }
+                offset += chunk;
+            }
+        }
+
+        /**
+         * @brief Writes to the GMMU without letting a page fault take the whole emulator down, anything that can't be written is dropped
+         */
+        void SafeGmmuWrite(GMMU &gmmu, u64 address, u8 *source, size_t size) {
+            try {
+                gmmu.Write(address, source, size);
+                return;
+            } catch (const std::exception &) {}
+
+            for (size_t offset{}; offset < size;) {
+                size_t chunk{std::min<size_t>(GmmuSmallPageSize - ((address + offset) & (GmmuSmallPageSize - 1)), size - offset)};
+                try {
+                    gmmu.Write(address + offset, source + offset, chunk);
+                } catch (const std::exception &) {}
+                offset += chunk;
+            }
+        }
+    }
+
     void MaxwellDma::DmaCopy() {
         if (registers.launchDma->multiLineEnable) {
             if (registers.launchDma->remapEnable) [[unlikely]] {
@@ -117,42 +170,42 @@ namespace skyline::soc::gm20b::engine {
     }
 
     void MaxwellDma::HandleSplitCopy(TranslatedAddressRange srcMappings, TranslatedAddressRange dstMappings, size_t srcSize, size_t dstSize, auto copyCallback) {
-        bool isSrcSplit{};
-        u8 *src{srcMappings.front().data()}, *dst{dstMappings.front().data()};
-        if (srcMappings.size() != 1) {
-            if (copyCache.size() < srcSize)
-                copyCache.resize(srcSize);
+        // A range that is split or has unmapped holes can't be accessed through a single host pointer, so it goes through a bounce buffer that is filled/flushed with page fault tolerant accesses
+        bool isSrcSplit{srcMappings.size() != 1 || HasUnmappedRange(srcMappings)};
+        bool isDstSplit{dstMappings.size() != 1 || HasUnmappedRange(dstMappings)};
 
-            src = copyCache.data();
-            channelCtx.asCtx->gmmu.Read(src, u64{*registers.offsetIn}, srcSize);
+        size_t srcOffset{isSrcSplit ? srcSize : 0};
+        size_t cacheSize{srcOffset + (isDstSplit ? dstSize : 0)};
+        if (copyCache.size() < cacheSize)
+            copyCache.resize(cacheSize); // Needs to hold the source and the destination at the same time, sizing it for only one of them overflowed the buffer
 
-            isSrcSplit = true;
-        }
-        if (dstMappings.size() != 1) {
-            size_t offset{isSrcSplit ? srcSize : 0};
+        u8 *src{isSrcSplit ? copyCache.data() : srcMappings.front().data()};
+        u8 *dst{isDstSplit ? copyCache.data() + srcOffset : dstMappings.front().data()};
 
-            if (copyCache.size() < (dstSize + offset))
-                copyCache.resize(dstSize);
+        if (isSrcSplit)
+            SafeGmmuRead(channelCtx.asCtx->gmmu, src, u64{*registers.offsetIn}, srcSize);
 
-            dst = copyCache.data() + offset;
-
-            // If the destination is not entirely filled by the copy we copy it's current state in the cache to prevent clearing of other data.
-            if (registers.launchDma->dstMemoryLayout == Registers::LaunchDma::MemoryLayout::BlockLinear)
-                channelCtx.asCtx->gmmu.Read(dst, u64{*registers.offsetOut}, dstSize);
-        }
+        // If the destination is not entirely filled by the copy (block linear surfaces, or pitch copies where the pitch is larger than the line) we copy it's current state in the cache to prevent clearing of other data.
+        if (isDstSplit)
+            SafeGmmuRead(channelCtx.asCtx->gmmu, dst, u64{*registers.offsetOut}, dstSize);
 
         copyCallback(src, dst);
 
-        if (dstMappings.size() != 1)
-            channelCtx.asCtx->gmmu.Write(u64{*registers.offsetOut}, dst, dstSize);
+        if (isDstSplit)
+            SafeGmmuWrite(channelCtx.asCtx->gmmu, u64{*registers.offsetOut}, dst, dstSize);
     }
 
     void MaxwellDma::CopyPitchToPitch() {
         auto srcMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetIn, *registers.pitchIn * *registers.lineCount)};
         auto dstMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetOut, *registers.pitchOut * *registers.lineCount)};
 
-        if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]] {
-            HandleSplitCopy(srcMappings, dstMappings, *registers.lineLengthIn, *registers.lineLengthIn, [&](u8 *src, u8 *dst) {
+        if (srcMappings.size() != 1 || dstMappings.size() != 1 || HasUnmappedRange(srcMappings) || HasUnmappedRange(dstMappings)) [[unlikely]] {
+            // The bounce buffers have to hold every line of the copy (they used to be sized for a single line which overflowed them for multi line copies)
+            size_t lineCount{*registers.lineCount};
+            size_t srcSize{lineCount ? (*registers.pitchIn * (lineCount - 1)) + *registers.lineLengthIn : 0};
+            size_t dstSize{lineCount ? (*registers.pitchOut * (lineCount - 1)) + *registers.lineLengthIn : 0};
+
+            HandleSplitCopy(srcMappings, dstMappings, srcSize, dstSize, [&](u8 *src, u8 *dst) {
                 // Both Linear, copy as is.
                 if ((*registers.pitchIn == *registers.pitchOut) && (*registers.pitchIn == *registers.lineLengthIn))
                     std::memcpy(dst, src, *registers.lineLengthIn * *registers.lineCount);
@@ -212,7 +265,7 @@ namespace skyline::soc::gm20b::engine {
 
         LOGD("{}x{}x{}@0x{:X} -> {}x{}x{}@0x{:X}", srcDimensions.width, srcDimensions.height, srcDimensions.depth, srcLayerAddress, dstDimensions.width, dstDimensions.height, dstDimensions.depth, u64{*registers.offsetOut});
 
-        if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]]
+        if (srcMappings.size() != 1 || dstMappings.size() != 1 || HasUnmappedRange(srcMappings) || HasUnmappedRange(dstMappings)) [[unlikely]]
             HandleSplitCopy(srcMappings, dstMappings, srcLayerStride, dstSize, copyFunc);
         else [[likely]]
             copyFunc(srcMappings.front().data(), dstMappings.front().data());
@@ -220,12 +273,14 @@ namespace skyline::soc::gm20b::engine {
 
     void MaxwellDma::CopyPitchToBlockLinear() {
         if (registers.dstSurface->blockSize.Width() != 1) [[unlikely]] {
-            LOGE("Blocklinear surfaces with a non-one block width are unsupported on the Tegra X1: {}", registers.srcSurface->blockSize.Width());
+            LOGE("Blocklinear surfaces with a non-one block width are unsupported on the Tegra X1: {}", registers.dstSurface->blockSize.Width());
             return;
         }
 
         gpu::texture::Dimensions srcDimensions{*registers.lineLengthIn, *registers.lineCount, registers.dstSurface->depth};
-        size_t srcSize{*registers.pitchIn * srcDimensions.height * srcDimensions.depth}; // If remapping is not enabled there are only 1 bytes per pixel
+        size_t srcLines{static_cast<size_t>(srcDimensions.height) * srcDimensions.depth};
+        // The last line only needs `lineLengthIn` bytes and not a whole pitch, asking for the full pitch made the read run past the end of the mapping (page fault)
+        size_t srcSize{srcLines ? (*registers.pitchIn * (srcLines - 1)) + *registers.lineLengthIn : 0}; // If remapping is not enabled there are only 1 bytes per pixel
 
         // Get source address
         auto srcMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetIn, srcSize)};
@@ -259,7 +314,7 @@ namespace skyline::soc::gm20b::engine {
             }
         }};
 
-        if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]]
+        if (srcMappings.size() != 1 || dstMappings.size() != 1 || HasUnmappedRange(srcMappings) || HasUnmappedRange(dstMappings)) [[unlikely]]
             HandleSplitCopy(srcMappings, dstMappings, srcSize, dstLayerStride, copyFunc);
         else [[likely]]
             copyFunc(srcMappings.front().data(), dstMappings.front().data());

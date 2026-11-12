@@ -3,6 +3,7 @@
 
 #include <soc/gm20b/channel.h>
 #include <soc/gm20b/gmmu.h>
+#include <kernel/memory.h>
 #include <gpu/texture_manager.h>
 #include <gpu/texture/format.h>
 #include "textures.h"
@@ -346,14 +347,25 @@ namespace skyline::gpu::interconnect {
 
             auto mappings{ctx.channelCtx.asCtx->gmmu.TranslateRange(textureHeader.Iova(), guest.GetSize())};
             guest.mappings.assign(mappings.begin(), mappings.end());
-            if (guest.mappings.empty() || !std::all_of(guest.mappings.begin(), guest.mappings.end(), [](auto map) { return map.valid(); }) || guest.mappings.front().empty()) {
+            // Besides being unmapped, a texture can also point to host memory that isn't part of the guest address space at all (No Man's Sky binds descriptors to 0xCAFEBABE), mirroring that throws and takes the whole emulator down
+            auto &guestMemory{ctx.memory};
+            if (guest.mappings.empty() || !std::all_of(guest.mappings.begin(), guest.mappings.end(), [&guestMemory](auto map) { return map.valid() && guestMemory.AddressSpaceContains(map); }) || guest.mappings.front().empty()) {
                 LOGW("Unmapped texture in pool: 0x{:X}", textureHeader.Iova());
                 if (!nullTextureView)
                     nullTextureView = CreateNullTexture(ctx);
 
                 return nullTextureView.get();
             }
-            texture = ctx.gpu.texture.FindOrCreate(guest, ctx.executor.tag);
+
+            try {
+                texture = ctx.gpu.texture.FindOrCreate(guest, ctx.executor.tag);
+            } catch (const std::exception &e) {
+                LOGW("Failed to create texture from pool entry (0x{:X}), using a null texture: {}", textureHeader.Iova(), e.what());
+                if (!nullTextureView)
+                    nullTextureView = CreateNullTexture(ctx);
+
+                return nullTextureView.get();
+            }
         }
 
         textureHeaderCache[index] = {textureHeader, texture.get(), ctx.channelCtx.channelSequenceNumber};

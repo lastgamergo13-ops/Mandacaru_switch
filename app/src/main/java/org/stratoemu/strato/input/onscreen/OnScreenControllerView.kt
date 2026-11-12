@@ -117,6 +117,16 @@ class OnScreenControllerView @JvmOverloads constructor(context : Context, attrs 
     }
 
     private val playingTouchHandler = OnTouchListener { _, event ->
+        when (event.actionMasked) {
+            // The system took the gesture away from us (e.g. a system navigation gesture started at the edge of the screen), no ACTION_UP is ever sent for the fingers that were down so everything that is held has to be let go or it stays pressed forever (the character keeps walking in one direction and buttons stop answering)
+            MotionEvent.ACTION_CANCEL -> {
+                releaseAllInputs()
+                return@OnTouchListener true
+            }
+            // The first finger of a gesture: nothing can legitimately be held at this point, anything that still believes a finger is on it missed its release
+            MotionEvent.ACTION_DOWN -> releaseAllInputs()
+        }
+
         var handled = false
         val actionIndex = event.actionIndex
         val pointerId = event.getPointerId(actionIndex)
@@ -310,8 +320,62 @@ class OnScreenControllerView @JvmOverloads constructor(context : Context, attrs 
         true
     }
 
+    /**
+     * Set once everything the release logic touches is initialized, [onVisibilityChanged] can be called by the View constructor before that
+     */
+    private var controlsReady = false
+
     init {
         setOnTouchListener(playingTouchHandler)
+        controlsReady = true
+    }
+
+    /**
+     * Releases every button and stick that still has a finger assigned to it and tells the guest about it
+     */
+    fun releaseAllInputs() {
+        if (!controlsReady)
+            return
+
+        var changed = false
+
+        controls.buttons.forEach { button ->
+            if (button.touchPointerId != -1 || button.partnerPointerId != -1) {
+                button.touchPointerId = -1
+                button.partnerPointerId = -1
+                if (button.onFingerUp(0f, 0f))
+                    onButtonStateChangedListener?.invoke(button.buttonId, ButtonState.Released)
+                changed = true
+            }
+        }
+
+        controls.joysticks.forEach { joystick ->
+            if (joystick.touchPointerId != -1) {
+                val wasPressed = joystick.shortDoubleTapped
+                joystick.touchPointerId = -1
+                joystick.onFingerUp(0f, 0f)
+                onStickStateChangedListener?.invoke(joystick.stickId, PointF(0f, 0f))
+                if (wasPressed)
+                    onButtonStateChangedListener?.invoke(joystick.buttonId, ButtonState.Released)
+                changed = true
+            }
+        }
+
+        if (changed)
+            invalidate()
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus : Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        // Fingers that are lifted while a dialog/menu/notification shade has the focus never reach this view
+        if (!hasWindowFocus)
+            releaseAllInputs()
+    }
+
+    override fun onVisibilityChanged(changedView : View, visibility : Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility != VISIBLE)
+            releaseAllInputs()
     }
 
     fun updateEditButtonInfo() {

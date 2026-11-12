@@ -81,7 +81,7 @@
 namespace skyline::service {
     namespace {
         /**
-         * @brief Keeps the last IPC requests so the log can show what happened right before an error (a request on a closed session, for example). The first requests and every session event are also written to the log as they happen (Info)
+         * @brief Keeps the last IPC requests so the log can show what happened right before an error (a request on a closed session, for example). The first requests are also written to the log as they happen (Info), later session events only at Debug level
          */
         class IpcTrace {
           private:
@@ -93,9 +93,12 @@ namespace skyline::service {
           public:
             void Add(std::string line, bool always = false) {
                 std::scoped_lock lock{traceMutex};
-                if (always || written < 400) {
+                if (written < 400) {
                     written++;
                     LOGI("IPC: {}", line);
+                } else if (always) {
+                    // Games can poll services in a tight loop (Pokémon Brilliant Diamond opens/closes audio sessions ~50 times a second), logging every session event at Info flooded the log with 180k+ lines and slowed the game down
+                    LOGD("IPC: {}", line);
                 }
                 recent[next++ % recent.size()] = std::move(line);
             }
