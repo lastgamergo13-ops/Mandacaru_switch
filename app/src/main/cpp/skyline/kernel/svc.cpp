@@ -1107,6 +1107,18 @@ namespace skyline::kernel::svc {
             }
 
             LOGE("Exit Stack Trace ({}{}){}", reason, info, state.loader->GetStackTrace());
+
+            // The SVCs the aborting thread made right before it gave up (oldest first), the result of an earlier failing SVC is often what the game aborted over
+            {
+                auto &thread{*state.thread};
+                std::string history;
+                size_t count{std::min(thread.svcHistoryNext, thread.svcHistory.size())};
+                for (size_t i{thread.svcHistoryNext - count}; i < thread.svcHistoryNext; i++) {
+                    const auto &entry{thread.svcHistory[i % thread.svcHistory.size()]};
+                    history += fmt::format("\n  SVC 0x{:X} (X0=0x{:X} X1=0x{:X} X2=0x{:X}) -> {}", entry.id, entry.args[0], entry.args[1], entry.args[2], entry.returned ? fmt::format("W0=0x{:X}", static_cast<u32>(entry.result)) : std::string{"(did not return)"});
+                }
+                LOGE("The last {} SVC(s) of thread {} before the abort:{}", count, thread.id, history);
+            }
             if (state.thread->id)
                 state.process->Kill(false);
             std::longjmp(state.thread->originalCtx, true);

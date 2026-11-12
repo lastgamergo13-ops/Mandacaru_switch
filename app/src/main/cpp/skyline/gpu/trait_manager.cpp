@@ -325,7 +325,15 @@ namespace skyline::gpu {
 
         // Apply BCeNabler for Adreno devices
         auto type{adrenotools_get_bcn_type(VK_VERSION_MAJOR(properties.driverVersion), VK_VERSION_MINOR(properties.driverVersion), properties.vendorID)};
-        if (type == ADRENOTOOLS_BCN_PATCH) {
+        /**
+         * @note The BCeNabler binary patch only makes the stock Qualcomm driver *report* BCn support, the sampling of those formats is not reliable on every driver version (Pokémon Brilliant Diamond on the Adreno 650 system driver 512.502 renders garbled blocks of solid colours instead of its textures)
+         * So by default the patch isn't applied and the BCn formats the driver doesn't natively support are decoded on the CPU into RGBA/R/RG textures instead, which always renders correctly, set this to true to use the patch again
+         */
+        constexpr bool UseBcnDriverPatch{false};
+
+        if (type == ADRENOTOOLS_BCN_PATCH && !UseBcnDriverPatch) {
+            LOGI("BCeNabler patch skipped, BCn textures the driver doesn't support natively are decoded by the emulator");
+        } else if (type == ADRENOTOOLS_BCN_PATCH) {
             if (adrenotools_patch_bcn(reinterpret_cast<void *>(physicalDevice.getDispatcher()->vkGetPhysicalDeviceFormatProperties)))
                 LOGI("Applied BCeNabler patch");
             else

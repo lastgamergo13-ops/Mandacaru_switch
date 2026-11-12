@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <mutex>
 #include <jvm.h>
 #include "npad_device.h"
 #include "npad.h"
@@ -294,6 +295,19 @@ namespace skyline::input {
     void NpadDevice::UpdateSharedMemory() {
         if (!connectionState.connected)
             return;
+
+        {
+            // Diagnostics: what is actually written for the guest to read, logged only when it changes (and a limited number of times). Together with the Button/Axis events this tells an input the guest is *given* (e.g. a stuck direction) apart from one the game invents by itself
+            static std::mutex stateLogMutex;
+            static NpadControllerState lastLoggedState{};
+            static u32 loggedStates{};
+            std::scoped_lock lock{stateLogMutex};
+            if (loggedStates < 150 && (lastLoggedState.buttons.raw != defaultState.buttons.raw || lastLoggedState.leftX != defaultState.leftX || lastLoggedState.leftY != defaultState.leftY || lastLoggedState.rightX != defaultState.rightX || lastLoggedState.rightY != defaultState.rightY)) {
+                loggedStates++;
+                lastLoggedState = defaultState;
+                LOGI("Guest state (npad type {}): buttons 0x{:X}, left stick {}/{}, right stick {}/{}", static_cast<u32>(type), defaultState.buttons.raw, defaultState.leftX, defaultState.leftY, defaultState.rightX, defaultState.rightY);
+            }
+        }
 
         if (controllerInfo)
             WriteNextEntry(*controllerInfo, controllerState);

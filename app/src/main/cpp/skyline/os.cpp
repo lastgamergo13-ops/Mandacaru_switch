@@ -10,6 +10,7 @@
 #include "nce.h"
 #include "nce/guest.h"
 #include "kernel/svc.h"
+#include "services/serviceman.h"
 #include "soc/host1x/video/ffmpeg_check.h"
 #include "kernel/types/KProcess.h"
 #include "vfs/os_backing.h"
@@ -179,6 +180,9 @@ namespace skyline::kernel {
                 report += sample;
             });
             LOGW("{}", report);
+
+            // A game that spins in guest code usually does so around a service call that keeps failing or returning something unexpected, the last requests show which one
+            service::DumpRecentIpcTrace();
         }
 
       public:

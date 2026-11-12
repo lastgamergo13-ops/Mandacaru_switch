@@ -75,6 +75,18 @@ namespace skyline {
             std::atomic<u64> svcCount{}; //!< How many SVCs this thread made, the stall watchdog uses it to tell for how long a thread has been waiting inside the same SVC
             std::array<std::atomic<u64>, 3> lastSvcArgs{}; //!< X0-X2 of that SVC
 
+            /**
+             * @brief The most recent SVCs made by this thread, only ever accessed by the thread itself so no synchronization is needed. It is printed when the game aborts to show what led to it
+             */
+            struct SvcHistoryEntry {
+                u16 id;
+                u64 args[3];
+                u64 result; //!< X0 when the SVC returned, only valid if `returned` is set
+                bool returned;
+            };
+            std::array<SvcHistoryEntry, 24> svcHistory{};
+            size_t svcHistoryNext{};
+
             std::array<std::atomic<u64>, 31> sampledRegs{}; //!< X0-X30 of the last time the stall watchdog asked this thread for its registers (see NCE::SampleHandler)
             std::atomic<u64> sampledSp{};
             std::atomic<u64> sampledPc{}; //!< Written last, zero while a sample is awaited

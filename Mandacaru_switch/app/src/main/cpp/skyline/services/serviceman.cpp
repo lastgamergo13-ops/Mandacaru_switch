@@ -86,7 +86,7 @@ namespace skyline::service {
         class IpcTrace {
           private:
             std::mutex traceMutex;
-            std::array<std::string, 48> recent;
+            std::array<std::string, 64> recent;
             size_t next{};
             u32 written{};
 
@@ -110,6 +110,10 @@ namespace skyline::service {
                     LOGW("IPC:   {}", recent[i % recent.size()]);
             }
         } ipcTrace;
+    }
+
+    void DumpRecentIpcTrace() {
+        ipcTrace.DumpRecent();
     }
 
     struct GlobalServiceState {

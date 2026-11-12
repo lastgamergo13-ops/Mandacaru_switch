@@ -70,4 +70,9 @@ namespace skyline::service {
          */
         Result SyncRequestHandler(KHandle handle);
     };
+
+    /**
+     * @brief Writes the most recent IPC requests the guest made to the log (used by the stall watchdog to show what a frozen game was asking the system)
+     */
+    void DumpRecentIpcTrace();
 }

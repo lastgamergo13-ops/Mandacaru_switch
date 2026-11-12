@@ -36,6 +36,12 @@ namespace skyline::nce {
             state.thread->svcCount.fetch_add(1, std::memory_order_relaxed);
             for (size_t i{}; i < state.thread->lastSvcArgs.size(); i++)
                 state.thread->lastSvcArgs[i].store(reinterpret_cast<kernel::svc::SvcContext *>(ctx)->regs[i], std::memory_order_relaxed);
+
+            auto &entry{state.thread->svcHistory[state.thread->svcHistoryNext++ % state.thread->svcHistory.size()]};
+            entry.id = svcId;
+            for (size_t i{}; i < 3; i++)
+                entry.args[i] = reinterpret_cast<kernel::svc::SvcContext *>(ctx)->regs[i];
+            entry.returned = false;
         }
 
         try {
@@ -43,6 +49,11 @@ namespace skyline::nce {
                 TRACE_EVENT("kernel", perfetto::StaticString{svc.name});
                 auto &svcContext{*reinterpret_cast<kernel::svc::SvcContext *>(ctx)};
                 (svc.function)(state, svcContext);
+                if (state.thread) {
+                    auto &entry{state.thread->svcHistory[(state.thread->svcHistoryNext - 1) % state.thread->svcHistory.size()]};
+                    entry.result = svcContext.regs[0];
+                    entry.returned = true;
+                }
             } else {
                 // Real hardware returns an error to the guest for SVCs it doesn't implement, killing the whole emulator here made any unimplemented SVC fatal
                 LOGW("Unimplemented SVC 0x{:X}, returning NotImplemented to the guest", svcId);
