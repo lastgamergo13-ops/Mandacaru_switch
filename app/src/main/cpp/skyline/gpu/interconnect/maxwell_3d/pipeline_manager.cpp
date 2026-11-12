@@ -453,6 +453,52 @@ namespace skyline::gpu::interconnect::maxwell3d {
      * @brief Replaces a vertex format the host can't read from a vertex buffer with an alternative that has the same components and an extra one, which the shader never reads
      * @note Many mobile GPUs lack the 3 component 8 and 16-bit formats for vertex buffers (Eden has the same replacements for some of them in its format alternatives)
      */
+    /**
+     * @brief Makes the blend factors that read the alpha of the render target behave like the guest expects for render target formats that have no alpha channel
+     * @note The X/Z/O formats (X8R8G8B8, X1R5G5B5, O8R8G8B8, Z8R8G8B8, RF32_GF32_BF32_X32...) are backed by a host format with an alpha channel, so DstAlpha would read whatever was written there instead of the constant 1 (X and O) or 0 (Z) the guest sees
+     */
+    static void AdjustBlendForAlphalessFormat(vk::PipelineColorBlendAttachmentState &state, engine::ColorTarget::Format format) {
+        using Format = engine::ColorTarget::Format;
+
+        bool alphaIsZero{};
+        switch (format) {
+            case Format::Z1R5G5B5:
+            case Format::Z8R8G8B8:
+                alphaIsZero = true;
+                break;
+            case Format::RF32_GF32_BF32_X32:
+            case Format::RS32_GS32_BS32_X32:
+            case Format::RU32_GU32_BU32_X32:
+            case Format::RF16_GF16_BF16_X16:
+            case Format::X8R8G8B8:
+            case Format::X8RL8GL8BL8:
+            case Format::X1R5G5B5:
+            case Format::X8B8G8R8:
+            case Format::X8BL8GL8RL8:
+            case Format::O1R5G5B5:
+            case Format::O8R8G8B8:
+                alphaIsZero = false;
+                break;
+            default:
+                return;
+        }
+
+        if (!state.blendEnable)
+            return;
+
+        auto adjust{[alphaIsZero](vk::BlendFactor &factor) {
+            if (factor == vk::BlendFactor::eDstAlpha)
+                factor = alphaIsZero ? vk::BlendFactor::eZero : vk::BlendFactor::eOne;
+            else if (factor == vk::BlendFactor::eOneMinusDstAlpha)
+                factor = alphaIsZero ? vk::BlendFactor::eOne : vk::BlendFactor::eZero;
+        }};
+
+        adjust(state.srcColorBlendFactor);
+        adjust(state.dstColorBlendFactor);
+        adjust(state.srcAlphaBlendFactor);
+        adjust(state.dstAlphaBlendFactor);
+    }
+
     static vk::Format GetSupportedVertexFormat(GPU &gpu, vk::Format format) {
         auto supported{[&](vk::Format candidate) {
             return static_cast<bool>(gpu.vkPhysicalDevice.getFormatProperties(candidate).bufferFeatures & vk::FormatFeatureFlagBits::eVertexBuffer);
@@ -655,6 +701,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
         for (u32 i{}; i < engine::ColorTargetCount; i++) {
             attachmentBlendStates.push_back(packedState.GetAttachmentBlendState(i));
+            if (i < packedState.GetColorRenderTargetCount())
+                AdjustBlendForAlphalessFormat(attachmentBlendStates.back(), static_cast<engine::ColorTarget::Format>(packedState.colorRenderTargetFormats[packedState.ctSelect[i]]));
+
             if (i < packedState.GetColorRenderTargetCount()) {
                 texture::Format format{packedState.GetColorRenderTargetFormat(packedState.ctSelect[i])};
                 colorAttachmentFormats.push_back(format ? format->vkFormat : vk::Format::eUndefined);

@@ -50,6 +50,7 @@
 #include "socket/nsd/IManager.h"
 #include "socket/sfdnsres/IResolver.h"
 #include "spl/IRandomInterface.h"
+#include "spl/ISecureProcessor.h"
 #include "ssl/ISslService.h"
 #include "prepo/IPrepoService.h"
 #include "mmnv/IRequest.h"
@@ -204,6 +205,12 @@ namespace skyline::service {
             SERVICE_CASE(socket::IManager, "nsd:a")
             SERVICE_CASE(socket::IResolver, "sfdnsres")
             SERVICE_CASE(spl::IRandomInterface, "csrng")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:mig")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:fs")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:ssl")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:es")
+            SERVICE_CASE(spl::ISecureProcessor, "spl:manu")
             SERVICE_CASE(ssl::ISslService, "ssl")
             SERVICE_CASE(ssl::ISslService, "ssl:s")
             SERVICE_CASE(prepo::IPrepoService, "prepo:u")

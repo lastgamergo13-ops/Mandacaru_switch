@@ -1170,6 +1170,10 @@ namespace skyline::kernel::svc {
             IsApplication = 23,
             // 11.0.0+
             FreeThreadCount = 24,
+            // 11.0.0+ (the numbering used by Eden/Mesosphere for the thread tick count, the pseudo ID below is the one the SDK uses)
+            ThreadTickCountById = 25,
+            // 12.0.0+
+            IsSvcPermitted = 26,
             // 13.0.0+
             AliasRegionExtraSize = 28,
             // Pseudo IDs that don't belong to the process
@@ -1281,6 +1285,18 @@ namespace skyline::kernel::svc {
                 out = 0x200; // The same limit GetResourceLimitLimitValue reports for threads, nothing here counts the threads in use
                 break;
 
+            case InfoState::IsSvcPermitted: {
+                // Whether the SVC with the number in the second ID can be called by this process, a process here is allowed to call every SVC that exists (anything above the table or without an implementation is reported as not permitted)
+                if (id1 >= SvcTable.size()) [[unlikely]] {
+                    ctx.w0 = result::InvalidCombination;
+                    return;
+                }
+
+                out = SvcTable[id1].function ? 1 : 0;
+                break;
+            }
+
+            case InfoState::ThreadTickCountById:
             case InfoState::ThreadTickCount: {
                 // The CPU time the calling thread has used, in the 19.2 MHz ticks of the system counter (the handle and core number the game passes aren't looked at)
                 timespec threadTime{};
