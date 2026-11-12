@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2022 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <atomic>
 #include <soc/gm20b/channel.h>
 #include <soc/gm20b/gmmu.h>
 #include <kernel/memory.h>
@@ -350,7 +351,10 @@ namespace skyline::gpu::interconnect {
             // Besides being unmapped, a texture can also point to host memory that isn't part of the guest address space at all (No Man's Sky binds descriptors to 0xCAFEBABE), mirroring that throws and takes the whole emulator down
             auto &guestMemory{ctx.memory};
             if (guest.mappings.empty() || !std::all_of(guest.mappings.begin(), guest.mappings.end(), [&guestMemory](auto map) { return map.valid() && guestMemory.AddressSpaceContains(map); }) || guest.mappings.front().empty()) {
-                LOGW("Unmapped texture in pool: 0x{:X}", textureHeader.Iova());
+                // This happens for every draw that samples the texture, No Man's Sky made it fill a log with 370k lines (56 MB), so only the first ones and then every thousandth are written
+                static std::atomic<u32> unmappedWarnings{};
+                if (u32 count{unmappedWarnings.fetch_add(1, std::memory_order_relaxed)}; count < 50 || count % 1000 == 0)
+                    LOGW("Unmapped texture in pool: 0x{:X} ({} occurrence(s) so far)", textureHeader.Iova(), count + 1);
                 if (!nullTextureView)
                     nullTextureView = CreateNullTexture(ctx);
 

@@ -1058,7 +1058,11 @@ namespace skyline::gpu::interconnect::maxwell3d {
             auto startTime{util::GetTimeNs()};
             PipelineStateBundle bundle;
 
+            // Thousands of pipelines can be stored for a game, queueing all of them at once keeps every shader module/description alive until the driver is done with it which made the system run out of memory, so only a limited number is allowed to wait
+            constexpr size_t MaxPendingPipelineCompilations{64};
+
             while (bundle.Deserialise(stream)) {
+                gpu.graphicsPipelineAssembler->WaitForPendingBelow(MaxPendingPipelineCompilations);
                 lastKnownGoodOffset = stream.tellg();
                 auto accessor{FilePipelineStateAccessor{bundle}};
                 auto *pipeline{map.emplace(bundle.GetKey<PackedPipelineState>(), std::make_unique<Pipeline>(gpu, accessor, bundle.GetKey<PackedPipelineState>())).first.value().get()};

@@ -67,7 +67,7 @@ data class NativeSettings(
         pref.executorFlushThreshold,
         pref.useDirectMemoryImport,
         pref.forceMaxGpuClocks,
-        pref.freeGuestTextureMemory,
+        shouldFreeGuestTextureMemory(context, pref.freeGuestTextureMemory),
         pref.disableShaderCache,
         pref.enableFastGpuReadbackHack,
         pref.enableFastReadbackWrites,
@@ -99,6 +99,19 @@ data class NativeSettings(
             val memoryInfo = ActivityManager.MemoryInfo()
             (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.getMemoryInfo(memoryInfo) ?: return false
             return memoryInfo.totalMem in 1..LowMemoryDeviceThresholdBytes
+        }
+
+        /**
+         * Frees the guest's copy of a texture once it has been uploaded to the GPU, this is what keeps texture heavy games from using the whole RAM of a low memory device (the Android low memory killer closed Pokémon Let's Go Eevee on a Moto G8 with ~1.9 GiB of shared memory in use), so it is forced on there regardless of the setting
+         */
+        private const val ForceFreeGuestTextureMemoryOnLowMemoryDevices = true
+
+        fun shouldFreeGuestTextureMemory(context : Context, requested : Boolean) : Boolean {
+            if (requested || !ForceFreeGuestTextureMemoryOnLowMemoryDevices || !isLowMemoryDevice(context))
+                return requested
+
+            Log.i(TAG, "Low memory device, enabling free guest texture memory")
+            return true
         }
 
         /**

@@ -2,6 +2,8 @@
 // Copyright © 2022 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <boost/functional/hash.hpp>
+#include <thread>
+#include <chrono>
 #include <fstream>
 #include <filesystem>
 #include <gpu.h>
@@ -139,6 +141,67 @@ namespace skyline::gpu {
 
     #undef VEC_CPY
 
+    namespace {
+        /**
+         * @brief A vertex shader that writes a position outside of the clip volume, everything drawn with it is clipped away (SPIR-V 1.0, assembled by hand because it never changes)
+         */
+        constexpr u32 DrawNothingVertexShader[]{
+            0x07230203, 0x00010000, 0x00000000, 0x0000000C, 0x00000000, // Header: magic, version 1.0, generator, bound, schema
+            0x00020011, 0x00000001, // OpCapability Shader
+            0x0003000E, 0x00000000, 0x00000001, // OpMemoryModel Logical GLSL450
+            0x0006000F, 0x00000000, 0x00000001, 0x6E69616D, 0x00000000, 0x00000007, // OpEntryPoint Vertex %1 "main" %7
+            0x00040047, 0x00000007, 0x0000000B, 0x00000000, // OpDecorate %7 BuiltIn Position
+            0x00020013, 0x00000002, // %2 = OpTypeVoid
+            0x00030021, 0x00000003, 0x00000002, // %3 = OpTypeFunction %2
+            0x00030016, 0x00000004, 0x00000020, // %4 = OpTypeFloat 32
+            0x00040017, 0x00000005, 0x00000004, 0x00000004, // %5 = OpTypeVector %4 4
+            0x00040020, 0x00000006, 0x00000003, 0x00000005, // %6 = OpTypePointer Output %5
+            0x0004003B, 0x00000006, 0x00000007, 0x00000003, // %7 = OpVariable %6 Output
+            0x0004002B, 0x00000004, 0x00000008, 0x40000000, // %8 = OpConstant %4 2.0
+            0x0004002B, 0x00000004, 0x00000009, 0x3F800000, // %9 = OpConstant %4 1.0
+            0x0007002C, 0x00000005, 0x0000000A, 0x00000008, 0x00000008, 0x00000008, 0x00000009, // %10 = OpConstantComposite %5 %8 %8 %8 %9
+            0x00050036, 0x00000002, 0x00000001, 0x00000000, 0x00000003, // %1 = OpFunction %2 None %3
+            0x000200F8, 0x0000000B, // %11 = OpLabel
+            0x0003003E, 0x00000007, 0x0000000A, // OpStore %7 %10
+            0x000100FD, // OpReturn
+            0x00010038, // OpFunctionEnd
+        };
+    }
+
+    vk::raii::Pipeline GraphicsPipelineAssembler::CreateDrawNothingPipeline(std::list<PipelineDescription>::iterator pipelineDescIt, vk::PipelineLayout pipelineLayout, vk::RenderPass renderPass) {
+        vk::raii::ShaderModule shaderModule{gpu.vkDevice, vk::ShaderModuleCreateInfo{
+            .codeSize = sizeof(DrawNothingVertexShader),
+            .pCode = DrawNothingVertexShader,
+        }};
+
+        vk::PipelineShaderStageCreateInfo shaderStage{
+            .stage = vk::ShaderStageFlagBits::eVertex,
+            .module = *shaderModule,
+            .pName = "main",
+        };
+
+        // Without the other shader stages the topology can't be a patch list
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{pipelineDescIt->inputAssemblyState};
+        if (inputAssemblyState.topology == vk::PrimitiveTopology::ePatchList)
+            inputAssemblyState.topology = vk::PrimitiveTopology::eTriangleList;
+
+        return gpu.vkDevice.createGraphicsPipeline(vkPipelineCache, vk::GraphicsPipelineCreateInfo{
+            .pStages = &shaderStage,
+            .stageCount = 1,
+            .pVertexInputState = &pipelineDescIt->vertexState.get<vk::PipelineVertexInputStateCreateInfo>(),
+            .pInputAssemblyState = &inputAssemblyState,
+            .pViewportState = &pipelineDescIt->viewportState,
+            .pRasterizationState = &pipelineDescIt->rasterizationState.get<vk::PipelineRasterizationStateCreateInfo>(),
+            .pMultisampleState = &pipelineDescIt->multisampleState,
+            .pDepthStencilState = &pipelineDescIt->depthStencilState,
+            .pColorBlendState = &pipelineDescIt->colorBlendState,
+            .pDynamicState = &pipelineDescIt->dynamicState,
+            .layout = pipelineLayout,
+            .renderPass = renderPass,
+            .subpass = 0,
+        });
+    }
+
     vk::raii::Pipeline GraphicsPipelineAssembler::AssemblePipeline(std::list<PipelineDescription>::iterator pipelineDescIt, vk::PipelineLayout pipelineLayout) {
         boost::container::small_vector<vk::AttachmentDescription, 8> attachmentDescriptions;
         boost::container::small_vector<vk::AttachmentReference, 8> attachmentReferences;
@@ -222,11 +285,20 @@ namespace skyline::gpu {
                 if (shaderStage.stage != vk::ShaderStageFlagBits::eGeometry)
                     withoutGeometry.push_back(shaderStage);
 
-            if (withoutGeometry.size() == pipelineDescIt->shaderStages.size())
-                throw;
+            bool recovered{};
+            if (withoutGeometry.size() != pipelineDescIt->shaderStages.size()) {
+                LOGW("Creating a pipeline with a geometry shader failed ({}), retrying without the geometry stage", e.what());
+                try {
+                    pipeline = createPipeline(withoutGeometry);
+                    recovered = true;
+                } catch (const vk::SystemError &) {}
+            }
 
-            LOGW("Creating a pipeline with a geometry shader failed ({}), retrying without the geometry stage", e.what());
-            pipeline = createPipeline(withoutGeometry);
+            if (!recovered) {
+                // The driver rejected the shaders themselves (for example a SPIR-V module our shader recompiler generated that is invalid, No Man's Sky triggered this), the game can't do anything about that so the draws that use this pipeline are dropped instead of the whole emulator being killed
+                LOGE("Creating a pipeline failed ({}), draws using it will draw nothing", e.what());
+                pipeline = CreateDrawNothingPipeline(pipelineDescIt, pipelineLayout, *renderPass);
+            }
         }
 
         {
@@ -275,6 +347,18 @@ namespace skyline::gpu {
 
     void GraphicsPipelineAssembler::WaitIdle() {
         pool.wait_for_tasks();
+    }
+
+    void GraphicsPipelineAssembler::WaitForPendingBelow(size_t maxPending) {
+        while (true) {
+            {
+                std::scoped_lock lock{mutex};
+                if (compilePendingDescs.size() < maxPending)
+                    return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        }
     }
 
     void GraphicsPipelineAssembler::SavePipelineCache() {

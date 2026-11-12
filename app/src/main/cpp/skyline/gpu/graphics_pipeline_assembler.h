@@ -126,6 +126,11 @@ namespace skyline::gpu {
          */
         vk::raii::Pipeline AssemblePipeline(std::list<PipelineDescription>::iterator pipelineDescIt, vk::PipelineLayout pipelineLayout);
 
+        /**
+         * @brief Creates a pipeline that draws nothing with the fixed function state of the given description, used when the driver refuses to compile the real shaders
+         */
+        vk::raii::Pipeline CreateDrawNothingPipeline(std::list<PipelineDescription>::iterator pipelineDescIt, vk::PipelineLayout pipelineLayout, vk::RenderPass renderPass);
+
       public:
         GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir);
 
@@ -155,6 +160,11 @@ namespace skyline::gpu {
          * @brief Waits until the pipeline compilation thread pool is idle and all pipelines have been compiled
          */
         void WaitIdle();
+
+        /**
+         * @brief Blocks until fewer than `maxPending` pipelines are waiting to be compiled, used while loading thousands of pipelines so the queue (and everything each queued pipeline keeps alive) doesn't grow until the system runs out of memory
+         */
+        void WaitForPendingBelow(size_t maxPending);
 
         /**
          * @brief Saves the current Vulkan pipeline cache to the filesystem
