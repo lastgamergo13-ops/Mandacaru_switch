@@ -58,8 +58,11 @@ namespace skyline::soc::host1x {
                             LOGD("Increment syncpoint: {}", incrSyncpoint.index);
                             syncpoints.at(incrSyncpoint.index).Increment();
                             break;
+                        // The device classes run each method as soon as it is submitted, by the time a syncpoint increment is processed every read has been done and every register write is safe, so these conditions are satisfied exactly when OpDone is
+                        case IncrementSyncpointMethod::Condition::RdDone:
+                        case IncrementSyncpointMethod::Condition::RegWRSafe:
                         case IncrementSyncpointMethod::Condition::OpDone:
-                            LOGD("Queue syncpoint for OpDone: {}", incrSyncpoint.index);
+                            LOGD("Queue syncpoint for OpDone/RdDone/RegWRSafe: {}", incrSyncpoint.index);
                             AddIncr(incrSyncpoint.index);
                             SubmitPendingIncrs(); // FIXME: immediately submit the incrs as classes are not yet implemented
                             break;

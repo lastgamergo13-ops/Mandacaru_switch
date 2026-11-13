@@ -477,6 +477,29 @@ namespace skyline::service::socket {
         return PushBsdResult(response, result, result == -1 ? ToBsdErrno(errno) : 0);
     }
 
+    Result IClient::SocketExempt(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        return Socket(session, request, response);
+    }
+
+    Result IClient::DuplicateSocket(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        i32 hostFd{GetHostFd(request.Pop<i32>())};
+        // The second input is reserved
+        if (hostFd == -1)
+            return PushBsdResult(response, -1, BsdEbadf);
+
+        i32 duplicatedHostFd{::dup(hostFd)};
+        if (duplicatedHostFd == -1)
+            return PushBsdResult(response, -1, ToBsdErrno(errno));
+
+        i32 guestFd{AllocateGuestFd(duplicatedHostFd)};
+        if (guestFd == -1) {
+            ::close(duplicatedHostFd);
+            return PushBsdResult(response, -1, 24); // EMFILE
+        }
+
+        return PushBsdResult(response, guestFd, 0);
+    }
+
     Result IClient::EventFd(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         return PushBsdResult(response, 1, 0);
     }

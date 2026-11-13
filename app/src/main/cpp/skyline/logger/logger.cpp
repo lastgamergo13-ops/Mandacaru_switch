@@ -107,6 +107,7 @@ namespace skyline {
 
         LogLevel currentLevel; //!< The minimum level of logs to write
         CircularQueue<LogMessage> messageQueue{AsyncLogger::LogQueueSize}; //!< The queue where all log messages are sent
+        std::atomic<u64> droppedMessages{}; //!< The amount of messages that were dropped because the queue was full, reported by the writer thread
 
         std::atomic<bool> running{true}; //!< If the logger thread should continue running
         std::thread thread; //!< The thread that handles writing log entries from the logger queue
@@ -154,6 +155,11 @@ namespace skyline {
             while (running.load(std::memory_order_acquire)) {
                 auto message{messageQueue.Pop()};
                 Write(message);
+
+                if (u64 dropped{droppedMessages.exchange(0, std::memory_order_relaxed)}; dropped) {
+                    LogMessage notice{AsyncLogger::LogLevel::Warning, "WriterThread", fmt::format("{} log message(s) were dropped because the logger couldn't keep up", dropped), message.time, ThreadLogContext{}};
+                    Write(notice);
+                }
             }
 
             log_time_point stopTime = stop.load(std::memory_order_acquire);
@@ -171,7 +177,14 @@ namespace skyline {
          * @brief Pushes a log message into the queue
          */
         void Push(LogMessage &&message) {
-            messageQueue.Push(std::move(message));
+            // Errors always wait for room: they are what explains a crash. Everything else is dropped when the writer can't keep up (a game logging thousands of lines a second, No Man's Sky made a 55 MiB log) instead of stalling the thread that logged, which is a thread of the game
+            if (message.level >= AsyncLogger::LogLevel::Error) {
+                messageQueue.Push(std::move(message));
+                return;
+            }
+
+            if (!messageQueue.TryPush(std::move(message)))
+                droppedMessages.fetch_add(1, std::memory_order_relaxed);
         }
 
         /**

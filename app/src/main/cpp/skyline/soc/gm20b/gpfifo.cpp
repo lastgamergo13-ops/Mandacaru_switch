@@ -133,6 +133,7 @@ namespace skyline::soc::gm20b {
                 break;
             case SubchannelId::Copy:
                 channelCtx.maxwellDma.CallMethod(method, argument);
+                break; // Without this every copy engine method was also written to the Fermi 2D registers (and could trigger a 2D operation with the copy engine's arguments)
             case SubchannelId::TwoD:
                 channelCtx.fermi2D.CallMethod(method, argument);
                 break;

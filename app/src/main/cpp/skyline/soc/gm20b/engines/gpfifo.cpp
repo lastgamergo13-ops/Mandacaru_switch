@@ -72,6 +72,17 @@ namespace skyline::soc::gm20b::engine {
 
                         channelCtx.Lock();
                         break;
+                    case Registers::Semaphore::Operation::AcqAnd:
+                        // Acquire completes once any bit of the payload is set in the semaphore (SEMAPHORED_OPERATION_ACQ_AND in NVIDIA's open-gpu-doc dev_pbdma.ref)
+                        LOGD("Acquire semaphore (AND): 0x{:X} payload: 0x{:X}", address, registers.semaphore->payload);
+                        channelCtx.executor.Submit();
+                        channelCtx.Unlock();
+
+                        while ((channelCtx.asCtx->gmmu.Read<u32>(address) & registers.semaphore->payload) == 0)
+                            std::this_thread::yield();
+
+                        channelCtx.Lock();
+                        break;
                     case Registers::Semaphore::Operation::Reduction: {
                         u32 origVal{channelCtx.asCtx->gmmu.Read<u32>(address)};
                         bool isSigned{action.format == Registers::Semaphore::Format::Signed};

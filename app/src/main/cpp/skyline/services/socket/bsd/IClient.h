@@ -141,6 +141,16 @@ namespace skyline::service::socket {
 
         Result EventFd(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
 
+        /**
+         * @brief Creates a socket like Socket, but one that isn't counted against the limit of sockets the process may have (used by system modules, nothing here has such a limit)
+         */
+        Result SocketExempt(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
+        /**
+         * @brief Duplicates a socket (the new descriptor refers to the same socket)
+         */
+        Result DuplicateSocket(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response);
+
         Result PushBsdResult(ipc::IpcResponse &response, i32 result, i32 errorCode);
 
         Result PushBsdResultErrno(ipc::IpcResponse &response, i64 result);
@@ -154,6 +164,7 @@ namespace skyline::service::socket {
             SFUNC(0x0, IClient, RegisterClient),
             SFUNC(0x1, IClient, StartMonitoring),
             SFUNC(0x2, IClient, Socket),
+            SFUNC(0x3, IClient, SocketExempt),
             SFUNC(0x5, IClient, Select),
             SFUNC(0x6, IClient, Poll),
             SFUNC(0x8, IClient, Recv),
@@ -174,6 +185,7 @@ namespace skyline::service::socket {
             SFUNC(0x18, IClient, Write),
             SFUNC(0x19, IClient, Read),
             SFUNC(0x1A, IClient, Close),
+            SFUNC(0x1B, IClient, DuplicateSocket),
             SFUNC(0x1F, IClient, EventFd)
         )
     };

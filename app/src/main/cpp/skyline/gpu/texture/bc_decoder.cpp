@@ -7,6 +7,9 @@
 // There are a lot of implicit and narrowing conversions in this file due to this (Warnings are disabled as a result)
 
 #include <fmt/printf.h>
+#include <thread>
+#include <vector>
+#include <algorithm>
 #include <common.h>
 
 #ifdef NDEBUG
@@ -1497,7 +1500,7 @@ namespace bcn {
     constexpr size_t R8g8b8a8Bpp{4}; //!< The amount of bytes per pixel in R8G8B8A8
     constexpr size_t R16g16b16a16Bpp{8}; //!< The amount of bytes per pixel in R16G16B16
 
-    void DecodeBc1(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool hasAlphaChannel) {
+    static void DecodeBc1Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool hasAlphaChannel) {
         const auto *color{reinterpret_cast<const BC_color *>(src)};
         size_t pitch{R8g8b8a8Bpp * width};
         for (size_t y{}; y < height; y += BlockHeight, dst += BlockHeight * pitch) {
@@ -1507,7 +1510,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc2(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+    static void DecodeBc2Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
         const auto *alpha{reinterpret_cast<const BC_alpha *>(src)};
         const auto *color{reinterpret_cast<const BC_color *>(src + 8)};
         size_t pitch{R8g8b8a8Bpp * width};
@@ -1520,7 +1523,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc3(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+    static void DecodeBc3Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
         const auto *alpha{reinterpret_cast<const BC_channel *>(src)};
         const auto *color{reinterpret_cast<const BC_color *>(src + 8)};
         size_t pitch{R8g8b8a8Bpp * width};
@@ -1533,7 +1536,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc4(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+    static void DecodeBc4Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
         const auto *red{reinterpret_cast<const BC_channel *>(src)};
         size_t pitch{R8Bpp * width};
         for (size_t y{}; y < height; y += BlockHeight, dst += BlockHeight * pitch) {
@@ -1543,7 +1546,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc5(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+    static void DecodeBc5Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
         const auto *red{reinterpret_cast<const BC_channel *>(src)};
         const auto *green{reinterpret_cast<const BC_channel *>(src + 8)};
         size_t pitch{R8g8Bpp * width};
@@ -1556,7 +1559,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc6(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+    static void DecodeBc6Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
         const auto *block{reinterpret_cast<const BC6H::Block *>(src)};
         size_t pitch{R16g16b16a16Bpp * width};
         for (size_t y{}; y < height; y += BlockHeight, dst += BlockHeight * pitch) {
@@ -1566,7 +1569,7 @@ namespace bcn {
         }
     }
 
-    void DecodeBc7(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+    static void DecodeBc7Serial(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
         const auto *block{reinterpret_cast<const BC7::Block *>(src)};
         size_t pitch{R8g8b8a8Bpp * width};
         for (size_t y{}; y < height; y += BlockHeight, dst += BlockHeight * pitch) {
@@ -1574,5 +1577,71 @@ namespace bcn {
             for (size_t x{}; x < width; x += BlockWidth, ++block, dstRow += BlockWidth * R8g8b8a8Bpp)
                 [[clang::always_inline]] block->decode(dstRow, x, y, width, height, pitch);
         }
+    }
+
+    namespace {
+        /**
+         * @brief Decodes a texture by splitting its rows of blocks between a few threads, big textures are what makes the CPU decoding (GPUs without BCn support, or drivers that can't be trusted with it) so slow on a phone
+         * @param blockBytes The size of one compressed block in bytes
+         * @param dstBpp The amount of bytes per pixel of the decoded texture
+         * @param decode Decodes a part of the texture, takes the source, the destination and the height in pixels of that part (its rows are all of the same width as the texture)
+         * @note Every part but the last one is a multiple of the block height, so the partially covered blocks at the bottom edge of the texture are handled exactly like they are when it's decoded in one go
+         */
+        template<typename Function>
+        void DecodeInParallel(const uint8_t *src, uint8_t *dst, size_t width, size_t height, size_t blockBytes, size_t dstBpp, Function decode) {
+            constexpr size_t MinBlocksPerThread{4096}; //!< 256x256 pixels, anything smaller isn't worth the cost of starting a thread
+            constexpr size_t MaxThreads{4}; //!< The game's own threads need the rest of the cores
+
+            size_t blocksX{(width + BlockWidth - 1) / BlockWidth};
+            size_t blocksY{(height + BlockHeight - 1) / BlockHeight};
+            size_t threadCount{std::min({static_cast<size_t>(std::thread::hardware_concurrency()), MaxThreads, (blocksX * blocksY) / MinBlocksPerThread})};
+            if (threadCount < 2 || blocksY < threadCount) {
+                decode(src, dst, height);
+                return;
+            }
+
+            size_t rowsPerThread{(blocksY + threadCount - 1) / threadCount}; //!< The amount of rows of blocks in each part
+            auto decodePart{[&](size_t firstRow) {
+                size_t lastRow{std::min(blocksY, firstRow + rowsPerThread)};
+                size_t partHeight{lastRow == blocksY ? height - firstRow * BlockHeight : (lastRow - firstRow) * BlockHeight};
+                decode(src + firstRow * blocksX * blockBytes, dst + firstRow * BlockHeight * width * dstBpp, partHeight);
+            }};
+
+            std::vector<std::thread> threads;
+            for (size_t firstRow{rowsPerThread}; firstRow < blocksY; firstRow += rowsPerThread)
+                threads.emplace_back(decodePart, firstRow);
+
+            decodePart(0); // The calling thread does the first part
+            for (auto &thread : threads)
+                thread.join();
+        }
+    }
+
+    void DecodeBc1(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool hasAlphaChannel) {
+        DecodeInParallel(src, dst, width, height, 8, R8g8b8a8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc1Serial(s, d, width, h, hasAlphaChannel); });
+    }
+
+    void DecodeBc2(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+        DecodeInParallel(src, dst, width, height, 16, R8g8b8a8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc2Serial(s, d, width, h); });
+    }
+
+    void DecodeBc3(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+        DecodeInParallel(src, dst, width, height, 16, R8g8b8a8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc3Serial(s, d, width, h); });
+    }
+
+    void DecodeBc4(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+        DecodeInParallel(src, dst, width, height, 8, R8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc4Serial(s, d, width, h, isSigned); });
+    }
+
+    void DecodeBc5(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+        DecodeInParallel(src, dst, width, height, 16, R8g8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc5Serial(s, d, width, h, isSigned); });
+    }
+
+    void DecodeBc6(const uint8_t *src, uint8_t *dst, size_t width, size_t height, bool isSigned) {
+        DecodeInParallel(src, dst, width, height, 16, R16g16b16a16Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc6Serial(s, d, width, h, isSigned); });
+    }
+
+    void DecodeBc7(const uint8_t *src, uint8_t *dst, size_t width, size_t height) {
+        DecodeInParallel(src, dst, width, height, 16, R8g8b8a8Bpp, [=](const uint8_t *s, uint8_t *d, size_t h) { DecodeBc7Serial(s, d, width, h); });
     }
 }
