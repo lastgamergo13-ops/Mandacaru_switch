@@ -1206,7 +1206,10 @@ namespace skyline::kernel::svc {
         KHandle handle{ctx.w2};
         u64 id1{ctx.x3};
 
-        constexpr u64 totalPhysicalMemory{0xF8000000}; // ~4 GB of RAM
+        /**
+         * @note This is the memory an application is given on a retail console with 4 GiB of RAM (the application pool of 3285 MiB), games size their heap/memory pools from it (TotalMemoryAvailable* minus what they already use). It used to be ~3.9 GiB which is more than any real console gives, games then asked for ~3.7 GiB of heap: Well aborted in the SDK's allocator right after doing that, and on phones with 4-6 GiB of RAM every game was pushed into using hundreds of MiB more than it ever would on a Switch
+         */
+        constexpr u64 totalPhysicalMemory{0xCD500000};
 
         u64 out{};
         switch (info) {

@@ -232,8 +232,8 @@ namespace skyline::input {
 
         auto &nextEntry{info.state.at(info.header.currentEntry)};
 
-        nextEntry.globalTimestamp = globalTimestamp;
         nextEntry.localTimestamp = lastEntry.localTimestamp + 1;
+        nextEntry.globalTimestamp = nextEntry.localTimestamp << 1; // The atomic sampling number is the sampling number shifted left by one (as done by Eden), the lowest bit is the "being written" flag the SDK's readers wait on
         nextEntry.buttons = entry.buttons;
         nextEntry.leftX = entry.leftX;
         nextEntry.leftY = entry.leftY;
@@ -252,8 +252,8 @@ namespace skyline::input {
 
         auto &nextEntry{info.state.at(info.header.currentEntry)};
 
-        nextEntry.globalTimestamp = globalTimestamp;
         nextEntry.localTimestamp = lastEntry.localTimestamp + 1;
+        nextEntry.globalTimestamp = nextEntry.localTimestamp << 1; // The atomic sampling number is the sampling number shifted left by one (as done by Eden), the lowest bit is the "being written" flag the SDK's readers wait on
         nextEntry.deltaTimestamp = entry.deltaTimestamp;
         nextEntry.accelerometer = entry.accelerometer;
         nextEntry.gyroscope = entry.gyroscope;

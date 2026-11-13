@@ -82,7 +82,8 @@ namespace skyline::input {
 
         auto &entry{section.entries[section.header.currentEntry]};
         entry = screenState;
-        entry.globalTimestamp = lastEntry.globalTimestamp + 1;
         entry.localTimestamp = lastEntry.localTimestamp + 1;
+        // The atomic sampling number is the sampling number shifted left by one (as done by Eden): the lowest bit is the "being written" flag, SDK versions that check it (Farming Simulator's, firmware 22) spin forever in nn::hid::GetTouchScreenStates when it's set, which half of the previous sequential values had
+        entry.globalTimestamp = entry.localTimestamp << 1;
     }
 }

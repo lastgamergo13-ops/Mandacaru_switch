@@ -87,12 +87,13 @@ namespace skyline::service {
         class IpcTrace {
           private:
             std::mutex traceMutex;
-            std::array<std::string, 64> recent;
+            std::array<std::string, 256> recent;
             size_t next{};
             u32 written{};
 
           public:
-            void Add(std::string line, bool always = false) {
+            void Add(u32 thread, std::string line, bool always = false) {
+                line = fmt::format("[thread {}] {}", thread, line); // Needed to tell what a frozen thread asked from the noise of the others (the audio threads make hundreds of requests per second)
                 std::scoped_lock lock{traceMutex};
                 if (written < 400) {
                     written++;
@@ -106,9 +107,19 @@ namespace skyline::service {
 
             void DumpRecent() {
                 std::scoped_lock lock{traceMutex};
-                LOGW("IPC: the last {} requests before this error:", std::min(next, recent.size()));
-                for (size_t i{next > recent.size() ? next - recent.size() : 0}; i < next; i++)
-                    LOGW("IPC:   {}", recent[i % recent.size()]);
+                LOGW("IPC: the last {} requests before this error (identical consecutive requests are collapsed):", std::min(next, recent.size()));
+                size_t first{next > recent.size() ? next - recent.size() : 0};
+                for (size_t i{first}; i < next;) {
+                    const auto &line{recent[i % recent.size()]};
+                    size_t repeats{1};
+                    while (i + repeats < next && recent[(i + repeats) % recent.size()] == line)
+                        repeats++;
+                    if (repeats > 1)
+                        LOGW("IPC:   {} (x{})", line, repeats);
+                    else
+                        LOGW("IPC:   {}", line);
+                    i += repeats;
+                }
             }
         } ipcTrace;
     }
@@ -250,7 +261,7 @@ namespace skyline::service {
             response.moveHandles.push_back(handle);
         }
         LOGD("Service has been created: \"{}\" (0x{:X})", serviceObject->GetName(), handle);
-        ipcTrace.Add(fmt::format("service \"{}\" created, {} 0x{:X}", serviceObject->GetName(), session.isDomain ? "domain object" : "handle", handle), true);
+        ipcTrace.Add(state.thread ? state.thread->id : 0, fmt::format("service \"{}\" created, {} 0x{:X}", serviceObject->GetName(), session.isDomain ? "domain object" : "handle", handle), true);
         return serviceObject;
     }
 
@@ -297,7 +308,7 @@ namespace skyline::service {
             ipc::IpcRequest request(session->isDomain, state);
             ipc::IpcResponse response(state);
 
-            ipcTrace.Add(fmt::format("handle 0x{:X} ({}{}) type {} {}{}", handle, session->serviceObject ? session->serviceObject->GetName() : "?", session->isDomain ? ", domain" : "", static_cast<u16>(request.header->type), request.payload ? "command " : "", request.payload ? static_cast<i64>(request.payload->value) : -1), request.header->type != ipc::CommandType::Request && request.header->type != ipc::CommandType::RequestWithContext);
+            ipcTrace.Add(state.thread ? state.thread->id : 0, fmt::format("handle 0x{:X} ({}{}) type {} {}{}", handle, session->serviceObject ? session->serviceObject->GetName() : "?", session->isDomain ? ", domain" : "", static_cast<u16>(request.header->type), request.payload ? "command " : "", request.payload ? static_cast<i64>(request.payload->value) : -1), request.header->type != ipc::CommandType::Request && request.header->type != ipc::CommandType::RequestWithContext);
 
             switch (request.header->type) {
                 case ipc::CommandType::Request:
@@ -346,7 +357,7 @@ namespace skyline::service {
                             clone.item->domainTable = session->domainTable;
                             KHandle cloneHandle{clone.handle};
                             response.moveHandles.push_back(cloneHandle);
-                            ipcTrace.Add(fmt::format("handle 0x{:X} cloned into handle 0x{:X}", handle, cloneHandle), true);
+                            ipcTrace.Add(state.thread ? state.thread->id : 0, fmt::format("handle 0x{:X} cloned into handle 0x{:X}", handle, cloneHandle), true);
                             break;
                         }
 
@@ -363,7 +374,7 @@ namespace skyline::service {
                 case ipc::CommandType::Close:
                 case ipc::CommandType::TipcCloseSession:
                     LOGD("Closing Session");
-                    ipcTrace.Add(fmt::format("handle 0x{:X} closed by the game", handle), true);
+                    ipcTrace.Add(state.thread ? state.thread->id : 0, fmt::format("handle 0x{:X} closed by the game", handle), true);
                     CloseSession(handle);
                     break;
                 default:
