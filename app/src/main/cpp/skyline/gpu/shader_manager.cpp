@@ -455,7 +455,34 @@ namespace skyline::gpu {
             .codeSize = spirv.size_bytes(),
         };
 
-        return (*gpu.vkDevice).createShaderModule(createInfo, nullptr, *gpu.vkDevice.getDispatcher());
+        auto module{(*gpu.vkDevice).createShaderModule(createInfo, nullptr, *gpu.vkDevice.getDispatcher())};
+
+        {
+            std::scoped_lock recentLock{recentSpirvMutex};
+            if (recentSpirv.size() >= RecentSpirvCount)
+                recentSpirv.pop_front();
+            recentSpirv.push_back({reinterpret_cast<u64>(static_cast<VkShaderModule>(module)), hash, std::vector<u32>(spirv.begin(), spirv.end())});
+        }
+
+        return module;
+    }
+
+    void ShaderManager::DumpFailedModule(vk::ShaderModule module) {
+        std::scoped_lock recentLock{recentSpirvMutex};
+        u64 handle{reinterpret_cast<u64>(static_cast<VkShaderModule>(module))};
+        for (auto it{recentSpirv.rbegin()}; it != recentSpirv.rend(); ++it) {
+            if (it->module != handle)
+                continue;
+
+            std::error_code error;
+            auto directory{dumpPath / "failed"};
+            std::filesystem::create_directories(directory, error);
+            auto path{directory / fmt::format("{:016X}_{:016X}.spv", handle, it->hash)};
+            std::ofstream file{path, std::ios::binary};
+            file.write(reinterpret_cast<const char *>(it->code.data()), static_cast<std::streamsize>(it->code.size() * sizeof(u32)));
+            LOGE("Wrote the SPIR-V of the shader that made the driver fail to '{}' ({} bytes, guest shader hash 0x{:X})", path.string(), it->code.size() * sizeof(u32), it->hash);
+            return;
+        }
     }
 
     void ShaderManager::ResetPools() {

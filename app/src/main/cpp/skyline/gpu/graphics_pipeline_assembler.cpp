@@ -297,6 +297,9 @@ namespace skyline::gpu {
             if (!recovered) {
                 // The driver rejected the shaders themselves (for example a SPIR-V module our shader recompiler generated that is invalid, No Man's Sky triggered this), the game can't do anything about that so the draws that use this pipeline are dropped instead of the whole emulator being killed
                 LOGE("Creating a pipeline failed ({}), draws using it will draw nothing", e.what());
+                if (gpu.shader)
+                    for (const auto &shaderStage : pipelineDescIt->shaderStages)
+                        gpu.shader->DumpFailedModule(shaderStage.module); // So the SPIR-V the driver complained about can be examined (shader_dumps/<titleId>/failed/)
                 pipeline = CreateDrawNothingPipeline(pipelineDescIt, pipelineLayout, *renderPass);
             }
         }

@@ -4,6 +4,8 @@
 #pragma once
 
 #include <atomic>
+#include <deque>
+#include <vector>
 
 #include <unordered_map>
 #include <vulkan/vulkan.hpp>
@@ -40,6 +42,18 @@ namespace skyline::gpu {
         std::mutex dumpMutex;
 
         /**
+         * @brief A copy of the SPIR-V of a recently compiled shader, kept so that it can be written to disk if the driver refuses to build a pipeline with it
+         */
+        struct RecentSpirv {
+            u64 module; //!< The handle of the VkShaderModule that was created from this SPIR-V
+            u64 hash; //!< The hash of the guest shader
+            std::vector<u32> code;
+        };
+        std::deque<RecentSpirv> recentSpirv; //!< The last few compiled shaders (oldest first), only a few are kept to bound the memory used
+        std::mutex recentSpirvMutex;
+        static constexpr size_t RecentSpirvCount{48};
+
+        /**
          * @brief Called at init time to populate the shader replacements map from the input directory
          */
         void LoadShaderReplacements(std::string_view replacementDir);
@@ -51,6 +65,12 @@ namespace skyline::gpu {
         span<u8> ProcessShaderBinary(bool spv, u64 hash, span<u8> binary);
 
       public:
+        /**
+         * @brief Writes the SPIR-V that a shader module was created from to `failed/<module>_<guest shader hash>.spv` next to the shader dumps, used when the driver rejects a pipeline so the SPIR-V that triggered it can be inspected (the driver's message only gives a byte offset)
+         * @note Only the last RecentSpirvCount compiled shaders are known, a module that isn't one of them is ignored
+         */
+        void DumpFailedModule(vk::ShaderModule module);
+
         using ConstantBufferRead = std::function<u32(u32 index, u32 offset)>; //!< A function which reads a constant buffer at the specified offset and returns the value
         /**
          * @brief What the shader compiler needs to know about a texture, taken from its TIC

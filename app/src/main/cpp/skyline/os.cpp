@@ -2,6 +2,9 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <atomic>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -183,6 +186,53 @@ namespace skyline::kernel {
 
             // A game that spins in guest code usually does so around a service call that keeps failing or returning something unexpected, the last requests show which one
             service::DumpRecentIpcTrace();
+
+            DumpHostThreads();
+        }
+
+        /**
+         * @brief Logs what the threads of the emulator itself (the GPU and audio threads, not the game's) are doing: their state and, if they are blocked, the system call they're in
+         * @note When the game stops presenting frames and every guest thread is waiting, this is what shows if a host thread is blocked too (a futex means a lock or condition variable, an ioctl on a GPU descriptor means a wait for the GPU) which the guest threads' report can't tell
+         */
+        static void DumpHostThreads() {
+            std::error_code error;
+            std::string dump;
+            for (const auto &entry : std::filesystem::directory_iterator{"/proc/self/task", error}) {
+                auto readFile{[&](const char *name) {
+                    std::ifstream file{entry.path() / name};
+                    std::string content;
+                    std::getline(file, content);
+                    return content;
+                }};
+
+                std::string name{readFile("comm")};
+                if (name.rfind("HOS-", 0) == 0)
+                    continue; // The guest threads are already in the report
+
+                // The state is the first field after the parenthesis that closes the thread name
+                std::string stat{readFile("stat")};
+                auto nameEnd{stat.rfind(')')};
+                char state{nameEnd != std::string::npos && nameEnd + 2 < stat.size() ? stat[nameEnd + 2] : '?'};
+
+                // "<number> <6 arguments> <sp> <pc>", "running" or "-1 <sp> <pc>"
+                std::istringstream syscallStream{readFile("syscall")};
+                std::string number;
+                syscallStream >> number;
+                std::string syscall;
+                if (number == "running" || number.empty()) {
+                    syscall = "running";
+                } else if (number == "-1") {
+                    syscall = "not in a system call";
+                } else {
+                    std::string arguments[2];
+                    syscallStream >> arguments[0] >> arguments[1];
+                    syscall = fmt::format("syscall {} ({} {})", number, arguments[0], arguments[1]); // 98 = futex(address, operation), 29 = ioctl(fd, request), 73 = ppoll, 101 = nanosleep
+                }
+
+                dump += fmt::format("\n  {} ({}): state {}, {}, wchan {}", name, entry.path().filename().string(), state, syscall, readFile("wchan"));
+            }
+
+            LOGW("Host threads (state R running, S sleeping, D uninterruptible, T stopped):{}", dump);
         }
 
       public:
