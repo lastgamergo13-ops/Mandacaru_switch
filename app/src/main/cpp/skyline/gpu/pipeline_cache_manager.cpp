@@ -47,6 +47,14 @@ namespace skyline::gpu {
             stream.seekp(0, std::ios_base::beg);
             stream.write(reinterpret_cast<const char *>(&header), sizeof(PipelineCacheFileHeader));
             stream.seekp(savedPosition);
+            stream.flush(); // The app can be killed at any moment (the Android low memory killer does that to games that use a lot of RAM), whatever is still in the stream buffer would be lost with all the pipelines compiled in that session
+
+            if (header.count == 1 || header.count % 250 == 0)
+                LOGI("Pipeline cache: {} pipeline(s) written to '{}' this session", header.count, stagingPath);
+            if (stream.fail()) {
+                LOGE("Pipeline cache: writing to '{}' failed, new pipelines won't be saved", stagingPath);
+                return;
+            }
         }
     }
 
@@ -83,6 +91,7 @@ namespace skyline::gpu {
 
         mainStream.seekp(0, std::ios::end);
         mainStream << stagingStream.rdbuf();
+        LOGI("Pipeline cache: merged {} pipeline(s) from the previous session into '{}' (now {} in total)", stagingHeader.count, mainPath, mainHeader.count);
     }
 
     PipelineCacheManager::PipelineCacheManager(const DeviceState &state, const std::string &path)
@@ -105,6 +114,9 @@ namespace skyline::gpu {
         }
 
         // Merge any staging changes into the main file before starting the writer thread
+        std::error_code ec;
+        auto stagingSize{std::filesystem::exists(stagingPath, ec) ? std::filesystem::file_size(stagingPath, ec) : 0};
+        LOGI("Pipeline cache: main file '{}' ({}), staging file {} bytes", mainPath, didExist ? "existed" : "created now", stagingSize);
         MergeStaging();
         writerThread = std::thread(&PipelineCacheManager::Run, this);
     }

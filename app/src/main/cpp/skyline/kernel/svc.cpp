@@ -146,6 +146,30 @@ namespace skyline::kernel::svc {
         ctx.w0 = Result{};
     }
 
+    namespace {
+        /**
+         * @brief Decides if a warning that a game can trigger in a loop should be written: the first few occurrences and then one in every few thousand
+         * @note No Man's Sky retried a failing MapMemory 354 thousand times, which made up 99% of a 55 MiB log
+         */
+        bool ShouldLogRepeatedWarning(std::atomic<u32> &counter) {
+            u32 count{counter.fetch_add(1, std::memory_order_relaxed)};
+            return count < 20 || count % 5000 == 0;
+        }
+
+        /**
+         * @return The SVCs the thread made most recently (oldest first) with their arguments and results, for diagnosing failures that only show up as an error code
+         */
+        std::string FormatSvcHistory(const type::KThread &thread) {
+            std::string history;
+            size_t count{std::min(thread.svcHistoryNext, thread.svcHistory.size())};
+            for (size_t i{thread.svcHistoryNext - count}; i < thread.svcHistoryNext; i++) {
+                const auto &entry{thread.svcHistory[i % thread.svcHistory.size()]};
+                history += fmt::format("\n  SVC 0x{:X} (X0=0x{:X} X1=0x{:X} X2=0x{:X}) -> {}", entry.id, entry.args[0], entry.args[1], entry.args[2], entry.returned ? fmt::format("W0=0x{:X}", static_cast<u32>(entry.result)) : std::string{"(did not return)"});
+            }
+            return fmt::format("The last {} SVC(s) of thread {}:{}", count, thread.id, history);
+        }
+    }
+
     void MapMemory(const DeviceState &state, SvcContext &ctx) {
         u8 *destination{reinterpret_cast<u8 *>(ctx.x0)};
         u8 *source{reinterpret_cast<u8 *>(ctx.x1)};
@@ -153,7 +177,12 @@ namespace skyline::kernel::svc {
 
         if (!util::IsPageAligned(destination) || !util::IsPageAligned(source)) [[unlikely]] {
             ctx.w0 = result::InvalidAddress;
-            LOGW("Addresses not page aligned: 'source': {}, 'destination': {}, 'size': 0x{:X} bytes", fmt::ptr(source), fmt::ptr(destination), size);
+            static std::atomic<u32> warnings{};
+            if (u32 count{warnings.load(std::memory_order_relaxed)}; ShouldLogRepeatedWarning(warnings)) {
+                LOGW("Addresses not page aligned: 'source': {}, 'destination': {}, 'size': 0x{:X} bytes ({} occurrence(s) so far)", fmt::ptr(source), fmt::ptr(destination), size, count + 1);
+                if (count < 3)
+                    LOGW("{}", FormatSvcHistory(*state.thread)); // Shows how the game got to an address that isn't page aligned
+            }
             return;
         }
 
@@ -201,7 +230,9 @@ namespace skyline::kernel::svc {
 
         if (!util::IsPageAligned(destination) || !util::IsPageAligned(source)) [[unlikely]] {
             ctx.w0 = result::InvalidAddress;
-            LOGW("Addresses not page aligned: 'source': {}, 'destination': {}, 'size': {} bytes", fmt::ptr(source), fmt::ptr(destination), size);
+            static std::atomic<u32> warnings{};
+            if (u32 count{warnings.load(std::memory_order_relaxed)}; ShouldLogRepeatedWarning(warnings))
+                LOGW("Addresses not page aligned: 'source': {}, 'destination': {}, 'size': {} bytes ({} occurrence(s) so far)", fmt::ptr(source), fmt::ptr(destination), size, count + 1);
             return;
         }
 
@@ -1109,16 +1140,7 @@ namespace skyline::kernel::svc {
             LOGE("Exit Stack Trace ({}{}){}", reason, info, state.loader->GetStackTrace());
 
             // The SVCs the aborting thread made right before it gave up (oldest first), the result of an earlier failing SVC is often what the game aborted over
-            {
-                auto &thread{*state.thread};
-                std::string history;
-                size_t count{std::min(thread.svcHistoryNext, thread.svcHistory.size())};
-                for (size_t i{thread.svcHistoryNext - count}; i < thread.svcHistoryNext; i++) {
-                    const auto &entry{thread.svcHistory[i % thread.svcHistory.size()]};
-                    history += fmt::format("\n  SVC 0x{:X} (X0=0x{:X} X1=0x{:X} X2=0x{:X}) -> {}", entry.id, entry.args[0], entry.args[1], entry.args[2], entry.returned ? fmt::format("W0=0x{:X}", static_cast<u32>(entry.result)) : std::string{"(did not return)"});
-                }
-                LOGE("The last {} SVC(s) of thread {} before the abort:{}", count, thread.id, history);
-            }
+            LOGE("{}", FormatSvcHistory(*state.thread));
             if (state.thread->id)
                 state.process->Kill(false);
             std::longjmp(state.thread->originalCtx, true);
