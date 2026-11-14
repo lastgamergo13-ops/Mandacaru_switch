@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="log_options_title">Logs</string>
+    <string name="log_option_share">Compartilhar o último log</string>
+    <string name="log_option_export">Exportar arquivos de diagnóstico para uma pasta…</string>
+    <string name="export_diagnostics_nothing">Ainda não há arquivos para exportar</string>
+    <string name="export_diagnostics_done">%1$d arquivo(s) exportado(s) para a pasta %2$s</string>
+    <string name="export_diagnostics_partial">%1$d arquivo(s) exportado(s) para a pasta %2$s, %3$d não puderam ser copiados</string>
+    <string name="export_diagnostics_failed">Não foi possível exportar os arquivos, escolha uma pasta onde seja possível gravar</string>
+</resources>

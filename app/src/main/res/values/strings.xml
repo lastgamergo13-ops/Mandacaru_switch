@@ -13,6 +13,14 @@
     <!-- Toolbar - Share Logs -->
     <string name="log_share_prompt">Share log file</string>
     <string name="logs_not_found">No logs were created during the last run</string>
+    <!-- Toolbar - Log options -->
+    <string name="log_options_title">Logs</string>
+    <string name="log_option_share">Share the last log</string>
+    <string name="log_option_export">Export diagnostic files to a folder…</string>
+    <string name="export_diagnostics_nothing">There are no files to export yet</string>
+    <string name="export_diagnostics_done">Exported %1$d file(s) to the folder %2$s</string>
+    <string name="export_diagnostics_partial">Exported %1$d file(s) to the folder %2$s, %3$d could not be copied</string>
+    <string name="export_diagnostics_failed">The files could not be exported, pick a folder that can be written to</string>
     <!-- Main -->
     <string name="all">All</string>
     <string name="metadata_missing">Metadata Missing</string>

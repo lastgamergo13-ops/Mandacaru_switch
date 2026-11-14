@@ -25,6 +25,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import org.stratoemu.strato.adapter.*
@@ -38,6 +39,7 @@ import org.stratoemu.strato.settings.AppSettings
 import org.stratoemu.strato.settings.EmulationSettings
 import org.stratoemu.strato.settings.SettingsActivity
 import org.stratoemu.strato.settings.SetupModeTag
+import org.stratoemu.strato.utils.DiagnosticsExporter
 import org.stratoemu.strato.utils.GpuDriverHelper
 import org.stratoemu.strato.utils.WindowInsetsHelper
 import javax.inject.Inject
@@ -89,6 +91,60 @@ class MainActivity : AppCompatActivity() {
         if (appSettings.refreshRequired) loadRoms(false)
     }
 
+    /**
+     * The folder picker used by the "export diagnostic files" option of the log button, the files are copied to a new folder inside the folder that is picked
+     */
+    private val exportFolderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null)
+            exportDiagnostics(uri)
+    }
+
+    private fun exportDiagnostics(treeUri : Uri) {
+        val rootView = findViewById<View>(android.R.id.content)
+        Thread {
+            val result = DiagnosticsExporter.export(applicationContext, treeUri)
+            runOnUiThread {
+                val message = when {
+                    result.folderName == null && result.failed == 0 -> getString(R.string.export_diagnostics_nothing)
+                    result.copied == 0 -> getString(R.string.export_diagnostics_failed)
+                    result.failed != 0 -> getString(R.string.export_diagnostics_partial, result.copied, result.failed, result.folderName)
+                    else -> getString(R.string.export_diagnostics_done, result.copied, result.folderName)
+                }
+                Snackbar.make(rootView, message, Snackbar.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
+    private fun shareEmulationLog() {
+        val file = DocumentFile.fromSingleUri(this, DocumentsContract.buildDocumentUri(DocumentsProvider.AUTHORITY, "${DocumentsProvider.ROOT_ID}/logs/emulation.log"))!!
+        if (file.exists() && file.length() != 0L) {
+            val intent = Intent(Intent.ACTION_SEND)
+                .setDataAndType(file.uri, "text/plain")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .putExtra(Intent.EXTRA_STREAM, file.uri)
+            startActivity(Intent.createChooser(intent, getString(R.string.log_share_prompt)))
+        } else {
+            Snackbar.make(findViewById(android.R.id.content), getString(R.string.logs_not_found), Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showLogOptions() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.log_options_title)
+            .setItems(arrayOf(getString(R.string.log_option_share), getString(R.string.log_option_export))) { _, which ->
+                when (which) {
+                    0 -> shareEmulationLog()
+                    1 -> {
+                        if (DiagnosticsExporter.hasFiles(applicationContext))
+                            exportFolderPicker.launch(null)
+                        else
+                            Snackbar.make(findViewById(android.R.id.content), getString(R.string.export_diagnostics_nothing), Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun AppItem.toViewItem() = AppViewItem(layoutType, this, ::selectStartGame, ::selectShowGameDialog)
 
     override fun onCreate(savedInstanceState : Bundle?) {
@@ -128,18 +184,7 @@ class MainActivity : AppCompatActivity() {
         loadRoms(!appSettings.refreshRequired)
 
         binding.searchBar.apply {
-            binding.logIcon.setOnClickListener {
-                val file = DocumentFile.fromSingleUri(this@MainActivity, DocumentsContract.buildDocumentUri(DocumentsProvider.AUTHORITY, "${DocumentsProvider.ROOT_ID}/logs/emulation.log"))!!
-                if (file.exists() && file.length() != 0L) {
-                    val intent = Intent(Intent.ACTION_SEND)
-                        .setDataAndType(file.uri, "text/plain")
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        .putExtra(Intent.EXTRA_STREAM, file.uri)
-                    startActivity(Intent.createChooser(intent, getString(R.string.log_share_prompt)))
-                } else {
-                    Snackbar.make(this@MainActivity.findViewById(android.R.id.content), getString(R.string.logs_not_found), Snackbar.LENGTH_SHORT).show()
-                }
-            }
+            binding.logIcon.setOnClickListener { showLogOptions() }
             binding.settingsIcon.setOnClickListener { settingsCallback.launch(Intent(context, SettingsActivity::class.java)) }
             binding.refreshIcon.setOnClickListener { loadRoms(false) }
             addTextChangedListener(afterTextChanged = { editable ->

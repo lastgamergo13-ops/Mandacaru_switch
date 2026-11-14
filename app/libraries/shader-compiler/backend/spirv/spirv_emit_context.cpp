@@ -25,9 +25,15 @@ enum class Operation {
     FPMax,
 };
 
+/// @return If the texels of a sampled texture are read as integers. A depth texture never is: its depth comparison samples (OpImageSampleDref*) always return a float, an image
+/// declared with an unsigned sampled type makes the driver reject the shader ("SPIR-V return type mismatches image type"), and depth/stencil formats can have integer component types in their TIC
+static bool IsIntegerTexture(const TextureDescriptor& desc) {
+    return desc.is_integer && !desc.is_depth;
+}
+
 Id ImageType(EmitContext& ctx, const TextureDescriptor& desc) {
     const spv::ImageFormat format{spv::ImageFormat::Unknown};
-    const Id type{desc.is_integer ? ctx.U32[1] : ctx.F32[1]};
+    const Id type{IsIntegerTexture(desc) ? ctx.U32[1] : ctx.F32[1]};
     const bool depth{desc.is_depth};
     const bool ms{desc.is_multisample};
     switch (desc.type) {
@@ -1304,7 +1310,7 @@ void EmitContext::DefineTextures(const Info& info, u32& binding, u32& scaling_in
             .image_type = image_type,
             .count = desc.count,
             .is_multisample = desc.is_multisample,
-            .is_integer = desc.is_integer,
+            .is_integer = IsIntegerTexture(desc),
         });
         if (profile.supported_spirv >= 0x00010400) {
             interfaces.push_back(id);
