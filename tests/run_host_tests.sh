@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Testes que rodam no PC/CI (nao no Android), sem o emulador inteiro:
 #   1. NczBacking: le um .ncz sintetico por blocos (zstd + AES-CTR) e compara com o NCA original
-#   2. libopus multi-stream (5.1): o mesmo fluxo que o servico hwopus usa (tamanho, init em memoria crua, decodificar, resetar)
+#   2. BCn: o decodificador paralelo (bc_decoder.cpp) e identico ao serial
+#   3. libopus multi-stream (5.1): o mesmo fluxo que o servico hwopus usa (tamanho, init em memoria crua, decodificar, resetar)
 # Requisitos: gcc/g++ 13+, python3 com 'cryptography', libzstd (libzstd1; com libzstd-dev o cabecalho real e usado).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,6 +37,13 @@ g++ -std=c++20 -O1 -DFMT_HEADER_ONLY -D__ANDROID__ -DPAGE_SIZE=4096 -include cst
   "$ROOT/tests/bktr/test_bktr.cpp" "$WORK/src/cpp/skyline/vfs/bktr_backing.cpp" "$WORK/src/cpp/skyline/crypto/aes_cipher.cpp" "$WORK"/mbed/*.o -o "$WORK/test_bktr" 2>&1 | grep -E "error|undefined" && exit 1
 "$WORK/test_bktr" "$WORK" | tee "$WORK/bktr.out"
 grep -q "FULL OK mismatches=0" "$WORK/bktr.out"
+
+echo "== BCn (decodificador paralelo identico ao serial)"
+# -DBCN_TEST_THREADS=4 forca o caminho com varias threads mesmo numa maquina de um nucleo (o teste inclui bc_decoder.cpp para alcancar as funcoes seriais)
+g++ -std=c++20 -O1 -DFMT_HEADER_ONLY -D__ANDROID__ -DPAGE_SIZE=4096 -DBCN_TEST_THREADS=4 -include cstdint -include optional -include csignal -include sys/ucontext.h -Dsiginfo=siginfo_t -Ducontext=ucontext_t $INC -pthread \
+  "$ROOT/tests/bcn_test.cpp" -o "$WORK/test_bcn" 2>&1 | grep -E "error|undefined" && exit 1
+"$WORK/test_bcn" | tee "$WORK/bcn.out"
+grep -q "mismatches=0" "$WORK/bcn.out"
 
 echo "== libopus multi-stream"
 python3 - "$APP/libraries/opus" "$WORK/opus_srcs.txt" <<'PY'

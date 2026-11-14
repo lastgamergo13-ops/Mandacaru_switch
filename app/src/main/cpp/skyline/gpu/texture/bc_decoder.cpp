@@ -1594,7 +1594,12 @@ namespace bcn {
 
             size_t blocksX{(width + BlockWidth - 1) / BlockWidth};
             size_t blocksY{(height + BlockHeight - 1) / BlockHeight};
-            size_t threadCount{std::min({static_cast<size_t>(std::thread::hardware_concurrency()), MaxThreads, (blocksX * blocksY) / MinBlocksPerThread})};
+            #ifdef BCN_TEST_THREADS
+            constexpr size_t AvailableThreads{BCN_TEST_THREADS}; // Lets the host test exercise the multi threaded path on a machine with a single core
+#else
+            const size_t AvailableThreads{std::thread::hardware_concurrency()};
+#endif
+            size_t threadCount{std::min({static_cast<size_t>(AvailableThreads), MaxThreads, (blocksX * blocksY) / MinBlocksPerThread})};
             if (threadCount < 2 || blocksY < threadCount) {
                 decode(src, dst, height);
                 return;
