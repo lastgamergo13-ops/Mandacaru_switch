@@ -12,3 +12,4 @@ Precisa de `g++` 13+, `python3-cryptography` e `libzstd1` (ou `libzstd-dev`).
 
 Os testes não usam jogos nem chaves. Os arquivos em `tests/shims` só existem para compilar fontes do emulador no x86.
 - **BCn**: `tests/bcn_test.cpp` decodifica BC1 a BC7 com várias texturas (tamanhos com bordas parciais) usando o decodificador paralelo e o serial (`bc_decoder.cpp`, incluído direto no teste) e exige resultado idêntico byte a byte. Roda com 4 threads forçadas (`-DBCN_TEST_THREADS=4`), mesmo em máquina de um núcleo.
+- **spv_inspect.py**: ferramenta (não é teste) que mostra a instrução de um `.spv` num deslocamento e todos os usos de um id, para analisar os shaders que o driver recusou (arquivos exportados pelo botão da tela de logs).

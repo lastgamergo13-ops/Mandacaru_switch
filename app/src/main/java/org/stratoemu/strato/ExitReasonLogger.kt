@@ -21,6 +21,7 @@ import java.util.Locale
 object ExitReasonLogger {
     private const val TAG = "ExitReasonLogger"
     private const val MaxEntries = 6
+    private const val MaxStoredEntries = 40
 
     fun record(context : Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
@@ -39,7 +40,12 @@ object ExitReasonLogger {
             }
 
             Log.i(TAG, "Previous process exits:\n$text")
-            context.getPublicFilesDir().resolve("last_exit_reasons.txt").writeText(text + "\n")
+
+            // The system only remembers the last few exits, so what was written before is kept (the newest first, without repeats) to not lose the reason of a crash once other runs have happened
+            val file = context.getPublicFilesDir().resolve("last_exit_reasons.txt")
+            val previous = if (file.isFile) file.readLines().filter { it.isNotBlank() } else emptyList()
+            val merged = (text.lines() + previous).distinct().sortedDescending().take(MaxStoredEntries)
+            file.writeText(merged.joinToString("\n") + "\n")
         } catch (e : Exception) {
             Log.w(TAG, "Couldn't read the process exit reasons", e)
         }

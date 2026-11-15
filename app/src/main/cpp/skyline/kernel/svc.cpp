@@ -1209,7 +1209,11 @@ namespace skyline::kernel::svc {
         /**
          * @note This is the memory an application is given on a retail console with 4 GiB of RAM (the application pool of 3285 MiB), games size their heap/memory pools from it (TotalMemoryAvailable* minus what they already use). It used to be ~3.9 GiB which is more than any real console gives, games then asked for ~3.7 GiB of heap: Well aborted in the SDK's allocator right after doing that, and on phones with 4-6 GiB of RAM every game was pushed into using hundreds of MiB more than it ever would on a Switch
          */
-        constexpr u64 totalPhysicalMemory{0xCD500000};
+        constexpr u64 RetailApplicationMemory{0xCD500000};
+        // The "game memory limit" setting can only lower it: games that need the retail amount (a Switch never gives them more) can't run with less, but on a phone with 3-4 GiB of RAM the system kills the app long before the game has used what it was told it has
+        u64 totalPhysicalMemory{RetailApplicationMemory};
+        if (u64 limit{static_cast<u64>(*state.settings->gameMemoryLimitMiB) * 1024 * 1024}; limit != 0 && limit < totalPhysicalMemory)
+            totalPhysicalMemory = limit;
 
         u64 out{};
         switch (info) {

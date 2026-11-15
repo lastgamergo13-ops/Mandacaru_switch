@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import org.stratoemu.strato.ExitReasonLogger
 import org.stratoemu.strato.getPublicFilesDir
 import java.io.File
 import java.text.SimpleDateFormat
@@ -29,6 +30,9 @@ object DiagnosticsExporter {
      * @return The files that would be exported, in the order they are copied (with the name each one gets in the destination)
      */
     private fun collect(context : Context) : List<Entry> {
+        // The reasons the previous runs ended are kept by the system, they are written to the file right now so that it exists and is up to date even if no game has been started since the one that crashed
+        ExitReasonLogger.record(context)
+
         val root = context.getPublicFilesDir()
         val entries = mutableListOf<Entry>()
 

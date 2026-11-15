@@ -39,6 +39,7 @@ data class NativeSettings(
     var useDirectMemoryImport : Boolean,
     var forceMaxGpuClocks : Boolean,
     var freeGuestTextureMemory : Boolean,
+    var gameMemoryLimitMiB : Int,
     var disableShaderCache : Boolean,
 
     // Hacks
@@ -68,6 +69,7 @@ data class NativeSettings(
         pref.useDirectMemoryImport,
         pref.forceMaxGpuClocks,
         shouldFreeGuestTextureMemory(context, pref.freeGuestTextureMemory),
+        pref.gameMemoryLimit,
         pref.disableShaderCache,
         pref.enableFastGpuReadbackHack,
         pref.enableFastReadbackWrites,

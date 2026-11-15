@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         // Need to create new instance of settings, dependency injection happens
         AppCompatDelegate.setDefaultNightMode(AppSettings(this).appTheme)
         super.onCreate(savedInstanceState)
+        ExitReasonLogger.record(this) // Why the previous run of the emulator ended (needs Android 11+), it is also refreshed when the diagnostic files are exported
 
         setContentView(binding.root)
         WindowCompat.setDecorFitsSystemWindows(window, false)

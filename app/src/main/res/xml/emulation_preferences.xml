@@ -124,6 +124,15 @@
             app:showSeekBarValue="true"
             app:title="@string/executor_slot_count_scale" />
         <SeekBarPreference
+            android:defaultValue="3285"
+            android:max="3285"
+            android:min="1536"
+            android:summary="@string/game_memory_limit_desc"
+            app:key="game_memory_limit"
+            app:seekBarIncrement="64"
+            app:showSeekBarValue="true"
+            app:title="@string/game_memory_limit" />
+        <SeekBarPreference
             android:defaultValue="256"
             android:max="1024"
             android:min="0"

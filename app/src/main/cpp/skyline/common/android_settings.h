@@ -47,6 +47,7 @@ namespace skyline {
             forceMaxGpuClocks = ktSettings.GetBool("forceMaxGpuClocks");
             disableShaderCache = ktSettings.GetBool("disableShaderCache");
             freeGuestTextureMemory = ktSettings.GetBool("freeGuestTextureMemory");
+            gameMemoryLimitMiB = ktSettings.GetInt<u32>("gameMemoryLimitMiB");
             enableFastGpuReadbackHack = ktSettings.GetBool("enableFastGpuReadbackHack");
             enableFastReadbackWrites = ktSettings.GetBool("enableFastReadbackWrites");
             disableSubgroupShuffle = ktSettings.GetBool("disableSubgroupShuffle");

@@ -52,6 +52,7 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var useDirectMemoryImport by sharedPreferences(context, false, prefName = prefName)
     var forceMaxGpuClocks by sharedPreferences(context, false, prefName = prefName)
     var freeGuestTextureMemory by sharedPreferences(context, true, prefName = prefName)
+    var gameMemoryLimit by sharedPreferences(context, 3285, prefName = prefName)
     var disableShaderCache by sharedPreferences(context, false, prefName = prefName)
 
     // Hacks

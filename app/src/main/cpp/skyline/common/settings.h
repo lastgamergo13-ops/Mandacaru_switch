@@ -81,6 +81,7 @@ namespace skyline {
         Setting<bool> useDirectMemoryImport; //!< If buffer emulation should be done by importing guest buffer mappings
         Setting<bool> forceMaxGpuClocks; //!< If the GPU should be forced to run at maximum clocks
         Setting<bool> freeGuestTextureMemory; //!< If guest textrue memory should be freed when the owning texture is GPU dirty
+        Setting<u32> gameMemoryLimitMiB; //!< The amount of memory in MiB that games are told they have (a retail console gives an application 3285 MiB), games size their heap and pools from it so a lower value makes them use less RAM
 
         // Hacks
         Setting<bool> enableFastGpuReadbackHack; //!< If the CPU texture readback skipping hack should be used
@@ -104,7 +105,7 @@ namespace skyline {
             LOGINF("Settings:");
             LOGINF("  System: docked: {}, language: {}, region: {}, internet: {}", *isDocked, static_cast<u32>(*systemLanguage), static_cast<u32>(*systemRegion), *isInternetEnabled);
             LOGINF("  Display: force triple buffering: {}, disable frame throttling: {}, disable shader cache: {}", *forceTripleBuffering, *disableFrameThrottling, *disableShaderCache);
-            LOGINF("  GPU: driver: \"{}\", driver library: \"{}\", executor slot count scale: {}, executor flush threshold: {}, direct memory import: {}, force max GPU clocks: {}, free guest texture memory: {}", *gpuDriver, *gpuDriverLibraryName, *executorSlotCountScale, *executorFlushThreshold, *useDirectMemoryImport, *forceMaxGpuClocks, *freeGuestTextureMemory);
+            LOGINF("  GPU: driver: \"{}\", driver library: \"{}\", executor slot count scale: {}, executor flush threshold: {}, direct memory import: {}, force max GPU clocks: {}, free guest texture memory: {}, game memory limit: {} MiB", *gpuDriver, *gpuDriverLibraryName, *executorSlotCountScale, *executorFlushThreshold, *useDirectMemoryImport, *forceMaxGpuClocks, *freeGuestTextureMemory, *gameMemoryLimitMiB);
             LOGINF("  Hacks: fast GPU readback: {}, fast readback writes: {}, disable subgroup shuffle: {}, fix bloom effects: {}", *enableFastGpuReadbackHack, *enableFastReadbackWrites, *disableSubgroupShuffle, *fixBloomEffects);
             LOGINF("  Audio: output disabled: {}", *isAudioOutputDisabled);
             LOGINF("  Debug: log level: {}, validation layer: {}", static_cast<u32>(*logLevel), *validationLayer);

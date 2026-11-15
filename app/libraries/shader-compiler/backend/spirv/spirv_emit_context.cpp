@@ -507,6 +507,11 @@ Id EmitContext::Def(const IR::Value& value) {
     case IR::Type::F32:
         return Const(value.F32());
     case IR::Type::F64:
+        if (!Sirit::ValidId(F64[1])) {
+            // The host has no 64-bit floats: the operations that use this value were lowered to 32-bit floats (LowerFp64ToFp32), but that pass leaves their immediates as F64.
+            // Declaring a constant of a type that was never defined makes the driver reject the whole shader (No Man's Sky: "SPIR-V id is the wrong kind of value: expected 'type' but got 'invalid'")
+            return Constant(F32[1], static_cast<f32>(value.F64()));
+        }
         return Constant(F64[1], value.F64());
     default:
         throw NotImplementedException("Immediate type {}", value.Type());
