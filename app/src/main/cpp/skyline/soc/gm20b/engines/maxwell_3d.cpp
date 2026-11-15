@@ -464,12 +464,13 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
                 registers.raw[0xD00] = 1;
             })
 
+            // Only the caches have to be invalidated for these, the recorded commands keep the objects they resolved. Submitting here made every one of these (games issue them between passes) a separate GPU submission
             ENGINE_CASE(invalidateSamplerCacheAll, {
-                channelCtx.executor.Submit();
+                channelCtx.executor.InvalidateCaches();
             })
 
             ENGINE_CASE(invalidateTextureHeaderCacheAll, {
-                channelCtx.executor.Submit();
+                channelCtx.executor.InvalidateCaches();
             })
 
             // Begin a batch constant buffer update, this case will never be reached if a batch update is currently active

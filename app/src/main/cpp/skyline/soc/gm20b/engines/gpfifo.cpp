@@ -41,6 +41,9 @@ namespace skyline::soc::gm20b::engine {
                 switch (action.operation) {
                     case Registers::Semaphore::Operation::Acquire:
                         LOGD("Acquire semaphore: 0x{:X} payload: {}", address, registers.semaphore->payload);
+                        if (channelCtx.asCtx->gmmu.Read<u32>(address) == registers.semaphore->payload)
+                            break; // Already satisfied, there's nothing to wait for (and nothing to submit)
+
                         channelCtx.executor.Submit();
                         channelCtx.Unlock();
 
@@ -64,6 +67,9 @@ namespace skyline::soc::gm20b::engine {
                         break;
                     case Registers::Semaphore::Operation::AcqGeq    :
                         LOGD("Acquire semaphore: 0x{:X} payload: {}", address, registers.semaphore->payload);
+                        if (channelCtx.asCtx->gmmu.Read<u32>(address) >= registers.semaphore->payload)
+                            break; // Already satisfied
+
                         channelCtx.executor.Submit();
                         channelCtx.Unlock();
 
@@ -75,6 +81,9 @@ namespace skyline::soc::gm20b::engine {
                     case Registers::Semaphore::Operation::AcqAnd:
                         // Acquire completes once any bit of the payload is set in the semaphore (SEMAPHORED_OPERATION_ACQ_AND in NVIDIA's open-gpu-doc dev_pbdma.ref)
                         LOGD("Acquire semaphore (AND): 0x{:X} payload: 0x{:X}", address, registers.semaphore->payload);
+                        if ((channelCtx.asCtx->gmmu.Read<u32>(address) & registers.semaphore->payload) != 0)
+                            break; // Already satisfied
+
                         channelCtx.executor.Submit();
                         channelCtx.Unlock();
 

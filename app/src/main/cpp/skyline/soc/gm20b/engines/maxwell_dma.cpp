@@ -89,6 +89,27 @@ namespace skyline::soc::gm20b::engine {
         }
     }
 
+    namespace {
+        /**
+         * @brief Submits the recorded work only if the copy can't be done without it: the source holds GPU written contents that haven't been submitted or the destination is memory that the recorded work still depends on
+         * @note This used to be done for every multi line copy, a game that streams its textures through the copy engine (Kingdom Come: Deliverance) was split into more than a hundred GPU submissions per frame by it
+         */
+        template<typename Executor>
+        void SubmitIfMemoryInUse(Executor &executor, const TranslatedAddressRange &srcMappings, const TranslatedAddressRange &dstMappings) {
+            for (const auto &mapping : srcMappings)
+                if (executor.IsMemoryInUse(mapping, false)) {
+                    executor.Submit();
+                    return;
+                }
+
+            for (const auto &mapping : dstMappings)
+                if (executor.IsMemoryInUse(mapping, true)) {
+                    executor.Submit();
+                    return;
+                }
+        }
+    }
+
     void MaxwellDma::DmaCopy() {
         if (registers.launchDma->multiLineEnable) {
             if (registers.launchDma->remapEnable) [[unlikely]] {
@@ -96,7 +117,10 @@ namespace skyline::soc::gm20b::engine {
                 return;
             }
 
-            channelCtx.executor.Submit();
+            // Each of the copies below submits the recorded work if it needs to, once it knows the memory it touches
+
+            // Submitting used to also invalidate everything cached from guest memory (the texture header cache is keyed on this number), a copy can write texture headers
+            channelCtx.channelSequenceNumber++;
 
             if (registers.launchDma->srcMemoryLayout == registers.launchDma->dstMemoryLayout) [[unlikely]] {
                 // Pitch to Pitch copy
@@ -198,6 +222,7 @@ namespace skyline::soc::gm20b::engine {
     void MaxwellDma::CopyPitchToPitch() {
         auto srcMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetIn, *registers.pitchIn * *registers.lineCount)};
         auto dstMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetOut, *registers.pitchOut * *registers.lineCount)};
+        SubmitIfMemoryInUse(channelCtx.executor, srcMappings, dstMappings);
 
         if (srcMappings.size() != 1 || dstMappings.size() != 1 || HasUnmappedRange(srcMappings) || HasUnmappedRange(dstMappings)) [[unlikely]] {
             // The bounce buffers have to hold every line of the copy (they used to be sized for a single line which overflowed them for multi line copies)
@@ -242,6 +267,7 @@ namespace skyline::soc::gm20b::engine {
 
         // Get destination address
         auto dstMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetOut, dstSize)};
+        SubmitIfMemoryInUse(channelCtx.executor, srcMappings, dstMappings);
 
         auto copyFunc{[&](u8 *src, u8 *dst) {
             if ((util::AlignDown(srcDimensions.width, 64) != util::AlignDown(dstDimensions.width, 64))
@@ -291,6 +317,7 @@ namespace skyline::soc::gm20b::engine {
 
         // Get destination address
         auto dstMappings{channelCtx.asCtx->gmmu.TranslateRange(*registers.offsetOut, dstLayerStride)};
+        SubmitIfMemoryInUse(channelCtx.executor, srcMappings, dstMappings);
 
         LOGD("{}x{}x{}@0x{:X} -> {}x{}x{}@0x{:X}", srcDimensions.width, srcDimensions.height, srcDimensions.depth, u64{*registers.offsetIn}, dstDimensions.width, dstDimensions.height, dstDimensions.depth, dstLayerAddress);
 

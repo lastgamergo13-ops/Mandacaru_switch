@@ -79,6 +79,8 @@
             return serviceObject; \
         }
 
+#include <map>
+
 namespace skyline::service {
     namespace {
         /**
@@ -91,8 +93,16 @@ namespace skyline::service {
             size_t next{};
             u32 written{};
 
+            static constexpr size_t RequestsPerThread{12};
+            struct ThreadTrace {
+                std::array<std::string, RequestsPerThread> requests;
+                size_t next{};
+            };
+            std::map<u32, ThreadTrace> threads; //!< The last requests of every thread, the global list above is filled by the audio threads (hundreds of requests per second) long before a stuck thread's requests get old
+
           public:
             void Add(u32 thread, std::string line, bool always = false) {
+                u32 threadId{thread};
                 line = fmt::format("[thread {}] {}", thread, line); // Needed to tell what a frozen thread asked from the noise of the others (the audio threads make hundreds of requests per second)
                 std::scoped_lock lock{traceMutex};
                 if (written < 400) {
@@ -102,13 +112,16 @@ namespace skyline::service {
                     // Games can poll services in a tight loop (Pokémon Brilliant Diamond opens/closes audio sessions ~50 times a second), logging every session event at Info flooded the log with 180k+ lines and slowed the game down
                     LOGD("IPC: {}", line);
                 }
+                auto &threadTrace{threads[threadId]};
+                threadTrace.requests[threadTrace.next++ % RequestsPerThread] = line;
                 recent[next++ % recent.size()] = std::move(line);
             }
 
             void DumpRecent() {
                 std::scoped_lock lock{traceMutex};
-                LOGW("IPC: the last {} requests before this error (identical consecutive requests are collapsed):", std::min(next, recent.size()));
-                size_t first{next > recent.size() ? next - recent.size() : 0};
+                constexpr size_t GlobalRequestsShown{40};
+                LOGW("IPC: the last {} requests of any thread before this error (identical consecutive requests are collapsed):", std::min(next, GlobalRequestsShown));
+                size_t first{next > GlobalRequestsShown ? next - GlobalRequestsShown : 0};
                 for (size_t i{first}; i < next;) {
                     const auto &line{recent[i % recent.size()]};
                     size_t repeats{1};
@@ -119,6 +132,23 @@ namespace skyline::service {
                     else
                         LOGW("IPC:   {}", line);
                     i += repeats;
+                }
+
+                // One list per thread: what each of them asked last, even if that was a long time ago
+                for (const auto &[threadId, thread] : threads) {
+                    LOGW("IPC: last requests of thread {}:", threadId);
+                    size_t count{std::min(thread.next, RequestsPerThread)};
+                    for (size_t i{thread.next - count}; i < thread.next;) {
+                        const auto &line{thread.requests[i % RequestsPerThread]};
+                        size_t repeats{1};
+                        while (i + repeats < thread.next && thread.requests[(i + repeats) % RequestsPerThread] == line)
+                            repeats++;
+                        if (repeats > 1)
+                            LOGW("IPC:     {} (x{})", line, repeats);
+                        else
+                            LOGW("IPC:     {}", line);
+                        i += repeats;
+                    }
                 }
             }
         } ipcTrace;

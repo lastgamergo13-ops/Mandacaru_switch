@@ -596,6 +596,39 @@ namespace skyline::gpu::interconnect {
         flushCallbacks.emplace_back(std::forward<decltype(callback)>(callback));
     }
 
+    void CommandExecutor::InvalidateCaches() {
+        for (const auto &flushCallback : flushCallbacks)
+            flushCallback();
+    }
+
+    bool CommandExecutor::IsMemoryInUse(span<u8> range, bool isWrite) {
+        if (range.empty() || range.data() == nullptr)
+            return false; // Not backed by anything
+
+        // GPU written contents can't be accessed until the work that writes them has been submitted and has finished
+        if (usageTracker.dirtyIntervals.Intersect(range))
+            return true;
+
+        if (!isWrite)
+            return false;
+
+        auto overlaps{[&range](span<u8> other) {
+            return other.valid() && other.data() < range.data() + range.size() && range.data() < other.data() + other.size();
+        }};
+
+        for (const auto &texture : attachedTextures)
+            if (texture->guest)
+                for (const auto &mapping : texture->guest->mappings)
+                    if (overlaps(mapping))
+                        return true;
+
+        for (const auto &buffer : attachedBuffers)
+            if (buffer->GuestOverlaps(range))
+                return true;
+
+        return false;
+    }
+
     void CommandExecutor::AddPipelineChangeCallback(std::function<void()> &&callback) {
         pipelineChangeCallbacks.emplace_back(std::forward<decltype(callback)>(callback));
     }

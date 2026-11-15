@@ -173,6 +173,13 @@ namespace skyline::gpu {
         void MarkGpuDirtyImpl();
 
       public:
+        /**
+         * @return If the guest memory this buffer mirrors overlaps the given memory range
+         */
+        bool GuestOverlaps(span<u8> range) const {
+            return guest && guest->data() < range.data() + range.size() && range.data() < guest->data() + guest->size();
+        }
+
         void UpdateCycle(const std::shared_ptr<FenceCycle> &newCycle) {
             newCycle->ChainCycle(cycle);
             cycle = newCycle;

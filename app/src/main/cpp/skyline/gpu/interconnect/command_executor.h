@@ -344,6 +344,20 @@ namespace skyline::gpu::interconnect {
         void AddFlushCallback(std::function<void()> &&callback);
 
         /**
+         * @brief Runs the flush callbacks (which invalidate everything that was cached from guest state: the texture header and sampler caches, the dirty tracking of the engine state...) without submitting the recorded work
+         * @note Anything recorded already holds on to the texture/sampler objects it resolved, so only the commands that come after this see the changed guest state. This is what a guest's "invalidate the texture header/sampler cache" command needs, a full Submit for it split every frame into hundreds of submissions in some games (Kingdom Come: Deliverance)
+         */
+        void InvalidateCaches();
+
+        /**
+         * @brief Checks if the commands that were recorded but not submitted yet depend on a range of guest memory, if they don't the memory can be accessed by the CPU without submitting first
+         * @param range A range of the host mapping of guest memory
+         * @param isWrite If the CPU is going to write to the range: writing memory that recorded commands will still read (an attached texture or buffer is synchronized from the guest when it's submitted) would change what they see
+         * @return If a Submit is needed before accessing the range: either the GPU has written to it (the access would wait for a GPU execution that hasn't been submitted) or, for a write, it backs something that is attached to this execution
+         */
+        bool IsMemoryInUse(span<u8> range, bool isWrite);
+
+        /**
          * @brief Adds a persistent callback that will be called after any non-Maxwell 3D engine changes the active pipeline
          */
         void AddPipelineChangeCallback(std::function<void()> &&callback);
