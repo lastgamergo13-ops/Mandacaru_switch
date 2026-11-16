@@ -45,6 +45,11 @@ g++ -std=c++20 -O1 -DFMT_HEADER_ONLY -D__ANDROID__ -DPAGE_SIZE=4096 -DBCN_TEST_T
 "$WORK/test_bcn" | tee "$WORK/bcn.out"
 grep -q "mismatches=0" "$WORK/bcn.out"
 
+echo "== Zona morta dos analogicos"
+g++ -std=c++20 -O1 -I "$WORK/src/cpp/skyline" "$ROOT/tests/deadzone_test.cpp" -o "$WORK/test_deadzone" 2>&1 | grep -E "error" && exit 1
+"$WORK/test_deadzone" | tee "$WORK/deadzone.out"
+grep -q "falhas=0" "$WORK/deadzone.out"
+
 echo "== libopus multi-stream"
 python3 - "$APP/libraries/opus" "$WORK/opus_srcs.txt" <<'PY'
 import re, sys

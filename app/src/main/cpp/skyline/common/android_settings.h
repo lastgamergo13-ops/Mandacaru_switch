@@ -48,6 +48,7 @@ namespace skyline {
             disableShaderCache = ktSettings.GetBool("disableShaderCache");
             freeGuestTextureMemory = ktSettings.GetBool("freeGuestTextureMemory");
             gameMemoryLimitMiB = ktSettings.GetInt<u32>("gameMemoryLimitMiB");
+            stickDeadzonePercent = ktSettings.GetInt<u32>("stickDeadzonePercent");
             enableFastGpuReadbackHack = ktSettings.GetBool("enableFastGpuReadbackHack");
             enableFastReadbackWrites = ktSettings.GetBool("enableFastReadbackWrites");
             disableSubgroupShuffle = ktSettings.GetBool("disableSubgroupShuffle");

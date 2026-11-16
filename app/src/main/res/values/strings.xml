@@ -185,6 +185,8 @@
     <string name="disable_frame_throttling_enabled">Game is allowed to submit frames as fast as possible (Only for benchmarking)\n\n<b>Note:</b> An alternative method is utilized to measure the FPS with this enabled, the figures must not be compared to throttled FPS figures</string>
     <string name="disable_frame_throttling_disabled">Only allow the game to submit frames at the display refresh rate</string>
     <string name="executor_slot_count_scale">Executor Slot Count Scale</string>
+    <string name="stick_deadzone">Stick deadzone (%)</string>
+    <string name="stick_deadzone_desc">Stick movements smaller than this part of the full range are ignored, which stops a drifting controller or an unsteady finger on the on-screen stick from moving the character. Takes effect the next time a game is started</string>
     <string name="game_memory_limit">Memory reported to games (MiB)</string>
     <string name="game_memory_limit_desc">How much memory games are told they have. A real Switch gives them 3285 MiB. Lowering it makes games reserve less RAM, which helps phones with 3-4 GB that kill the app when it uses too much, but a game that needs more than this will not start. Takes effect the next time a game is started</string>
     <string name="executor_slot_count_scale_desc">Scale controlling the maximum number of simultaneous GPU executions (Higher may sometimes perform better but will use more RAM)</string>

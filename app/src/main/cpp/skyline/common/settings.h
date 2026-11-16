@@ -81,6 +81,7 @@ namespace skyline {
         Setting<bool> useDirectMemoryImport; //!< If buffer emulation should be done by importing guest buffer mappings
         Setting<bool> forceMaxGpuClocks; //!< If the GPU should be forced to run at maximum clocks
         Setting<bool> freeGuestTextureMemory; //!< If guest textrue memory should be freed when the owning texture is GPU dirty
+        Setting<u32> stickDeadzonePercent; //!< The radius of the circular deadzone of the sticks in percent of their range (applies to the on-screen sticks and to controllers)
         Setting<u32> gameMemoryLimitMiB; //!< The amount of memory in MiB that games are told they have (a retail console gives an application 3285 MiB), games size their heap and pools from it so a lower value makes them use less RAM
 
         // Hacks

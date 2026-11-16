@@ -41,6 +41,11 @@ namespace skyline::input {
         NpadManager(const DeviceState &state, input::HidSharedMemory *hid);
 
         /**
+         * @return The radius (in percent of the full range) around the center of a stick inside which the stick is treated as not moved
+         */
+        u32 GetStickDeadzonePercent() const;
+
+        /**
          * @brief Translates an NPad's ID into its index in the npad array
          * @param id The ID of the NPad to translate
          */

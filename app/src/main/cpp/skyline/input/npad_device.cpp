@@ -3,9 +3,11 @@
 
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <mutex>
 #include <jvm.h>
 #include "npad_device.h"
+#include "stick_deadzone.h"
 #include "npad.h"
 
 namespace skyline::input {
@@ -296,13 +298,15 @@ namespace skyline::input {
         if (!connectionState.connected)
             return;
 
+        std::scoped_lock lock{stateMutex};
+
         {
             // Diagnostics: what is actually written for the guest to read, logged only when it changes (and a limited number of times). Together with the Button/Axis events this tells an input the guest is *given* (e.g. a stuck direction) apart from one the game invents by itself
             static std::mutex stateLogMutex;
             static NpadControllerState lastLoggedState{};
             static u32 loggedStates{};
             std::scoped_lock lock{stateLogMutex};
-            if (loggedStates < 150 && (lastLoggedState.buttons.raw != defaultState.buttons.raw || lastLoggedState.leftX != defaultState.leftX || lastLoggedState.leftY != defaultState.leftY || lastLoggedState.rightX != defaultState.rightX || lastLoggedState.rightY != defaultState.rightY)) {
+            if (loggedStates < 600 && (lastLoggedState.buttons.raw != defaultState.buttons.raw || lastLoggedState.leftX != defaultState.leftX || lastLoggedState.leftY != defaultState.leftY || lastLoggedState.rightX != defaultState.rightX || lastLoggedState.rightY != defaultState.rightY)) {
                 loggedStates++;
                 lastLoggedState = defaultState;
                 LOGI("Guest state (npad type {}): buttons 0x{:X}, left stick {}/{}, right stick {}/{}", static_cast<u32>(type), defaultState.buttons.raw, defaultState.leftX, defaultState.leftY, defaultState.rightX, defaultState.rightY);
@@ -323,6 +327,8 @@ namespace skyline::input {
     }
 
     void NpadDevice::SetButtonState(NpadButton mask, bool pressed) {
+        std::scoped_lock lock{stateMutex};
+
         {
             // Together with the axis log this shows exactly what the guest is given, so a game that reacts wrongly can be told apart from one that is fed wrong values. Only the first events are written
             static std::atomic<u32> loggedButtonEvents{};
@@ -375,6 +381,24 @@ namespace skyline::input {
     }
 
     void NpadDevice::SetAxisValue(NpadAxisId axis, i32 value) {
+        std::scoped_lock lock{stateMutex};
+
+        const auto axisIndex{static_cast<size_t>(axis)};
+        if (axisIndex >= rawAxes.size()) {
+            SetAxisValueInternal(axis, value);
+            return;
+        }
+        rawAxes[axisIndex] = value;
+
+        // A circular deadzone on the stick this axis belongs to (the Y axis of a stick follows its X axis)
+        const size_t first{axisIndex & ~static_cast<size_t>(1)};
+        auto [adjustedX, adjustedY]{ApplyCircularDeadzone(rawAxes[first], rawAxes[first + 1], manager.GetStickDeadzonePercent())};
+
+        SetAxisValueInternal(static_cast<NpadAxisId>(first), adjustedX);
+        SetAxisValueInternal(static_cast<NpadAxisId>(first + 1), adjustedY);
+    }
+
+    void NpadDevice::SetAxisValueInternal(NpadAxisId axis, i32 value) {
         constexpr i16 threshold{std::numeric_limits<i16>::max() / 2}; // A 50% deadzone for the stick buttons
 
         // Diagnostics: log only when an axis goes between centred and not centred (and a limited number of times) so reports like "the character keeps walking in one direction" can be told apart from a game side issue using Info level logs

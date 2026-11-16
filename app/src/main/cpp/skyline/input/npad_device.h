@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <mutex>
+#include <array>
+
 #include <kernel/types/KEvent.h>
 #include "shared_mem.h"
 
@@ -174,6 +177,13 @@ namespace skyline::input {
         NpadSixAxisInfo *sixAxisInfoRight{}; //!< The NpadSixAxisInfo for the right side of this controller's type
         u64 globalTimestamp{}; //!< An incrementing timestamp that's common across all sections
         NpadControllerState controllerState{}, defaultState{}; //!< The current state of the controller (normal and default)
+        std::mutex stateMutex; //!< Guards the states above: they are written by the thread that delivers the host input and read when the state is written to HID shared memory by the input thread
+        std::array<i32, 4> rawAxes{}; //!< The latest value the host reported for each axis (LX, LY, RX, RY) before the deadzone is applied
+
+        /**
+         * @brief Sets the value of an axis in the controller state (after the deadzone was applied), the lock must be held
+         */
+        void SetAxisValueInternal(NpadAxisId axis, i32 value);
         NpadSixAxisState sixAxisStateLeft{}, sixAxisStateRight{}; //!< The current state of the sixaxis (left and right)
 
         /**

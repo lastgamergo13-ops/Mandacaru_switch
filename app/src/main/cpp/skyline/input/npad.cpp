@@ -2,9 +2,14 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <input.h>
+#include <common/settings.h>
 #include "npad.h"
 
 namespace skyline::input {
+    u32 NpadManager::GetStickDeadzonePercent() const {
+        return *state.settings->stickDeadzonePercent;
+    }
+
     NpadManager::NpadManager(const DeviceState &state, input::HidSharedMemory *hid) : state(state), npads
         {NpadDevice{*this, hid->npad[0], NpadId::Player1}, {*this, hid->npad[1], NpadId::Player2},
          {*this, hid->npad[2], NpadId::Player3}, {*this, hid->npad[3], NpadId::Player4},

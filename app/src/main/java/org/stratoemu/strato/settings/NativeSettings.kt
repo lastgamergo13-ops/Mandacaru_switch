@@ -40,6 +40,7 @@ data class NativeSettings(
     var forceMaxGpuClocks : Boolean,
     var freeGuestTextureMemory : Boolean,
     var gameMemoryLimitMiB : Int,
+    var stickDeadzonePercent : Int,
     var disableShaderCache : Boolean,
 
     // Hacks
@@ -70,6 +71,7 @@ data class NativeSettings(
         pref.forceMaxGpuClocks,
         shouldFreeGuestTextureMemory(context, pref.freeGuestTextureMemory),
         pref.gameMemoryLimit,
+        pref.stickDeadzone,
         pref.disableShaderCache,
         pref.enableFastGpuReadbackHack,
         pref.enableFastReadbackWrites,

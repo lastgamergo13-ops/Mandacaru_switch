@@ -124,6 +124,15 @@
             app:showSeekBarValue="true"
             app:title="@string/executor_slot_count_scale" />
         <SeekBarPreference
+            android:defaultValue="5"
+            android:max="30"
+            android:min="0"
+            android:summary="@string/stick_deadzone_desc"
+            app:key="stick_deadzone"
+            app:seekBarIncrement="1"
+            app:showSeekBarValue="true"
+            app:title="@string/stick_deadzone" />
+        <SeekBarPreference
             android:defaultValue="3285"
             android:max="3285"
             android:min="1536"
