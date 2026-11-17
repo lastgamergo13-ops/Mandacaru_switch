@@ -59,8 +59,8 @@ namespace skyline::gpu {
                 EXT_SET("VK_EXT_primitive_topology_list_restart", hasPrimitiveTopologyListRestartExt);
                 EXT_SET("VK_EXT_transform_feedback", hasTransformFeedbackExt);
                 EXT_SET_COND("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt, !quirks.brokenDynamicStateVertexBindings);
-                EXT_SET_COND("VK_EXT_extended_dynamic_state2", hasExtendedDynamicState2Ext, quirks.extendedDynamicState2Validated);
-                EXT_SET_COND("VK_EXT_vertex_input_dynamic_state", hasVertexInputDynamicStateExt, quirks.vertexInputDynamicStateValidated);
+                EXT_SET("VK_EXT_extended_dynamic_state2", hasExtendedDynamicState2Ext);
+                EXT_SET("VK_EXT_vertex_input_dynamic_state", hasVertexInputDynamicStateExt);
                 EXT_SET("VK_EXT_robustness2", hasRobustness2Ext);
                 EXT_SET("VK_EXT_descriptor_indexing", hasDescriptorIndexingExt);
             }
@@ -254,7 +254,6 @@ namespace skyline::gpu {
     TraitManager::QuirkManager::QuirkManager(const vk::PhysicalDeviceProperties &deviceProperties, const vk::PhysicalDeviceDriverProperties &driverProperties) {
         switch (driverProperties.driverID) {
             case vk::DriverId::eQualcommProprietary: {
-                extendedDynamicState2Validated = true; // Newer drivers may expose it, the extension isn't used when it's missing
                 needsIndividualTextureBindingWrites = true;
                 vkImageMutableFormatCostly = true; // Disables UBWC
                 adrenoRelaxedFormatAliasing = true;
@@ -282,8 +281,6 @@ namespace skyline::gpu {
             case vk::DriverId::eMesaTurnip: {
                 vkImageMutableFormatCostly = true; // Disables UBWC and forces linear tiling
                 adrenoRelaxedFormatAliasing = true;
-                extendedDynamicState2Validated = true;
-                vertexInputDynamicStateValidated = true;
                 break;
             }
 
