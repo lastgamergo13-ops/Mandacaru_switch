@@ -1,12 +1,44 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
+#include <algorithm>
 #include <atomic>
 #include <common/trace.h>
 #include "texture_manager.h"
 
 namespace skyline::gpu {
     TextureManager::TextureManager(GPU &gpu) : gpu(gpu) {}
+
+    void TextureManager::PruneTextures(const boost::container::small_vector<std::shared_ptr<Texture>, 4> &overlapping) {
+        // Games that stream their textures create thousands of textures, and until now none of them was ever released: the host images (and all of the memory behind them) of every texture the game used piled up until the process was killed for lack of memory. Small games never reach this
+        constexpr size_t PruneThreshold{1024};
+        if (textures.size() <= PruneThreshold)
+            return;
+
+        boost::container::small_vector<const Texture *, 16> removable;
+        for (const auto &mapping : textures) {
+            const Texture *texture{mapping.texture.get()};
+            if (std::find(removable.begin(), removable.end(), texture) != removable.end())
+                continue;
+
+            size_t overlappingReferences{static_cast<size_t>(std::count_if(overlapping.begin(), overlapping.end(), [texture](const auto &other) { return other.get() == texture; }))};
+            if (!texture->replaced && overlappingReferences == 0)
+                continue;
+
+            // Every mapping of the texture holds a reference to it in this vector, so what's above that is held by someone else (cached views, attached to an execution...)
+            size_t managerReferences{texture->guest ? texture->guest->mappings.size() : 0};
+            if (managerReferences != 0 && static_cast<size_t>(mapping.texture.use_count()) == managerReferences + overlappingReferences)
+                removable.push_back(texture);
+        }
+
+        if (removable.empty())
+            return;
+
+        textures.erase(std::remove_if(textures.begin(), textures.end(), [&removable](const TextureMapping &mapping) {
+            return std::find(removable.begin(), removable.end(), mapping.texture.get()) != removable.end();
+        }), textures.end());
+        LOGD("Released {} superseded texture(s), {} mapping(s) are left", removable.size(), textures.size());
+    }
 
     std::shared_ptr<TextureView> TextureManager::FindOrCreate(const GuestTexture &guestTexture, ContextTag tag) {
         TRACE_EVENT("gpu", "TextureManager::FindOrCreate");
@@ -146,16 +178,22 @@ namespace skyline::gpu {
             }
         }
 
+        // The textures that this one supersedes and that nothing else is using are released (step 4 of the algorithm above)
+        PruneTextures(matches);
+
         // Create a texture as we cannot find one that matches
         auto texture{std::make_shared<Texture>(gpu, guestTexture)};
         texture->SetupGuestMappings();
         texture->TransitionLayout(vk::ImageLayout::eGeneral);
         auto it{texture->guest->mappings.begin()};
+        // Pruning removes mappings from the vector, the position found at the start isn't valid anymore
+        mappingEnd = std::upper_bound(textures.begin(), textures.end(), guestMapping, [guestMapping](const auto &value, const auto &element) {
+            return guestMapping.end() < element.end();
+        });
         textures.emplace(mappingEnd, TextureMapping{texture, it, guestMapping});
         while ((++it) != texture->guest->mappings.end()) {
             guestMapping = *it;
             auto mapping{std::upper_bound(textures.begin(), textures.end(), guestMapping)};
-            // TODO: Delete overlapping textures that aren't in texture pool
             textures.emplace(mapping, TextureMapping{texture, it, guestMapping});
         }
 

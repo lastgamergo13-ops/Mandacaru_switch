@@ -170,6 +170,19 @@ namespace skyline::gpu::interconnect {
     };
     using SetDepthBiasCmd = CmdHolder<SetDepthBiasCmdImpl>;
 
+    struct SetExtendedDynamicState2CmdImpl {
+        void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
+            commandBuffer.setPrimitiveRestartEnableEXT(primitiveRestartEnable);
+            commandBuffer.setRasterizerDiscardEnableEXT(rasterizerDiscardEnable);
+            commandBuffer.setDepthBiasEnableEXT(depthBiasEnable);
+        }
+
+        vk::Bool32 primitiveRestartEnable;
+        vk::Bool32 rasterizerDiscardEnable;
+        vk::Bool32 depthBiasEnable;
+    };
+    using SetExtendedDynamicState2Cmd = CmdHolder<SetExtendedDynamicState2CmdImpl>;
+
     struct SetBlendConstantsCmdImpl {
         void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
             commandBuffer.setBlendConstants(blendConstants.data());
@@ -441,6 +454,18 @@ namespace skyline::gpu::interconnect {
                     .depthBiasConstantFactor = depthBiasConstantFactor,
                     .depthBiasClamp = depthBiasClamp,
                     .depthBiasSlopeFactor = depthBiasSlopeFactor,
+                });
+        }
+
+        /**
+         * @brief Sets the states that VK_EXT_extended_dynamic_state2 makes dynamic: primitive restart, rasterizer discard and depth bias enable
+         */
+        void SetExtendedDynamicState2(bool primitiveRestartEnable, bool rasterizerDiscardEnable, bool depthBiasEnable) {
+            AppendCmd<SetExtendedDynamicState2Cmd>(
+                {
+                    .primitiveRestartEnable = primitiveRestartEnable,
+                    .rasterizerDiscardEnable = rasterizerDiscardEnable,
+                    .depthBiasEnable = depthBiasEnable,
                 });
         }
 

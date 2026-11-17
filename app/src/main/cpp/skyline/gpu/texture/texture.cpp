@@ -726,6 +726,7 @@ namespace skyline::gpu {
     }
 
     void Texture::MarkGpuDirty(UsageTracker &usageTracker) {
+        everWrittenByGpu = true;
         for (auto mapping : guest->mappings)
             if (mapping.valid())
                 usageTracker.dirtyIntervals.Insert(mapping);
@@ -735,8 +736,8 @@ namespace skyline::gpu {
         if (!guest)
             return;
 
-        // FIXME (TEXMAN): This should really be tracked on the texture usage side
-        if (!*gpu.state.settings->freeGuestTextureMemory && !everUsedAsRt)
+        // The usage side records every GPU write with MarkGpuDirty (render targets, clears, blit destinations), a texture the GPU has never written to has nothing that is newer than the guest's copy
+        if (!*gpu.state.settings->freeGuestTextureMemory && !everWrittenByGpu)
             gpuDirty = false;
 
         TRACE_EVENT("gpu", "Texture::SynchronizeHost");
@@ -783,8 +784,8 @@ namespace skyline::gpu {
             return;
 
         TRACE_EVENT("gpu", "Texture::SynchronizeHostInline");
-        // FIXME (TEXMAN): This should really be tracked on the texture usage side
-        if (!*gpu.state.settings->freeGuestTextureMemory && !everUsedAsRt)
+        // The usage side records every GPU write with MarkGpuDirty (render targets, clears, blit destinations), a texture the GPU has never written to has nothing that is newer than the guest's copy
+        if (!*gpu.state.settings->freeGuestTextureMemory && !everWrittenByGpu)
             gpuDirty = false;
 
         {
@@ -1030,7 +1031,7 @@ namespace skyline::gpu {
         lastRenderPassIndex = renderPassIndex;
 
         if (renderPassUsage == texture::RenderPassUsage::RenderTarget) {
-            everUsedAsRt = true;
+            everWrittenByGpu = true;
             pendingStageMask = vk::PipelineStageFlagBits::eVertexShader |
                 vk::PipelineStageFlagBits::eTessellationControlShader |
                 vk::PipelineStageFlagBits::eTessellationEvaluationShader |

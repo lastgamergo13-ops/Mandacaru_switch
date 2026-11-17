@@ -6,7 +6,7 @@
 
 namespace skyline::gpu {
     TraitManager::TraitManager(const DeviceFeatures2 &deviceFeatures2, DeviceFeatures2 &enabledFeatures2, const std::vector<vk::ExtensionProperties> &deviceExtensions, std::vector<std::array<char, VK_MAX_EXTENSION_NAME_SIZE>> &enabledExtensions, const DeviceProperties2 &deviceProperties2, const vk::raii::PhysicalDevice &physicalDevice) : quirks(deviceProperties2.get<vk::PhysicalDeviceProperties2>().properties, deviceProperties2.get<vk::PhysicalDeviceDriverProperties>()) {
-        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasDescriptorIndexingExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasRobustness2Ext{};
+        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasDescriptorIndexingExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasExtendedDynamicState2Ext{}, hasRobustness2Ext{};
         bool supportsUniformBufferStandardLayout{}; // We require VK_KHR_uniform_buffer_standard_layout but assume it is implicitly supported even when not present
 
         for (auto &extension : deviceExtensions) {
@@ -59,6 +59,7 @@ namespace skyline::gpu {
                 EXT_SET("VK_EXT_primitive_topology_list_restart", hasPrimitiveTopologyListRestartExt);
                 EXT_SET("VK_EXT_transform_feedback", hasTransformFeedbackExt);
                 EXT_SET_COND("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt, !quirks.brokenDynamicStateVertexBindings);
+                EXT_SET_COND("VK_EXT_extended_dynamic_state2", hasExtendedDynamicState2Ext, quirks.extendedDynamicState2Validated);
                 EXT_SET("VK_EXT_robustness2", hasRobustness2Ext);
                 EXT_SET("VK_EXT_descriptor_indexing", hasDescriptorIndexingExt);
             }
@@ -94,6 +95,11 @@ namespace skyline::gpu {
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT, extendedDynamicState, supportsExtendedDynamicState)
         else
             enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+
+        if (hasExtendedDynamicState2Ext)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT, extendedDynamicState2, supportsExtendedDynamicState2)
+        else
+            enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT>();
 
         if (hasDescriptorIndexingExt) {
             // Only the features that decide how the shaders can index arrays of descriptors are enabled
@@ -242,6 +248,7 @@ namespace skyline::gpu {
     TraitManager::QuirkManager::QuirkManager(const vk::PhysicalDeviceProperties &deviceProperties, const vk::PhysicalDeviceDriverProperties &driverProperties) {
         switch (driverProperties.driverID) {
             case vk::DriverId::eQualcommProprietary: {
+                extendedDynamicState2Validated = true; // Newer drivers may expose it, the extension isn't used when it's missing
                 needsIndividualTextureBindingWrites = true;
                 vkImageMutableFormatCostly = true; // Disables UBWC
                 adrenoRelaxedFormatAliasing = true;
@@ -269,6 +276,7 @@ namespace skyline::gpu {
             case vk::DriverId::eMesaTurnip: {
                 vkImageMutableFormatCostly = true; // Disables UBWC and forces linear tiling
                 adrenoRelaxedFormatAliasing = true;
+                extendedDynamicState2Validated = true;
                 break;
             }
 

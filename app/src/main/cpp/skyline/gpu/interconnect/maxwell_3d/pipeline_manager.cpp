@@ -720,10 +720,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         };
 
 
-        static constexpr u32 BaseDynamicStateCount{9};
-        static constexpr u32 ExtendedDynamicStateCount{BaseDynamicStateCount + 1};
-
-        constexpr std::array<vk::DynamicState, ExtendedDynamicStateCount> dynamicStates{
+        boost::container::static_vector<vk::DynamicState, 13> dynamicStates{
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth,
@@ -733,12 +730,20 @@ namespace skyline::gpu::interconnect::maxwell3d {
             vk::DynamicState::eStencilCompareMask,
             vk::DynamicState::eStencilWriteMask,
             vk::DynamicState::eStencilReference,
-            // VK_EXT_dynamic_state starts here
-            vk::DynamicState::eVertexInputBindingStrideEXT
         };
 
+        if (gpu.traits.supportsExtendedDynamicState)
+            dynamicStates.push_back(vk::DynamicState::eVertexInputBindingStrideEXT); // VK_EXT_extended_dynamic_state
+
+        if (gpu.traits.supportsExtendedDynamicState2) {
+            // VK_EXT_extended_dynamic_state2, the values are set by PipelineState::Flush (see there)
+            dynamicStates.push_back(vk::DynamicState::ePrimitiveRestartEnableEXT);
+            dynamicStates.push_back(vk::DynamicState::eRasterizerDiscardEnableEXT);
+            dynamicStates.push_back(vk::DynamicState::eDepthBiasEnableEXT);
+        }
+
         vk::PipelineDynamicStateCreateInfo dynamicState{
-            .dynamicStateCount = gpu.traits.supportsExtendedDynamicState ? ExtendedDynamicStateCount : BaseDynamicStateCount,
+            .dynamicStateCount = static_cast<u32>(dynamicStates.size()),
             .pDynamicStates = dynamicStates.data()
         };
 

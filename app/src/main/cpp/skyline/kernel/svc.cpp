@@ -6,6 +6,7 @@
 #include <os.h>
 #include <nce.h>
 #include <kernel/types/KProcess.h>
+#include <common/settings.h>
 #include <common/trace.h>
 #include <vfs/npdm.h>
 #include "results.h"

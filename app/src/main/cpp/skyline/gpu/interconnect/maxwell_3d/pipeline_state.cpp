@@ -9,6 +9,7 @@
 #include <soc/gm20b/channel.h>
 #include <soc/gm20b/gmmu.h>
 #include <gpu.h>
+#include <gpu/interconnect/common/state_updater.h>
 #include "pipeline_state.h"
 
 namespace skyline::gpu::interconnect::maxwell3d {
@@ -408,16 +409,20 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 packedState.SetColorRenderTargetFormat(ctSelect[i], rt.format);
                 colorAttachments.push_back(view);
 
-                if (view)
+                if (view) {
                     ctx.executor.AttachTexture(view);
+                    view->texture->MarkGpuDirty(ctx.executor.usageTracker); // The draws write to it
+                }
             } else {
                 colorAttachments.push_back({});
             }
         }
 
         depthAttachment = depthRenderTarget.UpdateGet(ctx, packedState).view.get();
-        if (depthAttachment)
+        if (depthAttachment) {
             ctx.executor.AttachTexture(depthAttachment);
+            depthAttachment->texture->MarkGpuDirty(ctx.executor.usageTracker);
+        }
 
         vertexInput.Update(packedState);
         directState.inputAssembly.Update(packedState);
@@ -426,6 +431,32 @@ namespace skyline::gpu::interconnect::maxwell3d {
         depthStencil.Update(packedState);
         transformFeedback.Update(packedState);
         globalShaderConfig.Update(packedState);
+
+        // The packed state keeps what the guest set between flushes (the parts of it that didn't change aren't written again), the bits that are cleared below for the pipeline lookup have to be put back when this returns
+        struct DynamicState2Guard {
+            PackedPipelineState *state{};
+            bool primitiveRestartEnabled{}, rasterizerDiscardEnable{}, depthBiasEnable{};
+
+            ~DynamicState2Guard() {
+                if (state) {
+                    state->primitiveRestartEnabled = primitiveRestartEnabled;
+                    state->rasterizerDiscardEnable = rasterizerDiscardEnable;
+                    state->depthBiasEnable = depthBiasEnable;
+                }
+            }
+        } dynamicState2Guard;
+
+        if (ctx.gpu.traits.supportsExtendedDynamicState2) {
+            // These three are set when drawing instead of being part of the pipeline (they are in the dynamic state of every pipeline), so pipelines that differ only by them are the same pipeline and the bits are cleared from the state that identifies a pipeline. The guest's values are what is recorded
+            builder.SetExtendedDynamicState2(packedState.primitiveRestartEnabled, packedState.rasterizerDiscardEnable, packedState.depthBiasEnable);
+            dynamicState2Guard.state = &packedState;
+            dynamicState2Guard.primitiveRestartEnabled = packedState.primitiveRestartEnabled;
+            dynamicState2Guard.rasterizerDiscardEnable = packedState.rasterizerDiscardEnable;
+            dynamicState2Guard.depthBiasEnable = packedState.depthBiasEnable;
+            packedState.primitiveRestartEnabled = false;
+            packedState.rasterizerDiscardEnable = false;
+            packedState.depthBiasEnable = false;
+        }
 
         if (pipeline) {
             if (auto newPipeline{pipeline->LookupNext(packedState)}) {

@@ -231,10 +231,11 @@ namespace skyline::gpu::interconnect::maxwell3d {
         if (clearSurface.rEnable || clearSurface.gEnable || clearSurface.bEnable || clearSurface.aEnable) {
             if (auto view{activeState.GetColorRenderTargetForClear(ctx, clearSurface.mrtSelect)}) {
                 ctx.executor.AttachTexture(&*view);
+                view->texture->MarkGpuDirty(ctx.executor.usageTracker);
 
                 bool partialClear{!(clearSurface.rEnable && clearSurface.gEnable && clearSurface.bEnable && clearSurface.aEnable)};
                 if (!(view->range.aspectMask & vk::ImageAspectFlagBits::eColor))
-                    LOGW("Colour RT used in clear lacks colour aspect"); // TODO: Drop this check after texman rework
+                    LOGW("Colour RT used in clear lacks colour aspect"); // Kept as a diagnostic: the texture manager creates the view of a render target with the aspect of its format, so this only fires if the format mapping is wrong
 
 
                 if (partialClear) {
@@ -260,6 +261,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         if (clearSurface.stencilEnable || clearSurface.zEnable) {
             if (auto view{activeState.GetDepthRenderTargetForClear(ctx)}) {
                 ctx.executor.AttachTexture(&*view);
+                view->texture->MarkGpuDirty(ctx.executor.usageTracker);
 
                 bool viewHasDepth{view->range.aspectMask & vk::ImageAspectFlagBits::eDepth}, viewHasStencil{view->range.aspectMask & vk::ImageAspectFlagBits::eStencil};
                 vk::ImageAspectFlags clearAspectMask{(clearSurface.zEnable ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlags{}) |
@@ -272,7 +274,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 };
 
                 if (!clearAspectMask) {
-                    LOGW("Depth stencil RT used in clear lacks depth or stencil aspects"); // TODO: Drop this check after texman rework
+                    LOGW("Depth stencil RT used in clear lacks depth or stencil aspects"); // Kept as a diagnostic, see above
                     return;
                 }
 

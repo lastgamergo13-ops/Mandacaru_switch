@@ -28,6 +28,14 @@ namespace skyline::gpu {
         GPU &gpu;
         std::vector<TextureMapping> textures; //!< A sorted vector of all texture mappings
 
+        /**
+         * @brief Removes the textures that were superseded by a texture that is about to be created from the vector of textures, so that they are destroyed (releasing their host image and memory) instead of living until the process ends
+         * @param overlapping The textures that overlap the new texture without being compatible with it, all of them have been synchronized with guest memory
+         * @note A texture is only removed if nothing else holds on to it: a texture with a cached view (in the texture pool), attached to the current execution or that is the target of a pending operation is kept, so this never destroys something that is in use. The removal only affects what can be found later, a texture that is needed again is created again from guest memory
+         * @note The mappings of the vector are invalidated, the caller must look up the position again
+         */
+        void PruneTextures(const boost::container::small_vector<std::shared_ptr<Texture>, 4> &overlapping);
+
       public:
         TextureManager(GPU &gpu);
 
