@@ -33,9 +33,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
                 if (megaBufferBinding = view->TryMegaBuffer(ctx.executor.cycle, ctx.gpu.megaBufferAllocator, ctx.executor.executionTag);
                     megaBufferBinding)
-                    builder.SetVertexBuffer(index, megaBufferBinding, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+                    builder.SetVertexBuffer(index, megaBufferBinding, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
                 else
-                    builder.SetVertexBuffer(index, *view, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+                    builder.SetVertexBuffer(index, *view, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
 
                 return;
             } else {
@@ -45,9 +45,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
         megaBufferBinding = {};
         if (ctx.gpu.traits.supportsNullDescriptor)
-            builder.SetVertexBuffer(index, BufferBinding{}, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+            builder.SetVertexBuffer(index, BufferBinding{}, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
         else
-            builder.SetVertexBuffer(index, {ctx.gpu.megaBufferAllocator.Allocate(ctx.executor.cycle, 0).buffer}, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+            builder.SetVertexBuffer(index, {ctx.gpu.megaBufferAllocator.Allocate(ctx.executor.cycle, 0).buffer}, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
     }
 
     bool VertexBufferState::Refresh(InterconnectContext &ctx, StateUpdateBuilder &builder, vk::PipelineStageFlags &srcStageMask, vk::PipelineStageFlags &dstStageMask) {
@@ -60,9 +60,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
                 megaBufferBinding = newMegaBufferBinding;
                 if (megaBufferBinding)
-                    builder.SetVertexBuffer(index, megaBufferBinding, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+                    builder.SetVertexBuffer(index, megaBufferBinding, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
                 else
-                    builder.SetVertexBuffer(index, *view, ctx.gpu.traits.supportsExtendedDynamicState, engine->vertexStream.format.stride);
+                    builder.SetVertexBuffer(index, *view, ctx.gpu.traits.supportsExtendedDynamicState && !ctx.gpu.traits.supportsVertexInputDynamicState, engine->vertexStream.format.stride);
             }
         }
         return false;

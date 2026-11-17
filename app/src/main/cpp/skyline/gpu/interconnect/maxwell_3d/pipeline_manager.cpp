@@ -593,6 +593,73 @@ namespace skyline::gpu::interconnect::maxwell3d {
         }
     }
 
+    DynamicVertexInput MakeDynamicVertexInput(GPU &gpu, const PackedPipelineState &packedState, const std::array<engine::VertexStream, engine::VertexStreamCount> &streams) {
+        DynamicVertexInput input;
+
+        for (u32 i{}; i < engine::VertexStreamCount; i++) {
+            const auto &binding{packedState.vertexBindings[i]};
+            u32 divisor{1};
+            if (binding.GetInputRate() == vk::VertexInputRate::eInstance) {
+                if (!gpu.traits.supportsVertexAttributeDivisor)
+                    [[unlikely]]
+                        LOGW("Vertex attribute divisor used on guest without host support");
+                else if (!gpu.traits.supportsVertexAttributeZeroDivisor && binding.divisor == 0)
+                    [[unlikely]]
+                        LOGW("Vertex attribute zero divisor used on guest without host support");
+                else
+                    divisor = binding.divisor;
+            }
+
+            input.bindings.push_back(vk::VertexInputBindingDescription2EXT{
+                .binding = i,
+                .stride = streams[i].format.stride,
+                .inputRate = binding.GetInputRate(),
+                .divisor = divisor,
+            });
+        }
+
+        for (u32 i{}; i < engine::VertexAttributeCount; i++) {
+            const auto &attribute{packedState.vertexAttributes[i]};
+            if (attribute.source == engine::VertexAttribute::Source::Active && attribute.stream < engine::VertexStreamCount)
+                input.attributes.push_back(vk::VertexInputAttributeDescription2EXT{
+                    .location = i,
+                    .binding = attribute.stream,
+                    .format = GetSupportedVertexFormat(gpu, ConvertVertexInputAttributeFormat(attribute.componentBitWidths, attribute.numericalType)),
+                    .offset = attribute.offset,
+                });
+        }
+
+        return input;
+    }
+
+    void NormalizeVertexInputForDynamicState(PackedPipelineState &packedState) {
+        packedState.vertexBindings = {};
+
+        for (auto &attribute : packedState.vertexAttributes) {
+            if (attribute.source == engine::VertexAttribute::Source::Inactive) {
+                attribute = {.source = engine::VertexAttribute::Source::Inactive};
+                continue;
+            }
+
+            // Only what the shader sees is kept: floats (including the normalized types), signed/unsigned integers and the scaled types
+            engine::VertexAttribute::NumericalType type;
+            switch (attribute.numericalType) {
+                case engine::VertexAttribute::NumericalType::Snorm:
+                case engine::VertexAttribute::NumericalType::Unorm:
+                case engine::VertexAttribute::NumericalType::Float:
+                    type = engine::VertexAttribute::NumericalType::Float;
+                    break;
+                default:
+                    type = attribute.numericalType;
+                    break;
+            }
+
+            attribute = {};
+            attribute.source = engine::VertexAttribute::Source::Active;
+            attribute.numericalType = type;
+        }
+    }
+
     static GraphicsPipelineAssembler::CompiledPipeline MakeCompiledPipeline(GPU &gpu,
                                                                                  const PackedPipelineState &packedState,
                                                                                  const std::array<ShaderStage, engine::ShaderStageCount> &shaderStages,
@@ -610,7 +677,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
         boost::container::static_vector<vk::VertexInputBindingDivisorDescriptionEXT, engine::VertexStreamCount> bindingDivisorDescs;
         boost::container::static_vector<vk::VertexInputAttributeDescription, engine::VertexAttributeCount> attributeDescs;
 
-        for (u32 i{}; i < engine::VertexStreamCount; i++) {
+        const bool dynamicVertexInput{gpu.traits.supportsVertexInputDynamicState}; // The vertex input is set when drawing (see PipelineState::Flush), the bindings and attributes of the packed state are normalized then and aren't used
+
+        for (u32 i{}; i < engine::VertexStreamCount && !dynamicVertexInput; i++) {
             const auto &binding{packedState.vertexBindings[i]};
             bindingDescs.push_back({
                                        .binding = i,
@@ -633,7 +702,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
             }
         }
 
-        for (u32 i{}; i < engine::VertexAttributeCount; i++) {
+        for (u32 i{}; i < engine::VertexAttributeCount && !dynamicVertexInput; i++) {
             const auto &attribute{packedState.vertexAttributes[i]};
             if (attribute.source == engine::VertexAttribute::Source::Active && shaderStages[0].info.loads.Generic(i))
                 attributeDescs.push_back({
@@ -720,7 +789,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         };
 
 
-        boost::container::static_vector<vk::DynamicState, 13> dynamicStates{
+        boost::container::static_vector<vk::DynamicState, 14> dynamicStates{
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth,
@@ -732,7 +801,9 @@ namespace skyline::gpu::interconnect::maxwell3d {
             vk::DynamicState::eStencilReference,
         };
 
-        if (gpu.traits.supportsExtendedDynamicState)
+        if (gpu.traits.supportsVertexInputDynamicState)
+            dynamicStates.push_back(vk::DynamicState::eVertexInputEXT); // VK_EXT_vertex_input_dynamic_state, the strides are part of it
+        else if (gpu.traits.supportsExtendedDynamicState)
             dynamicStates.push_back(vk::DynamicState::eVertexInputBindingStrideEXT); // VK_EXT_extended_dynamic_state
 
         if (gpu.traits.supportsExtendedDynamicState2) {

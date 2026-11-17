@@ -446,6 +446,30 @@ namespace skyline::gpu::interconnect::maxwell3d {
             }
         } dynamicState2Guard;
 
+        // Same as above, the vertex input is set when drawing with VK_EXT_vertex_input_dynamic_state so pipelines that differ only by it are the same pipeline. The packed state keeps the guest's bindings and attributes, they have to be put back when this returns
+        struct VertexInputGuard {
+            PackedPipelineState *state{};
+            decltype(PackedPipelineState::vertexBindings) bindings;
+            decltype(PackedPipelineState::vertexAttributes) attributes;
+
+            ~VertexInputGuard() {
+                if (state) {
+                    state->vertexBindings = bindings;
+                    state->vertexAttributes = attributes;
+                }
+            }
+        } vertexInputGuard;
+
+        if (ctx.gpu.traits.supportsVertexInputDynamicState) {
+            auto dynamicVertexInput{MakeDynamicVertexInput(ctx.gpu, packedState, vertexInput.GetStreams())};
+            builder.SetVertexInput(dynamicVertexInput.bindings, dynamicVertexInput.attributes);
+
+            vertexInputGuard.state = &packedState;
+            vertexInputGuard.bindings = packedState.vertexBindings;
+            vertexInputGuard.attributes = packedState.vertexAttributes;
+            NormalizeVertexInputForDynamicState(packedState);
+        }
+
         if (ctx.gpu.traits.supportsExtendedDynamicState2) {
             // These three are set when drawing instead of being part of the pipeline (they are in the dynamic state of every pipeline), so pipelines that differ only by them are the same pipeline and the bits are cleared from the state that identifies a pipeline. The guest's values are what is recorded
             builder.SetExtendedDynamicState2(packedState.primitiveRestartEnabled, packedState.rasterizerDiscardEnable, packedState.depthBiasEnable);

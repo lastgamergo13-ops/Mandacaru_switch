@@ -183,6 +183,18 @@ namespace skyline::gpu::interconnect {
     };
     using SetExtendedDynamicState2Cmd = CmdHolder<SetExtendedDynamicState2CmdImpl>;
 
+    struct SetVertexInputCmdImpl {
+        void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
+            commandBuffer.setVertexInputEXT(span(bindings).subspan(0, bindingCount), span(attributes).subspan(0, attributeCount));
+        }
+
+        u32 bindingCount{};
+        u32 attributeCount{};
+        std::array<vk::VertexInputBindingDescription2EXT, MaxVertexBufferCount> bindings;
+        std::array<vk::VertexInputAttributeDescription2EXT, 32> attributes;
+    };
+    using SetVertexInputCmd = CmdHolder<SetVertexInputCmdImpl>;
+
     struct SetBlendConstantsCmdImpl {
         void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
             commandBuffer.setBlendConstants(blendConstants.data());
@@ -467,6 +479,18 @@ namespace skyline::gpu::interconnect {
                     .rasterizerDiscardEnable = rasterizerDiscardEnable,
                     .depthBiasEnable = depthBiasEnable,
                 });
+        }
+
+        /**
+         * @brief Sets the vertex input state that VK_EXT_vertex_input_dynamic_state makes dynamic (bindings with their strides and divisors, and the attributes)
+         */
+        void SetVertexInput(span<const vk::VertexInputBindingDescription2EXT> bindings, span<const vk::VertexInputAttributeDescription2EXT> attributes) {
+            SetVertexInputCmdImpl contents{};
+            contents.bindingCount = static_cast<u32>(bindings.size());
+            contents.attributeCount = static_cast<u32>(attributes.size());
+            std::copy(bindings.begin(), bindings.end(), contents.bindings.begin());
+            std::copy(attributes.begin(), attributes.end(), contents.attributes.begin());
+            AppendCmd<SetVertexInputCmd>(std::move(contents));
         }
 
         void SetBlendConstants(const std::array<float, 4> &blendConstants) {

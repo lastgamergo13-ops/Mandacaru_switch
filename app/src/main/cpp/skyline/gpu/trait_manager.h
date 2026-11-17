@@ -54,6 +54,7 @@ namespace skyline::gpu {
         bool supportsWideLines{}; //!< If the device supports the 'wideLines' Vulkan feature
         bool supportsDepthClamp{}; //!< If the device supports the 'depthClamp' Vulkan feature
         bool supportsExtendedDynamicState{}; //!< If the device supports the 'VK_EXT_extended_dynamic_state' Vulkan extension
+        bool supportsVertexInputDynamicState{}; //!< If the device supports the 'VK_EXT_vertex_input_dynamic_state' Vulkan extension and it's used (the vertex bindings, attributes, strides and divisors are set when drawing instead of being part of the pipeline), see QuirkManager::vertexInputDynamicStateValidated
         bool supportsExtendedDynamicState2{}; //!< If the device supports the 'VK_EXT_extended_dynamic_state2' Vulkan extension and it's used (the dynamic primitive restart, rasterizer discard and depth bias enables), see QuirkManager::extendedDynamicState2Validated
         bool supportsNullDescriptor{}; //!< If the device supports the null descriptor feature in the 'VK_EXT_robustness2' Vulkan extension
         u32 subgroupSize{}; //!< Size of a subgroup on the host GPU
@@ -86,6 +87,7 @@ namespace skyline::gpu {
             bool brokenSubgroupShuffle{}; //!< [Qualcomm Proprietary] A bug that causes shaders using OpSubgroupShuffle to do all sorts of weird things
             bool brokenSpirvVectorAccessChain{}; //!< [Qualcomm Proprietary] A bug that causes SPIR-V OpAccessChains to work incorrectly when used to index vector arrays
             bool brokenDynamicStateVertexBindings{};  //!< [ARM Proprietary] A bug that causes VK_EXT_dynamic_state vertex bindings not to work correctly
+            bool vertexInputDynamicStateValidated{}; //!< If VK_EXT_vertex_input_dynamic_state is known to work on this driver (it's only used then). Only [Mesa Turnip] is enabled, the other drivers keep the static vertex input until someone tests them
             bool extendedDynamicState2Validated{}; //!< If VK_EXT_extended_dynamic_state2 is known to work on this driver (it's only used then). Verified on [Mesa Turnip] (Adreno 610 and 650 report it, with extendedDynamicState2); [Qualcomm Proprietary] doesn't expose it on the versions that were seen; [ARM Proprietary], [Imagination Proprietary], [Samsung Proprietary (Xclipse)] and the others are NOT validated and keep using static state until someone tests them
 
             u32 maxSubpassCount{std::numeric_limits<u32>::max()}; //!< The maximum amount of subpasses within a renderpass, this is limited to 64 on older Adreno proprietary drivers
@@ -126,6 +128,7 @@ namespace skyline::gpu {
             vk::PhysicalDeviceIndexTypeUint8FeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT,
+            vk::PhysicalDeviceVertexInputDynamicStateFeaturesEXT,
             vk::PhysicalDeviceRobustness2FeaturesEXT,
             vk::PhysicalDeviceDescriptorIndexingFeatures>;
 

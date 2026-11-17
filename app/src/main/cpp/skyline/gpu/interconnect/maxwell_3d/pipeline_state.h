@@ -108,6 +108,13 @@ namespace skyline::gpu::interconnect::maxwell3d {
         VertexInputState(dirty::Handle dirtyHandle, DirtyManager &manager, const EngineRegisters &engine);
 
         void Flush(PackedPipelineState &packedState);
+
+        /**
+         * @return The vertex streams as the guest has them (the strides aren't kept in the packed state when extended dynamic state is active)
+         */
+        const std::array<engine::VertexStream, engine::VertexStreamCount> &GetStreams() {
+            return engine->vertexStreams;
+        }
     };
 
     class InputAssemblyState {

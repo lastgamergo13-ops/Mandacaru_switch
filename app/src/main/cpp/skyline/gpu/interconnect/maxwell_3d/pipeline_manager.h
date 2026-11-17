@@ -6,6 +6,7 @@
 #pragma once
 
 #include <tsl/robin_map.h>
+#include <boost/container/static_vector.hpp>
 #include <shader_compiler/frontend/ir/program.h>
 #include <gpu/graphics_pipeline_assembler.h>
 #include <gpu/interconnect/common/samplers.h>
@@ -262,6 +263,24 @@ namespace skyline::gpu::interconnect::maxwell3d {
     /**
      * @brief Manages the caching and creation of pipelines
      */
+    /**
+     * @brief The vertex input state that is set when drawing with VK_EXT_vertex_input_dynamic_state instead of being part of the pipeline
+     */
+    struct DynamicVertexInput {
+        boost::container::static_vector<vk::VertexInputBindingDescription2EXT, engine::VertexStreamCount> bindings;
+        boost::container::static_vector<vk::VertexInputAttributeDescription2EXT, engine::VertexAttributeCount> attributes;
+    };
+
+    /**
+     * @brief Builds the dynamic vertex input from the guest's state (the packed state has the bindings, attributes and divisors, the strides come from the streams since they aren't kept there when extended dynamic state is active)
+     */
+    DynamicVertexInput MakeDynamicVertexInput(GPU &gpu, const PackedPipelineState &packedState, const std::array<engine::VertexStream, engine::VertexStreamCount> &streams);
+
+    /**
+     * @brief Makes the packed state identify the pipelines that only differ by the vertex input (bindings, strides, divisors, offsets and formats), only the type of each attribute as the shader sees it is kept. Used with VK_EXT_vertex_input_dynamic_state
+     */
+    void NormalizeVertexInputForDynamicState(PackedPipelineState &packedState);
+
     class PipelineManager {
       private:
         tsl::robin_map<PackedPipelineState, std::unique_ptr<Pipeline>, PackedPipelineStateHash> map;

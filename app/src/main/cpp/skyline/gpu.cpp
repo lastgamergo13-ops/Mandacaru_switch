@@ -243,6 +243,7 @@ namespace skyline::gpu {
             vk::PhysicalDeviceIndexTypeUint8FeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT,
+            vk::PhysicalDeviceVertexInputDynamicStateFeaturesEXT,
             vk::PhysicalDeviceRobustness2FeaturesEXT,
             vk::PhysicalDeviceDescriptorIndexingFeatures>()};
         decltype(deviceFeatures2) enabledFeatures2{}; // We only want to enable features we required due to potential overhead from unused features
