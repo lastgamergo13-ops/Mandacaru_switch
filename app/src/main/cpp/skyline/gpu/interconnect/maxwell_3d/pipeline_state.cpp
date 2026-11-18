@@ -525,6 +525,71 @@ namespace skyline::gpu::interconnect::maxwell3d {
             }
         }
 
+        // And the blend group of VK_EXT_extended_dynamic_state3. The packed state keeps the guest's blend state, the parts that are cleared for the pipeline lookup are put back when this returns (a blend equation and write mask of zero are the same as a disabled blend)
+        struct DynamicState3BlendGuard {
+            PackedPipelineState *state{};
+            bool logicOpEnable{};
+            decltype(PackedPipelineState::attachmentBlendStates) attachmentBlendStates;
+            bool logicOpEnableCleared{}, blendEnableCleared{}, blendEquationCleared{}, writeMaskCleared{};
+
+            ~DynamicState3BlendGuard() {
+                if (!state)
+                    return;
+
+                if (logicOpEnableCleared)
+                    state->logicOpEnable = logicOpEnable;
+
+                for (size_t i{}; i < attachmentBlendStates.size(); i++) {
+                    auto &current{state->attachmentBlendStates[i]};
+                    const auto &saved{attachmentBlendStates[i]};
+                    if (blendEnableCleared)
+                        current.blendEnable = saved.blendEnable;
+                    if (blendEquationCleared) {
+                        current.colorBlendOp = saved.colorBlendOp;
+                        current.srcColorBlendFactor = saved.srcColorBlendFactor;
+                        current.dstColorBlendFactor = saved.dstColorBlendFactor;
+                        current.alphaBlendOp = saved.alphaBlendOp;
+                        current.srcAlphaBlendFactor = saved.srcAlphaBlendFactor;
+                        current.dstAlphaBlendFactor = saved.dstAlphaBlendFactor;
+                    }
+                    if (writeMaskCleared)
+                        current.colorWriteMask = saved.colorWriteMask;
+                }
+            }
+        } dynamicState3BlendGuard;
+
+        if (traits.supportsExtendedDynamicState3LogicOpEnable || traits.supportsExtendedDynamicState3ColorBlendEnable || traits.supportsExtendedDynamicState3ColorBlendEquation || traits.supportsExtendedDynamicState3ColorWriteMask) {
+            auto dynamicBlend{MakeDynamicColorBlend(packedState)};
+            builder.SetExtendedDynamicState3Blend(packedState.logicOpEnable, dynamicBlend.blendEnables, dynamicBlend.blendEquations, dynamicBlend.writeMasks);
+
+            dynamicState3BlendGuard.state = &packedState;
+            dynamicState3BlendGuard.logicOpEnable = packedState.logicOpEnable;
+            dynamicState3BlendGuard.attachmentBlendStates = packedState.attachmentBlendStates;
+
+            if (traits.supportsExtendedDynamicState3LogicOpEnable) {
+                packedState.logicOpEnable = false;
+                dynamicState3BlendGuard.logicOpEnableCleared = true;
+            }
+            dynamicState3BlendGuard.blendEnableCleared = traits.supportsExtendedDynamicState3ColorBlendEnable;
+            dynamicState3BlendGuard.blendEquationCleared = traits.supportsExtendedDynamicState3ColorBlendEquation;
+            dynamicState3BlendGuard.writeMaskCleared = traits.supportsExtendedDynamicState3ColorWriteMask;
+
+            for (auto &attachment : packedState.attachmentBlendStates) {
+                if (traits.supportsExtendedDynamicState3ColorBlendEnable)
+                    attachment.blendEnable = false;
+                if (traits.supportsExtendedDynamicState3ColorBlendEquation) {
+                    attachment.colorBlendOp = 0;
+                    attachment.srcColorBlendFactor = 0;
+                    attachment.dstColorBlendFactor = 0;
+                    attachment.alphaBlendOp = 0;
+                    attachment.srcAlphaBlendFactor = 0;
+                    attachment.dstAlphaBlendFactor = 0;
+                }
+                if (traits.supportsExtendedDynamicState3ColorWriteMask)
+                    attachment.colorWriteMask = 0;
+            }
+        }
+
         if (pipeline) {
             if (auto newPipeline{pipeline->LookupNext(packedState)}) {
                 pipeline = newPipeline;

@@ -58,6 +58,10 @@ namespace skyline::gpu {
         bool supportsExtendedDynamicState3PolygonMode{}; //!< If the polygon mode is dynamic ('VK_EXT_extended_dynamic_state3', feature 'extendedDynamicState3PolygonMode')
         bool supportsExtendedDynamicState3DepthClampEnable{}; //!< If the depth clamp enable is dynamic ('VK_EXT_extended_dynamic_state3' with the 'depthClamp' feature)
         bool supportsExtendedDynamicState3ProvokingVertexMode{}; //!< If the provoking vertex mode is dynamic ('VK_EXT_extended_dynamic_state3' with 'VK_EXT_provoking_vertex')
+        bool supportsExtendedDynamicState3LogicOpEnable{}; //!< If the logic op enable is dynamic ('VK_EXT_extended_dynamic_state3' with the 'logicOp' feature)
+        bool supportsExtendedDynamicState3ColorBlendEnable{}; //!< If the color blend enable of each attachment is dynamic ('VK_EXT_extended_dynamic_state3')
+        bool supportsExtendedDynamicState3ColorBlendEquation{}; //!< If the color blend equation of each attachment is dynamic ('VK_EXT_extended_dynamic_state3')
+        bool supportsExtendedDynamicState3ColorWriteMask{}; //!< If the color write mask of each attachment is dynamic ('VK_EXT_extended_dynamic_state3')
         bool supportsExtendedDynamicState2{}; //!< If the device supports the 'VK_EXT_extended_dynamic_state2' Vulkan extension and it's used (the dynamic primitive restart, rasterizer discard and depth bias enables)
         bool supportsNullDescriptor{}; //!< If the device supports the null descriptor feature in the 'VK_EXT_robustness2' Vulkan extension
         u32 subgroupSize{}; //!< Size of a subgroup on the host GPU

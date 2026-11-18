@@ -199,6 +199,27 @@ namespace skyline::gpu::interconnect {
     };
     using SetExtendedDynamicState3RasterizationCmd = CmdHolder<SetExtendedDynamicState3RasterizationCmdImpl>;
 
+    struct SetExtendedDynamicState3BlendCmdImpl {
+        static constexpr size_t MaxAttachments{8}; //!< The pipelines have the blend state of all the color targets of the Maxwell 3D engine
+
+        void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
+            if (gpu.traits.supportsExtendedDynamicState3LogicOpEnable)
+                commandBuffer.setLogicOpEnableEXT(logicOpEnable);
+            if (gpu.traits.supportsExtendedDynamicState3ColorBlendEnable)
+                commandBuffer.setColorBlendEnableEXT(0, blendEnables);
+            if (gpu.traits.supportsExtendedDynamicState3ColorBlendEquation)
+                commandBuffer.setColorBlendEquationEXT(0, blendEquations);
+            if (gpu.traits.supportsExtendedDynamicState3ColorWriteMask)
+                commandBuffer.setColorWriteMaskEXT(0, writeMasks);
+        }
+
+        vk::Bool32 logicOpEnable;
+        std::array<vk::Bool32, MaxAttachments> blendEnables;
+        std::array<vk::ColorBlendEquationEXT, MaxAttachments> blendEquations;
+        std::array<vk::ColorComponentFlags, MaxAttachments> writeMasks;
+    };
+    using SetExtendedDynamicState3BlendCmd = CmdHolder<SetExtendedDynamicState3BlendCmdImpl>;
+
     struct SetVertexInputCmdImpl {
         void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
             commandBuffer.setVertexInputEXT(span(bindings).subspan(0, bindingCount), span(attributes).subspan(0, attributeCount));
@@ -507,6 +528,18 @@ namespace skyline::gpu::interconnect {
                     .depthClampEnable = depthClampEnable,
                     .provokingVertexMode = provokingVertexMode,
                 });
+        }
+
+        /**
+         * @brief Sets the blend state that VK_EXT_extended_dynamic_state3 makes dynamic, only the ones the device supports as dynamic are recorded
+         */
+        void SetExtendedDynamicState3Blend(bool logicOpEnable, const std::array<vk::Bool32, SetExtendedDynamicState3BlendCmdImpl::MaxAttachments> &blendEnables, const std::array<vk::ColorBlendEquationEXT, SetExtendedDynamicState3BlendCmdImpl::MaxAttachments> &blendEquations, const std::array<vk::ColorComponentFlags, SetExtendedDynamicState3BlendCmdImpl::MaxAttachments> &writeMasks) {
+            SetExtendedDynamicState3BlendCmdImpl contents{};
+            contents.logicOpEnable = logicOpEnable;
+            contents.blendEnables = blendEnables;
+            contents.blendEquations = blendEquations;
+            contents.writeMasks = writeMasks;
+            AppendCmd<SetExtendedDynamicState3BlendCmd>(std::move(contents));
         }
 
         /**

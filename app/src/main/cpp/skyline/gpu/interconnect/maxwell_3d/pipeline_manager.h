@@ -274,6 +274,20 @@ namespace skyline::gpu::interconnect::maxwell3d {
     /**
      * @brief Builds the dynamic vertex input from the guest's state (the packed state has the bindings, attributes and divisors, the strides come from the streams since they aren't kept there when extended dynamic state is active)
      */
+    /**
+     * @brief The blend state of the color attachments that is set when drawing with VK_EXT_extended_dynamic_state3 instead of being part of the pipeline
+     */
+    struct DynamicColorBlend {
+        std::array<vk::Bool32, engine::ColorTargetCount> blendEnables;
+        std::array<vk::ColorBlendEquationEXT, engine::ColorTargetCount> blendEquations;
+        std::array<vk::ColorComponentFlags, engine::ColorTargetCount> writeMasks;
+    };
+
+    /**
+     * @brief Builds the blend state the pipeline would have had (including what is adjusted by the format of the render target) from the packed state
+     */
+    DynamicColorBlend MakeDynamicColorBlend(const PackedPipelineState &packedState);
+
     vk::ProvokingVertexModeEXT ConvertProvokingVertex(engine::ProvokingVertex::Value provokingVertex);
 
     DynamicVertexInput MakeDynamicVertexInput(GPU &gpu, const PackedPipelineState &packedState, const std::array<engine::VertexStream, engine::VertexStreamCount> &streams);

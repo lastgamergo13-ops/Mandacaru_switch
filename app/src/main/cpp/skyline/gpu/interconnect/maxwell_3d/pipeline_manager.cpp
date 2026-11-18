@@ -584,6 +584,29 @@ namespace skyline::gpu::interconnect::maxwell3d {
         }
     }
 
+    DynamicColorBlend MakeDynamicColorBlend(const PackedPipelineState &packedState) {
+        DynamicColorBlend blend;
+
+        for (u32 i{}; i < engine::ColorTargetCount; i++) {
+            auto state{packedState.GetAttachmentBlendState(i)};
+            if (i < packedState.GetColorRenderTargetCount())
+                AdjustBlendForAlphalessFormat(state, static_cast<engine::ColorTarget::Format>(packedState.colorRenderTargetFormats[packedState.ctSelect[i]]));
+
+            blend.blendEnables[i] = state.blendEnable;
+            blend.blendEquations[i] = vk::ColorBlendEquationEXT{
+                .srcColorBlendFactor = state.srcColorBlendFactor,
+                .dstColorBlendFactor = state.dstColorBlendFactor,
+                .colorBlendOp = state.colorBlendOp,
+                .srcAlphaBlendFactor = state.srcAlphaBlendFactor,
+                .dstAlphaBlendFactor = state.dstAlphaBlendFactor,
+                .alphaBlendOp = state.alphaBlendOp,
+            };
+            blend.writeMasks[i] = state.colorWriteMask;
+        }
+
+        return blend;
+    }
+
     vk::ProvokingVertexModeEXT ConvertProvokingVertex(engine::ProvokingVertex::Value provokingVertex) {
         switch (provokingVertex) {
             case engine::ProvokingVertex::Value::First:
@@ -790,7 +813,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         };
 
 
-        boost::container::static_vector<vk::DynamicState, 17> dynamicStates{
+        boost::container::static_vector<vk::DynamicState, 21> dynamicStates{
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth,
@@ -821,6 +844,16 @@ namespace skyline::gpu::interconnect::maxwell3d {
             dynamicStates.push_back(vk::DynamicState::eDepthClampEnableEXT);
         if (gpu.traits.supportsExtendedDynamicState3ProvokingVertexMode)
             dynamicStates.push_back(vk::DynamicState::eProvokingVertexModeEXT);
+
+        // The blend group of VK_EXT_extended_dynamic_state3, same as above
+        if (gpu.traits.supportsExtendedDynamicState3LogicOpEnable)
+            dynamicStates.push_back(vk::DynamicState::eLogicOpEnableEXT);
+        if (gpu.traits.supportsExtendedDynamicState3ColorBlendEnable)
+            dynamicStates.push_back(vk::DynamicState::eColorBlendEnableEXT);
+        if (gpu.traits.supportsExtendedDynamicState3ColorBlendEquation)
+            dynamicStates.push_back(vk::DynamicState::eColorBlendEquationEXT);
+        if (gpu.traits.supportsExtendedDynamicState3ColorWriteMask)
+            dynamicStates.push_back(vk::DynamicState::eColorWriteMaskEXT);
 
         vk::PipelineDynamicStateCreateInfo dynamicState{
             .dynamicStateCount = static_cast<u32>(dynamicStates.size()),

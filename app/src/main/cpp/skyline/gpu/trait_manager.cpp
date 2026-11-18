@@ -107,6 +107,10 @@ namespace skyline::gpu {
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3PolygonMode, supportsExtendedDynamicState3PolygonMode)
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3DepthClampEnable, supportsExtendedDynamicState3DepthClampEnable)
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3ProvokingVertexMode, supportsExtendedDynamicState3ProvokingVertexMode)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3LogicOpEnable, supportsExtendedDynamicState3LogicOpEnable)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3ColorBlendEnable, supportsExtendedDynamicState3ColorBlendEnable)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3ColorBlendEquation, supportsExtendedDynamicState3ColorBlendEquation)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3ColorWriteMask, supportsExtendedDynamicState3ColorWriteMask)
         } else {
             enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT>();
         }
@@ -218,6 +222,7 @@ namespace skyline::gpu {
         // Setting these dynamically needs the feature they set to be enabled too
         supportsExtendedDynamicState3DepthClampEnable = supportsExtendedDynamicState3DepthClampEnable && supportsDepthClamp;
         supportsExtendedDynamicState3ProvokingVertexMode = supportsExtendedDynamicState3ProvokingVertexMode && supportsLastProvokingVertex;
+        supportsExtendedDynamicState3LogicOpEnable = supportsExtendedDynamicState3LogicOpEnable && supportsLogicOp;
 
         if (supportsFloatControls)
             floatControls = deviceProperties2.get<vk::PhysicalDeviceFloatControlsProperties>();
