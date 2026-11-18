@@ -4,6 +4,7 @@
 #pragma once
 
 #include <range/v3/view.hpp>
+#include <vulkan/vulkan_format_traits.hpp> // componentCount/componentBits: since Vulkan-Hpp 1.3.2xx they are no longer included by vulkan.hpp
 #include <range/v3/algorithm.hpp>
 #include <common/spin_lock.h>
 #include <common/lockable_shared_ptr.h>

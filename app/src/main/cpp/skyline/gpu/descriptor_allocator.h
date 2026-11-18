@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vulkan/vulkan_raii.hpp>
+#include <vulkan/vulkan_hash.hpp> // std::hash for the Vulkan handles, since Vulkan-Hpp 1.3.2xx vulkan.hpp doesn't include it anymore
 #include <common/spin_lock.h>
 #include <common.h>
 

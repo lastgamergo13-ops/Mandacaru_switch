@@ -461,7 +461,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         } vertexInputGuard;
 
         if (ctx.gpu.traits.supportsVertexInputDynamicState) {
-            auto dynamicVertexInput{MakeDynamicVertexInput(ctx.gpu, packedState, vertexInput.GetStreams())};
+            auto dynamicVertexInput{MakeDynamicVertexInput(ctx.gpu, packedState, vertexInput.Get().GetStreams())};
             builder.SetVertexInput(dynamicVertexInput.bindings, dynamicVertexInput.attributes);
 
             vertexInputGuard.state = &packedState;

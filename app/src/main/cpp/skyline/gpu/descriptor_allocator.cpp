@@ -70,11 +70,14 @@ namespace skyline::gpu {
         if (pool->freeSetCount > 0)
             pool->freeSetCount--;
 
-        return vk::createResultValue(result, descriptorSet, __builtin_FUNCTION(), {
+        // vk::createResultValue was removed in Vulkan-Hpp 1.3.2xx, vk::resultCheck does the same check of the accepted result codes
+        vk::resultCheck(result, __builtin_FUNCTION(), {
             vk::Result::eSuccess,
             vk::Result::eErrorOutOfPoolMemory,
             vk::Result::eErrorFragmentedPool
         });
+
+        return vk::ResultValue<vk::DescriptorSet>(result, std::move(descriptorSet));
     }
 
     DescriptorAllocator::ActiveDescriptorSet::ActiveDescriptorSet(std::shared_ptr<DescriptorPool> pPool, DescriptorSetSlot *slot) : pool{std::move(pPool)}, slot{slot} {}
