@@ -55,6 +55,9 @@ namespace skyline::gpu {
         bool supportsDepthClamp{}; //!< If the device supports the 'depthClamp' Vulkan feature
         bool supportsExtendedDynamicState{}; //!< If the device supports the 'VK_EXT_extended_dynamic_state' Vulkan extension
         bool supportsVertexInputDynamicState{}; //!< If the device supports the 'VK_EXT_vertex_input_dynamic_state' Vulkan extension and it's used (the vertex bindings, attributes, strides and divisors are set when drawing instead of being part of the pipeline)
+        bool supportsExtendedDynamicState3PolygonMode{}; //!< If the polygon mode is dynamic ('VK_EXT_extended_dynamic_state3', feature 'extendedDynamicState3PolygonMode')
+        bool supportsExtendedDynamicState3DepthClampEnable{}; //!< If the depth clamp enable is dynamic ('VK_EXT_extended_dynamic_state3' with the 'depthClamp' feature)
+        bool supportsExtendedDynamicState3ProvokingVertexMode{}; //!< If the provoking vertex mode is dynamic ('VK_EXT_extended_dynamic_state3' with 'VK_EXT_provoking_vertex')
         bool supportsExtendedDynamicState2{}; //!< If the device supports the 'VK_EXT_extended_dynamic_state2' Vulkan extension and it's used (the dynamic primitive restart, rasterizer discard and depth bias enables)
         bool supportsNullDescriptor{}; //!< If the device supports the null descriptor feature in the 'VK_EXT_robustness2' Vulkan extension
         u32 subgroupSize{}; //!< Size of a subgroup on the host GPU
@@ -127,6 +130,7 @@ namespace skyline::gpu {
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
             vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT,
             vk::PhysicalDeviceVertexInputDynamicStateFeaturesEXT,
+            vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT,
             vk::PhysicalDeviceRobustness2FeaturesEXT,
             vk::PhysicalDeviceDescriptorIndexingFeatures>;
 

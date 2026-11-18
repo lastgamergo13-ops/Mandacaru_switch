@@ -274,6 +274,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
     /**
      * @brief Builds the dynamic vertex input from the guest's state (the packed state has the bindings, attributes and divisors, the strides come from the streams since they aren't kept there when extended dynamic state is active)
      */
+    vk::ProvokingVertexModeEXT ConvertProvokingVertex(engine::ProvokingVertex::Value provokingVertex);
+
     DynamicVertexInput MakeDynamicVertexInput(GPU &gpu, const PackedPipelineState &packedState, const std::array<engine::VertexStream, engine::VertexStreamCount> &streams);
 
     /**

@@ -183,6 +183,22 @@ namespace skyline::gpu::interconnect {
     };
     using SetExtendedDynamicState2Cmd = CmdHolder<SetExtendedDynamicState2CmdImpl>;
 
+    struct SetExtendedDynamicState3RasterizationCmdImpl {
+        void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
+            if (gpu.traits.supportsExtendedDynamicState3PolygonMode)
+                commandBuffer.setPolygonModeEXT(polygonMode);
+            if (gpu.traits.supportsExtendedDynamicState3DepthClampEnable)
+                commandBuffer.setDepthClampEnableEXT(depthClampEnable);
+            if (gpu.traits.supportsExtendedDynamicState3ProvokingVertexMode)
+                commandBuffer.setProvokingVertexModeEXT(provokingVertexMode);
+        }
+
+        vk::PolygonMode polygonMode;
+        vk::Bool32 depthClampEnable;
+        vk::ProvokingVertexModeEXT provokingVertexMode;
+    };
+    using SetExtendedDynamicState3RasterizationCmd = CmdHolder<SetExtendedDynamicState3RasterizationCmdImpl>;
+
     struct SetVertexInputCmdImpl {
         void Record(GPU &gpu, vk::raii::CommandBuffer &commandBuffer) {
             commandBuffer.setVertexInputEXT(span(bindings).subspan(0, bindingCount), span(attributes).subspan(0, attributeCount));
@@ -478,6 +494,18 @@ namespace skyline::gpu::interconnect {
                     .primitiveRestartEnable = primitiveRestartEnable,
                     .rasterizerDiscardEnable = rasterizerDiscardEnable,
                     .depthBiasEnable = depthBiasEnable,
+                });
+        }
+
+        /**
+         * @brief Sets the rasterization state that VK_EXT_extended_dynamic_state3 makes dynamic, only the ones the device supports as dynamic are recorded
+         */
+        void SetExtendedDynamicState3Rasterization(vk::PolygonMode polygonMode, bool depthClampEnable, vk::ProvokingVertexModeEXT provokingVertexMode) {
+            AppendCmd<SetExtendedDynamicState3RasterizationCmd>(
+                {
+                    .polygonMode = polygonMode,
+                    .depthClampEnable = depthClampEnable,
+                    .provokingVertexMode = provokingVertexMode,
                 });
         }
 

@@ -482,6 +482,49 @@ namespace skyline::gpu::interconnect::maxwell3d {
             packedState.depthBiasEnable = false;
         }
 
+        // Same again for the rasterization group of VK_EXT_extended_dynamic_state3: only what the device supports as dynamic is recorded and cleared from the state that identifies a pipeline (zero is fill for the polygon mode and the first vertex for the provoking vertex)
+        struct DynamicState3RasterizationGuard {
+            PackedPipelineState *state{};
+            u8 polygonMode{};
+            bool depthClampEnable{};
+            engine::ProvokingVertex::Value provokingVertex{};
+            bool polygonModeCleared{}, depthClampEnableCleared{}, provokingVertexCleared{};
+
+            ~DynamicState3RasterizationGuard() {
+                if (state) {
+                    if (polygonModeCleared)
+                        state->polygonMode = polygonMode;
+                    if (depthClampEnableCleared)
+                        state->depthClampEnable = depthClampEnable;
+                    if (provokingVertexCleared)
+                        state->provokingVertex = provokingVertex;
+                }
+            }
+        } dynamicState3RasterizationGuard;
+
+        const auto &traits{ctx.gpu.traits};
+        if (traits.supportsExtendedDynamicState3PolygonMode || traits.supportsExtendedDynamicState3DepthClampEnable || traits.supportsExtendedDynamicState3ProvokingVertexMode) {
+            builder.SetExtendedDynamicState3Rasterization(packedState.GetPolygonMode(), packedState.depthClampEnable, ConvertProvokingVertex(packedState.provokingVertex));
+
+            dynamicState3RasterizationGuard.state = &packedState;
+            dynamicState3RasterizationGuard.polygonMode = packedState.polygonMode;
+            dynamicState3RasterizationGuard.depthClampEnable = packedState.depthClampEnable;
+            dynamicState3RasterizationGuard.provokingVertex = packedState.provokingVertex;
+
+            if (traits.supportsExtendedDynamicState3PolygonMode) {
+                packedState.polygonMode = static_cast<u8>(vk::PolygonMode::eFill);
+                dynamicState3RasterizationGuard.polygonModeCleared = true;
+            }
+            if (traits.supportsExtendedDynamicState3DepthClampEnable) {
+                packedState.depthClampEnable = false;
+                dynamicState3RasterizationGuard.depthClampEnableCleared = true;
+            }
+            if (traits.supportsExtendedDynamicState3ProvokingVertexMode) {
+                packedState.provokingVertex = engine::ProvokingVertex::Value::First;
+                dynamicState3RasterizationGuard.provokingVertexCleared = true;
+            }
+        }
+
         if (pipeline) {
             if (auto newPipeline{pipeline->LookupNext(packedState)}) {
                 pipeline = newPipeline;

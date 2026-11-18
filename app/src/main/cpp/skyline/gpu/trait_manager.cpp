@@ -6,7 +6,7 @@
 
 namespace skyline::gpu {
     TraitManager::TraitManager(const DeviceFeatures2 &deviceFeatures2, DeviceFeatures2 &enabledFeatures2, const std::vector<vk::ExtensionProperties> &deviceExtensions, std::vector<std::array<char, VK_MAX_EXTENSION_NAME_SIZE>> &enabledExtensions, const DeviceProperties2 &deviceProperties2, const vk::raii::PhysicalDevice &physicalDevice) : quirks(deviceProperties2.get<vk::PhysicalDeviceProperties2>().properties, deviceProperties2.get<vk::PhysicalDeviceDriverProperties>()) {
-        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasDescriptorIndexingExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasExtendedDynamicState2Ext{}, hasVertexInputDynamicStateExt{}, hasRobustness2Ext{};
+        bool hasCustomBorderColorExt{}, hasShaderAtomicInt64Ext{}, hasShaderFloat16Int8Ext{}, hasShaderDemoteToHelperExt{}, hasVertexAttributeDivisorExt{}, hasProvokingVertexExt{}, hasPrimitiveTopologyListRestartExt{}, hasImagelessFramebuffersExt{}, hasTransformFeedbackExt{}, hasDescriptorIndexingExt{}, hasUint8IndicesExt{}, hasExtendedDynamicStateExt{}, hasExtendedDynamicState2Ext{}, hasVertexInputDynamicStateExt{}, hasExtendedDynamicState3Ext{}, hasRobustness2Ext{};
         bool supportsUniformBufferStandardLayout{}; // We require VK_KHR_uniform_buffer_standard_layout but assume it is implicitly supported even when not present
 
         for (auto &extension : deviceExtensions) {
@@ -61,6 +61,7 @@ namespace skyline::gpu {
                 EXT_SET_COND("VK_EXT_extended_dynamic_state", hasExtendedDynamicStateExt, !quirks.brokenDynamicStateVertexBindings);
                 EXT_SET("VK_EXT_extended_dynamic_state2", hasExtendedDynamicState2Ext);
                 EXT_SET("VK_EXT_vertex_input_dynamic_state", hasVertexInputDynamicStateExt);
+                EXT_SET("VK_EXT_extended_dynamic_state3", hasExtendedDynamicState3Ext);
                 EXT_SET("VK_EXT_robustness2", hasRobustness2Ext);
                 EXT_SET("VK_EXT_descriptor_indexing", hasDescriptorIndexingExt);
             }
@@ -101,6 +102,14 @@ namespace skyline::gpu {
             FEAT_SET(vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT, extendedDynamicState2, supportsExtendedDynamicState2)
         else
             enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicState2FeaturesEXT>();
+
+        if (hasExtendedDynamicState3Ext) {
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3PolygonMode, supportsExtendedDynamicState3PolygonMode)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3DepthClampEnable, supportsExtendedDynamicState3DepthClampEnable)
+            FEAT_SET(vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT, extendedDynamicState3ProvokingVertexMode, supportsExtendedDynamicState3ProvokingVertexMode)
+        } else {
+            enabledFeatures2.unlink<vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT>();
+        }
 
         if (hasVertexInputDynamicStateExt)
             FEAT_SET(vk::PhysicalDeviceVertexInputDynamicStateFeaturesEXT, vertexInputDynamicState, supportsVertexInputDynamicState)
@@ -205,6 +214,10 @@ namespace skyline::gpu {
         FEAT_SET(vk::PhysicalDeviceFeatures2, features.depthClamp, supportsDepthClamp)
 
         #undef FEAT_SET
+
+        // Setting these dynamically needs the feature they set to be enabled too
+        supportsExtendedDynamicState3DepthClampEnable = supportsExtendedDynamicState3DepthClampEnable && supportsDepthClamp;
+        supportsExtendedDynamicState3ProvokingVertexMode = supportsExtendedDynamicState3ProvokingVertexMode && supportsLastProvokingVertex;
 
         if (supportsFloatControls)
             floatControls = deviceProperties2.get<vk::PhysicalDeviceFloatControlsProperties>();

@@ -584,7 +584,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         }
     }
 
-    static vk::ProvokingVertexModeEXT ConvertProvokingVertex(engine::ProvokingVertex::Value provokingVertex) {
+    vk::ProvokingVertexModeEXT ConvertProvokingVertex(engine::ProvokingVertex::Value provokingVertex) {
         switch (provokingVertex) {
             case engine::ProvokingVertex::Value::First:
                 return vk::ProvokingVertexModeEXT::eFirstVertex;
@@ -637,7 +637,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
 
         for (auto &attribute : packedState.vertexAttributes) {
             if (attribute.source == engine::VertexAttribute::Source::Inactive) {
-                attribute = {.source = engine::VertexAttribute::Source::Inactive};
+                attribute = {};
+                attribute.source = engine::VertexAttribute::Source::Inactive;
                 continue;
             }
 
@@ -789,7 +790,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         };
 
 
-        boost::container::static_vector<vk::DynamicState, 14> dynamicStates{
+        boost::container::static_vector<vk::DynamicState, 17> dynamicStates{
             vk::DynamicState::eViewport,
             vk::DynamicState::eScissor,
             vk::DynamicState::eLineWidth,
@@ -812,6 +813,14 @@ namespace skyline::gpu::interconnect::maxwell3d {
             dynamicStates.push_back(vk::DynamicState::eRasterizerDiscardEnableEXT);
             dynamicStates.push_back(vk::DynamicState::eDepthBiasEnableEXT);
         }
+
+        // VK_EXT_extended_dynamic_state3 (rasterization group), each one is dynamic only if the device supports it as such. The values are set by PipelineState::Flush (see there)
+        if (gpu.traits.supportsExtendedDynamicState3PolygonMode)
+            dynamicStates.push_back(vk::DynamicState::ePolygonModeEXT);
+        if (gpu.traits.supportsExtendedDynamicState3DepthClampEnable)
+            dynamicStates.push_back(vk::DynamicState::eDepthClampEnableEXT);
+        if (gpu.traits.supportsExtendedDynamicState3ProvokingVertexMode)
+            dynamicStates.push_back(vk::DynamicState::eProvokingVertexModeEXT);
 
         vk::PipelineDynamicStateCreateInfo dynamicState{
             .dynamicStateCount = static_cast<u32>(dynamicStates.size()),
