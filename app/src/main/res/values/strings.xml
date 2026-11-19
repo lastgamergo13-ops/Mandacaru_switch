@@ -175,6 +175,7 @@
     <string name="disable_audio_output_disabled">Audio output is enabled</string>
     <!-- Settings - GPU -->
     <string name="gpu">GPU</string>
+    <string name="graphics_api">Graphics API</string>
     <string name="gpu_driver_config">GPU Driver Configuration</string>
     <string name="gpu_driver_config_desc">Active driver: %1$s</string>
     <string name="gpu_driver_config_desc_unsupported">Your device doesn\'t support custom drivers</string>

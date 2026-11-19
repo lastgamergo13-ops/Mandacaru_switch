@@ -99,6 +99,13 @@
     <PreferenceCategory
         android:key="category_gpu"
         android:title="@string/gpu">
+        <org.stratoemu.strato.preference.IntegerListPreference
+            android:defaultValue="0"
+            android:entries="@array/graphics_api_entries"
+            android:entryValues="@array/graphics_api_values"
+            app:key="graphics_api"
+            app:title="@string/graphics_api"
+            app:useSimpleSummaryProvider="true" />
         <org.stratoemu.strato.preference.GpuDriverPreference
             app:key="gpu_driver"
             app:title="@string/gpu_driver_config" />

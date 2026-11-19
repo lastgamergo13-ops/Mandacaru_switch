@@ -30,6 +30,7 @@ data class NativeSettings(
     var isAudioOutputDisabled : Boolean,
 
     // GPU
+    var graphicsApi : Int,
     var gpuDriver : String,
     var gpuDriverLibraryName : String,
     var forceTripleBuffering : Boolean,
@@ -61,6 +62,7 @@ data class NativeSettings(
         pref.systemRegion,
         pref.isInternetEnabled,
         pref.isAudioOutputDisabled,
+        pref.graphicsApi,
         if (pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER) "" else pref.gpuDriver,
         if (pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER) "" else GpuDriverHelper.getLibraryName(context, pref.gpuDriver),
         pref.forceTripleBuffering,

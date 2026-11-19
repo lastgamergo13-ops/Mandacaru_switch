@@ -11,6 +11,15 @@ namespace skyline {
     /**
      * @brief The Settings class provides a simple interface to access user-defined settings, update values and subscribe callbacks to observe changes.
      */
+    /**
+     * @brief The graphics API the user asked for, the values match EmulationSettings.GRAPHICS_API_* in the Kotlin side
+     */
+    enum class GraphicsApi : u32 {
+        Automatic = 0, //!< The emulator chooses the API (Vulkan unless the device can't use it)
+        Vulkan = 1,
+        OpenGL = 2, //!< OpenGL ES (experimental, the backend is still being written, see 'gpu/graphics_api.h')
+    };
+
     class Settings {
         template<typename T>
         class Setting {
@@ -74,6 +83,7 @@ namespace skyline {
         Setting<bool> disableShaderCache;  //!< Prevents cached shaders from being loaded and disables caching of new shaders
 
         // GPU
+        Setting<GraphicsApi> graphicsApi; //!< The graphics API that was asked for
         Setting<std::string> gpuDriver; //!< The label of the GPU driver to use
         Setting<std::string> gpuDriverLibraryName; //!< The name of the GPU driver library to use
         Setting<u32> executorSlotCountScale; //!< Number of GPU executor slots that can be used concurrently
@@ -106,6 +116,7 @@ namespace skyline {
             LOGINF("Settings:");
             LOGINF("  System: docked: {}, language: {}, region: {}, internet: {}", *isDocked, static_cast<u32>(*systemLanguage), static_cast<u32>(*systemRegion), *isInternetEnabled);
             LOGINF("  Display: force triple buffering: {}, disable frame throttling: {}, disable shader cache: {}", *forceTripleBuffering, *disableFrameThrottling, *disableShaderCache);
+            LOGINF("  Graphics API: {} (0 = automatic, 1 = Vulkan, 2 = OpenGL ES)", static_cast<u32>(*graphicsApi));
             LOGINF("  GPU: driver: \"{}\", driver library: \"{}\", executor slot count scale: {}, executor flush threshold: {}, direct memory import: {}, force max GPU clocks: {}, free guest texture memory: {}, game memory limit: {} MiB", *gpuDriver, *gpuDriverLibraryName, *executorSlotCountScale, *executorFlushThreshold, *useDirectMemoryImport, *forceMaxGpuClocks, *freeGuestTextureMemory, *gameMemoryLimitMiB);
             LOGINF("  Hacks: fast GPU readback: {}, fast readback writes: {}, disable subgroup shuffle: {}, fix bloom effects: {}", *enableFastGpuReadbackHack, *enableFastReadbackWrites, *disableSubgroupShuffle, *fixBloomEffects);
             LOGINF("  Audio: output disabled: {}", *isAudioOutputDisabled);

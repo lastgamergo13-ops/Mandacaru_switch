@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include "gpu.h"
 #include "gpu/breadcrumbs.h"
+#include "gpu/graphics_api.h"
 #include "nce.h"
 #include "nce/guest.h"
 #include "kernel/svc.h"
@@ -272,6 +273,8 @@ namespace skyline::kernel {
         } catch (const std::exception &e) {
             LOGE("Failed to apply the installed update, the game runs without it: {}", e.what());
         }
+
+        gpu::ResolveGraphicsApi(*state.settings->graphicsApi);
 
         state.gpu->Initialise();
 

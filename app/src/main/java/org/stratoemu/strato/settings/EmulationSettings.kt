@@ -44,6 +44,7 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var showPauseButton by sharedPreferences(context, false, prefName = prefName)
 
     // GPU
+    var graphicsApi by sharedPreferences(context, GRAPHICS_API_AUTO, prefName = prefName)
     var gpuDriver by sharedPreferences(context, SYSTEM_GPU_DRIVER, prefName = prefName)
     var forceTripleBuffering by sharedPreferences(context, true, prefName = prefName)
     var disableFrameThrottling by sharedPreferences(context, false, prefName = prefName)
@@ -85,6 +86,11 @@ class EmulationSettings private constructor(context : Context, prefName : String
 
     companion object {
         const val SYSTEM_GPU_DRIVER = "system"
+
+        // The values of the `graphicsApi` setting, they have to match the `graphics_api_values` array and `skyline::GraphicsApi` in settings.h
+        const val GRAPHICS_API_AUTO = 0
+        const val GRAPHICS_API_VULKAN = 1
+        const val GRAPHICS_API_OPENGL = 2
 
         /**
          * The global emulation settings instance
