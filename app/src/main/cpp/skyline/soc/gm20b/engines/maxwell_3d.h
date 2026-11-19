@@ -303,6 +303,8 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
 
             Register<0x56F, float> depthBias;
 
+            Register<0x574, u32> antiAliasSamplesMode; //!< The MSAA mode of the render targets (the values of gpu::interconnect::soc::tic MsaaMode), 0 is no MSAA. Only read to report games that use MSAA, it isn't supported yet
+
             Register<0x57A, u32> drawInlineIndex;
 
             struct InlineIndex2X16Align {

@@ -40,6 +40,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
             vk::raii::QueryPool pool;
 
             ContextTag lastTag{}; //!< Execution tag at the last time a query was began
+            std::optional<u32> beginRenderPassIndex; //!< The render pass index at the time of the last Begin that happened in the middle of an execution (not at its start), used to report queries that span render passes
             u32 lastRenderPassIndex{}; //!< Renderpass index at the last time a query was began
             bool recordOnNextEnd{}; //!< If to record the query copying code upon ending the next query
 

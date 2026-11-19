@@ -39,6 +39,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
     void Queries::Counter::Begin(InterconnectContext &ctx, bool atExecutionStart) {
         auto prepareFunc{Prepare(ctx)};
 
+        beginRenderPassIndex = atExecutionStart ? std::nullopt : ctx.executor.GetRenderPassIndex();
+
         *queryActive = true;
         (*usedQueryCount)++;
 
@@ -64,6 +66,14 @@ namespace skyline::gpu::interconnect::maxwell3d {
     void Queries::Counter::Report(InterconnectContext &ctx, BufferView view, std::optional<u64> timestamp) {
         if (ctx.executor.executionTag != lastTag)
             Begin(ctx, true);
+        else if (!queryActive || !*queryActive)
+            Begin(ctx); // The counter was ended by End/PurgeCaches in this execution, begin it again so the end below has a begin of its own instead of ending a query twice
+        else if (beginRenderPassIndex && *beginRenderPassIndex != ctx.executor.GetRenderPassIndex()) {
+            // Vulkan wants a query that was begun inside a render pass to be ended in the same one, this is the case that the TODOs of this file are about, it is reported (once) to see which games hit it
+            static bool reported{};
+            if (!std::exchange(reported, true))
+                LOGW("Query begun in render pass {} is reported in render pass {}", *beginRenderPassIndex, ctx.executor.GetRenderPassIndex().value_or(0));
+        }
 
         // End the query with the current query count as index
         ctx.executor.AddCommand([=, this, queryIndex = *this->usedQueryCount - 1](vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<FenceCycle> &, GPU &gpu) {

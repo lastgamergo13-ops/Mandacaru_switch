@@ -44,6 +44,14 @@ namespace skyline::gpu::interconnect::maxwell3d {
             return;
         }
 
+        // MSAA isn't supported (the render targets are single sampled and the Fermi2D resolve is a plain copy), report once per mode which games use it so the next logs tell what has to be implemented
+        if (u32 msaaMode{*ctx.channelCtx.maxwell3D.registers.antiAliasSamplesMode}; msaaMode != 0) {
+            static std::atomic<u32> reportedModes{};
+            u32 bit{1U << (msaaMode & 31)};
+            if (!(reportedModes.fetch_or(bit) & bit))
+                LOGW("Render target {} ({}x{}) uses MSAA mode {} which isn't supported, it is rendered without MSAA", index, target.width, target.height, msaaMode);
+        }
+
         GuestTexture guest{};
         guest.format = packedState.GetColorRenderTargetFormat(index);
         guest.aspect = vk::ImageAspectFlagBits::eColor;
