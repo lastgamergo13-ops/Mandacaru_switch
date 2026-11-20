@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <array>
+#include <common.h>
+#include "egl_context.h" // Includes <EGL/egl.h>, which <EGL/eglext.h> needs to be included after
 #include <EGL/eglext.h>
 #include <GLES3/gl32.h>
-#include <common.h>
-#include "egl_context.h"
 
 namespace skyline::gpu::gl {
     bool GlInfo::HasExtension(std::string_view name) const {
