@@ -14,6 +14,8 @@
 #include "breadcrumbs.h"
 #include "native_window.h"
 #include "texture/format.h"
+#include "gl/egl_context.h"
+#include "graphics_api.h"
 
 extern jint Fps;
 extern jfloat AverageFrametimeMs;
@@ -101,7 +103,12 @@ namespace skyline::gpu {
     void PresentationEngine::PresentFrame(const PresentableFrame &frame) {
         Breadcrumbs::Get().Add("Present frame #{}", Breadcrumbs::Get().presentedFrames.fetch_add(1, std::memory_order_relaxed) + 1);
         std::unique_lock lock(mutex);
-        surfaceCondition.wait(lock, [this]() { return vkSurface.has_value(); });
+        surfaceCondition.wait(lock, [this]() { return SurfaceAvailable(); });
+
+        if (glMode) {
+            PresentFrameGl(frame);
+            return;
+        }
 
         frame.fence.Wait(state.soc->host1x);
 
@@ -360,17 +367,34 @@ namespace skyline::gpu {
 
         vkSwapchain.reset();
 
+        eglWindowAvailable = false;
+        eglWindowGeneration++;
+
         if (jSurface) {
             window = ANativeWindow_fromSurface(env, jSurface);
-            vkSurface.emplace(gpu.vkInstance, vk::AndroidSurfaceCreateInfoKHR{
-                .window = window,
-            });
-            if (!gpu.vkPhysicalDevice.getSurfaceSupportKHR(gpu.vkQueueFamilyIndex, **vkSurface))
-                throw exception("Vulkan Queue doesn't support presentation with surface");
-            vkSurfaceCapabilities = gpu.vkPhysicalDevice.getSurfaceCapabilitiesKHR(**vkSurface);
 
-            if (swapchainExtent && swapchainFormat)
-                UpdateSwapchain(swapchainFormat, swapchainExtent);
+            glMode = !glUnavailable && *state.settings->graphicsApi == GraphicsApi::OpenGL;
+            if (glMode && !gl::ProbeOpenGlEs32(window)) {
+                LOGW("OpenGL ES was chosen but it can't be used on this device, using Vulkan instead");
+                glUnavailable = true;
+                glMode = false;
+            }
+
+            if (glMode) {
+                // The thread that presents frames creates the EGL context (see PresentFrameGl)
+                vkSurface.reset();
+                eglWindowAvailable = true;
+            } else {
+                vkSurface.emplace(gpu.vkInstance, vk::AndroidSurfaceCreateInfoKHR{
+                    .window = window,
+                });
+                if (!gpu.vkPhysicalDevice.getSurfaceSupportKHR(gpu.vkQueueFamilyIndex, **vkSurface))
+                    throw exception("Vulkan Queue doesn't support presentation with surface");
+                vkSurfaceCapabilities = gpu.vkPhysicalDevice.getSurfaceCapabilitiesKHR(**vkSurface);
+
+                if (swapchainExtent && swapchainFormat)
+                    UpdateSwapchain(swapchainFormat, swapchainExtent);
+            }
 
             if (window->common.magic != AndroidNativeWindowMagic)
                 throw exception("ANativeWindow* has unexpected magic: {} instead of {}", span(&window->common.magic, 1).as_string(true), span<const u8>(reinterpret_cast<const u8 *>(&AndroidNativeWindowMagic), sizeof(u32)).as_string(true));
@@ -398,10 +422,10 @@ namespace skyline::gpu {
     }
 
     u64 PresentationEngine::Present(const std::shared_ptr<TextureView> &texture, i64 timestamp, i64 swapInterval, AndroidRect crop, NativeWindowScalingMode scalingMode, NativeWindowTransform transform, skyline::service::hosbinder::AndroidFence fence, const std::function<void()> &presentCallback) {
-        if (!vkSurface.has_value()) {
+        if (!SurfaceAvailable()) {
             // We want this function to generally (not necessarily always) block when a surface is not present to implicitly pause the game
             std::unique_lock lock{mutex};
-            surfaceCondition.wait(lock, [this] { return vkSurface.has_value(); });
+            surfaceCondition.wait(lock, [this] { return SurfaceAvailable(); });
         }
 
         presentQueue.Push(PresentableFrame{
@@ -420,11 +444,44 @@ namespace skyline::gpu {
     }
 
     NativeWindowTransform PresentationEngine::GetTransformHint() {
-        if (!vkSurface.has_value()) {
+        if (!SurfaceAvailable()) {
             std::unique_lock lock{mutex};
-            surfaceCondition.wait(lock, [this]() { return vkSurface.has_value(); });
+            surfaceCondition.wait(lock, [this]() { return SurfaceAvailable(); });
         }
 
+        if (glMode)
+            return NativeWindowTransform::Identity; // The OpenGL ES backend doesn't transform yet
+
         return GetAndroidTransform(vkSurfaceCapabilities.currentTransform);
+    }
+
+    bool PresentationEngine::SurfaceAvailable() const {
+        return vkSurface.has_value() || eglWindowAvailable;
+    }
+
+    void PresentationEngine::PresentFrameGl(const PresentableFrame &frame) {
+        frame.fence.Wait(state.soc->host1x);
+
+        if (glFailed)
+            return; // The frames are dropped so the game keeps running and the log can be collected
+
+        try {
+            if (!egl || eglContextGeneration != eglWindowGeneration) {
+                egl.reset(); // The previous context (if any) is current on this thread, it's destroyed before the one for the new window is created
+                egl = std::make_unique<gl::EglContext>(window);
+                egl->MakeCurrent();
+                egl->SetSwapInterval(1);
+                eglContextGeneration = eglWindowGeneration;
+                LOGINF("OpenGL ES: the presentation thread created its context ({}), showing the test screen", gl::EglContext::QueryInfo().version);
+            }
+
+            auto [width, height]{egl->GetSize()};
+            gl::DrawTestPattern(width, height, glFrameCounter++);
+            egl->SwapBuffers();
+        } catch (const std::exception &e) {
+            LOGE("Presenting with OpenGL ES failed, the frames are dropped from now on: {}", e.what());
+            glFailed = true;
+            egl.reset();
+        }
     }
 }

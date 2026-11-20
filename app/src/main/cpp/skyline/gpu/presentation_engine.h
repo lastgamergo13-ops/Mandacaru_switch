@@ -13,6 +13,10 @@
 
 struct ANativeWindow;
 
+namespace skyline::gpu::gl {
+    class EglContext;
+}
+
 namespace skyline::gpu {
     /**
      * @brief All host presentation is handled by this, it manages the host surface and swapchain alongside dynamically recreating it when required
@@ -75,6 +79,16 @@ namespace skyline::gpu {
             service::hosbinder::NativeWindowTransform transform{};
         };
 
+        // The OpenGL ES backend (item E12): while it can't render the guest it only shows a test screen. It presents with EGL instead of Vulkan when the user picks OpenGL ES, decided when the window is received
+        bool glMode{}; //!< If frames are presented with OpenGL ES instead of Vulkan
+        bool glUnavailable{}; //!< If the device can't run the OpenGL ES backend (no OpenGL ES 3.2), Vulkan is used even if OpenGL ES was asked for
+        bool glFailed{}; //!< If presenting with OpenGL ES failed, the frames are dropped from then on
+        bool eglWindowAvailable{}; //!< If there's a window that OpenGL ES can present to (the equivalent of 'vkSurface')
+        u64 eglWindowGeneration{}; //!< Incremented every time the window changes, the thread that presents frames recreates the EGL context when it differs from 'eglContextGeneration'
+        u64 eglContextGeneration{};
+        u64 glFrameCounter{}; //!< The number of test screens that were presented, it moves the white bar
+        std::unique_ptr<gl::EglContext> egl; //!< The EGL context, only used by the thread that presents frames with 'mutex' locked
+
         static constexpr size_t PresentQueueFrameCount{5}; //!< The amount of frames the presentation queue can hold
         CircularQueue<PresentableFrame> presentQueue{PresentQueueFrameCount}; //!< A circular queue containing all the frames that we can present
         std::thread presentationThread; //!< A thread for asynchronously presenting queued frames after their corresponded fences are signalled
@@ -94,6 +108,18 @@ namespace skyline::gpu {
          * @brief Submits a single frame to the host API for presentation with the appropriate waits and copies
          */
         void PresentFrame(const PresentableFrame& frame);
+
+        /**
+         * @brief Presents a frame with OpenGL ES: waits for the frame's fence and shows the test screen, the frame itself isn't drawn yet
+         * @note 'PresentationEngine::mutex' **must** be locked prior to calling this
+         */
+        void PresentFrameGl(const PresentableFrame &frame);
+
+        /**
+         * @return If there's a surface to present to, with Vulkan or OpenGL ES
+         * @note 'PresentationEngine::mutex' **must** be locked prior to calling this
+         */
+        bool SurfaceAvailable() const;
 
         /**
          * @brief The thread that handles presentation of frames submitted to it
