@@ -168,7 +168,8 @@ namespace skyline::gpu::gl {
             "GL_EXT_texture_compression_s3tc", "GL_EXT_texture_compression_bptc", "GL_EXT_texture_compression_rgtc", "GL_KHR_texture_compression_astc_ldr", "GL_KHR_texture_compression_astc_hdr",
             "GL_EXT_buffer_storage", "GL_EXT_clip_control", "GL_EXT_base_instance", "GL_EXT_depth_clamp", "GL_OES_viewport_array", "GL_NV_viewport_array2", "GL_EXT_blend_func_extended",
             "GL_EXT_texture_filter_anisotropic", "GL_EXT_texture_filter_minmax", "GL_EXT_texture_mirror_clamp_to_edge", "GL_EXT_polygon_offset_clamp", "GL_NV_polygon_mode",
-            "GL_EXT_provoking_vertex", "GL_EXT_shader_framebuffer_fetch", "GL_KHR_debug", "GL_EXT_disjoint_timer_query", "GL_KHR_robustness", "GL_EXT_texture_view",
+            "GL_EXT_provoking_vertex", "GL_EXT_shader_framebuffer_fetch", "GL_KHR_debug", "GL_EXT_disjoint_timer_query", "GL_KHR_robustness", "GL_EXT_texture_view", "GL_OES_texture_view", "GL_EXT_geometry_shader", "GL_EXT_tessellation_shader",
+            "GL_EXT_copy_image", "GL_OES_get_program_binary", "GL_EXT_draw_buffers_indexed", "GL_OES_sample_variables", "GL_OES_shader_image_atomic", "GL_EXT_color_buffer_float",
         };
         std::string interestingLine;
         for (const auto *name : interesting)

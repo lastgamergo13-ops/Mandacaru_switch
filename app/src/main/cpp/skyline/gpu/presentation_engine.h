@@ -79,10 +79,8 @@ namespace skyline::gpu {
             service::hosbinder::NativeWindowTransform transform{};
         };
 
-        // The OpenGL ES backend (item E12): while it can't render the guest it only shows a test screen. It presents with EGL instead of Vulkan when the user picks OpenGL ES, decided when the window is received
+        // The OpenGL ES backend (item E12): while it can't render the guest it only shows a test screen. It presents with EGL instead of Vulkan when the user picks OpenGL ES, decided when the window is received. If it can't be used the emulator fails, it never falls back to Vulkan
         bool glMode{}; //!< If frames are presented with OpenGL ES instead of Vulkan
-        bool glUnavailable{}; //!< If the device can't run the OpenGL ES backend (no OpenGL ES 3.2), Vulkan is used even if OpenGL ES was asked for
-        bool glFailed{}; //!< If presenting with OpenGL ES failed, the frames are dropped from then on
         bool eglWindowAvailable{}; //!< If there's a window that OpenGL ES can present to (the equivalent of 'vkSurface')
         u64 eglWindowGeneration{}; //!< Incremented every time the window changes, the thread that presents frames recreates the EGL context when it differs from 'eglContextGeneration'
         u64 eglContextGeneration{};

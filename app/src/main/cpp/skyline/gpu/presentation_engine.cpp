@@ -373,11 +373,11 @@ namespace skyline::gpu {
         if (jSurface) {
             window = ANativeWindow_fromSurface(env, jSurface);
 
-            glMode = !glUnavailable && *state.settings->graphicsApi == GraphicsApi::OpenGL;
+            glMode = *state.settings->graphicsApi == GraphicsApi::OpenGL;
             if (glMode && !gl::ProbeOpenGlEs32(window)) {
-                LOGW("OpenGL ES was chosen but it can't be used on this device, using Vulkan instead");
-                glUnavailable = true;
-                glMode = false;
+                // There's no fallback to Vulkan on purpose: when OpenGL ES is chosen and it doesn't work the emulator has to fail so it's clear what the OpenGL ES backend is missing
+                LOGE("OpenGL ES was chosen but it can't be used on this device (see the 'OpenGL ES' lines above), the emulator doesn't fall back to Vulkan");
+                throw exception("OpenGL ES was chosen but it can't be used on this device, there is no fallback to Vulkan");
             }
 
             if (glMode) {
@@ -462,26 +462,18 @@ namespace skyline::gpu {
     void PresentationEngine::PresentFrameGl(const PresentableFrame &frame) {
         frame.fence.Wait(state.soc->host1x);
 
-        if (glFailed)
-            return; // The frames are dropped so the game keeps running and the log can be collected
-
-        try {
-            if (!egl || eglContextGeneration != eglWindowGeneration) {
-                egl.reset(); // The previous context (if any) is current on this thread, it's destroyed before the one for the new window is created
-                egl = std::make_unique<gl::EglContext>(window);
-                egl->MakeCurrent();
-                egl->SetSwapInterval(1);
-                eglContextGeneration = eglWindowGeneration;
-                LOGINF("OpenGL ES: the presentation thread created its context ({}), showing the test screen", gl::EglContext::QueryInfo().version);
-            }
-
-            auto [width, height]{egl->GetSize()};
-            gl::DrawTestPattern(width, height, glFrameCounter++);
-            egl->SwapBuffers();
-        } catch (const std::exception &e) {
-            LOGE("Presenting with OpenGL ES failed, the frames are dropped from now on: {}", e.what());
-            glFailed = true;
-            egl.reset();
+        // Any failure here is NOT handled on purpose (no fallback to Vulkan, the frames aren't dropped): the exception ends the emulator so it's clear what the OpenGL ES backend is missing
+        if (!egl || eglContextGeneration != eglWindowGeneration) {
+            egl.reset(); // The previous context (if any) is current on this thread, it's destroyed before the one for the new window is created
+            egl = std::make_unique<gl::EglContext>(window);
+            egl->MakeCurrent();
+            egl->SetSwapInterval(1);
+            eglContextGeneration = eglWindowGeneration;
+            LOGINF("OpenGL ES: the presentation thread created its context ({}), showing the test screen", gl::EglContext::QueryInfo().version);
         }
+
+        auto [width, height]{egl->GetSize()};
+        gl::DrawTestPattern(width, height, glFrameCounter++);
+        egl->SwapBuffers();
     }
 }
