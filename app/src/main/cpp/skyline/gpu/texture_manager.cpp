@@ -5,6 +5,7 @@
 #include <atomic>
 #include <common/trace.h>
 #include "texture_manager.h"
+#include "gl/texture_gallery.h"
 
 namespace skyline::gpu {
     TextureManager::TextureManager(GPU &gpu) : gpu(gpu) {}
@@ -177,6 +178,9 @@ namespace skyline::gpu {
                 LOGI("Texture #{} created: {}x{}x{} {}, {} layer(s), {} mip(s), tiling: {}, {} overlapping texture(s) synchronized", number, guestTexture.dimensions.width, guestTexture.dimensions.height, guestTexture.dimensions.depth, guestTexture.format ? vk::to_string(guestTexture.format->vkFormat) : "no format", guestTexture.layerCount, guestTexture.mipLevelCount, tiling, matches.size());
             }
         }
+
+        if (gl::TextureGallery::Get().IsEnabled())
+            gl::TextureGallery::Get().Submit(guestTexture); // Only when OpenGL ES is chosen, see TextureGallery
 
         // The textures that this one supersedes and that nothing else is using are released (step 4 of the algorithm above)
         PruneTextures(matches);

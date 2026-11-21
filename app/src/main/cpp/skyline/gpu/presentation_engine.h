@@ -15,6 +15,7 @@ struct ANativeWindow;
 
 namespace skyline::gpu::gl {
     class EglContext;
+    class GalleryView;
 }
 
 namespace skyline::gpu {
@@ -86,6 +87,7 @@ namespace skyline::gpu {
         u64 eglContextGeneration{};
         u64 glFrameCounter{}; //!< The number of test screens that were presented, it moves the white bar
         std::unique_ptr<gl::EglContext> egl; //!< The EGL context, only used by the thread that presents frames with 'mutex' locked
+        std::unique_ptr<gl::GalleryView> gallery; //!< What is drawn while the OpenGL ES backend can't render the guest, it needs the context of 'egl' to be current
 
         static constexpr size_t PresentQueueFrameCount{5}; //!< The amount of frames the presentation queue can hold
         CircularQueue<PresentableFrame> presentQueue{PresentQueueFrameCount}; //!< A circular queue containing all the frames that we can present

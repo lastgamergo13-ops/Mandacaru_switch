@@ -15,6 +15,7 @@
 #include "native_window.h"
 #include "texture/format.h"
 #include "gl/egl_context.h"
+#include "gl/texture_gallery.h"
 #include "graphics_api.h"
 
 extern jint Fps;
@@ -464,16 +465,18 @@ namespace skyline::gpu {
 
         // Any failure here is NOT handled on purpose (no fallback to Vulkan, the frames aren't dropped): the exception ends the emulator so it's clear what the OpenGL ES backend is missing
         if (!egl || eglContextGeneration != eglWindowGeneration) {
-            egl.reset(); // The previous context (if any) is current on this thread, it's destroyed before the one for the new window is created
+            gallery.reset(); // The previous context (if any) is current on this thread, the objects of the gallery are deleted with it and the context is destroyed before the one for the new window is created
+            egl.reset();
             egl = std::make_unique<gl::EglContext>(window);
             egl->MakeCurrent();
             egl->SetSwapInterval(1);
             eglContextGeneration = eglWindowGeneration;
-            LOGINF("OpenGL ES: the presentation thread created its context ({}), showing the test screen", gl::EglContext::QueryInfo().version);
+            LOGINF("OpenGL ES: the presentation thread created its context ({})", gl::EglContext::QueryInfo().version);
+            gallery = std::make_unique<gl::GalleryView>();
         }
 
         auto [width, height]{egl->GetSize()};
-        gl::DrawTestPattern(width, height, glFrameCounter++);
+        gallery->Draw(width, height, glFrameCounter++);
         egl->SwapBuffers();
     }
 }
