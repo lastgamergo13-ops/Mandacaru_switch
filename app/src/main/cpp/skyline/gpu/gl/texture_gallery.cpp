@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <GLES3/gl32.h>
 #include <common.h>
-#include <gpu/texture/layout.h>
-#include <gpu/texture/bc_decoder.h>
 #include "texture_gallery.h"
 
 namespace skyline::gpu::gl {
@@ -25,28 +22,37 @@ namespace skyline::gpu::gl {
 
         if (!guest.format || guest.dimensions.width < MinimumSize || guest.dimensions.height < MinimumSize)
             return;
-        if (guest.viewType == vk::ImageViewType::e3D || guest.viewType == vk::ImageViewType::e1D || guest.viewType == vk::ImageViewType::e1DArray)
-            return; // Only 2D images (and the first layer of arrays and cubes) are decoded
 
-        texture::Dimensions dimensions{guest.dimensions.width, guest.dimensions.height, 1};
-        const auto &format{*guest.format};
-
-        size_t size;
-        switch (guest.tileConfig.mode) {
-            case texture::TileMode::Block:
-                size = texture::GetBlockLinearLayerSize(dimensions, format.blockWidth, format.blockHeight, format.bpb, guest.tileConfig.blockHeight, guest.tileConfig.blockDepth);
+        u32 layers;
+        switch (guest.viewType) {
+            case vk::ImageViewType::e2D:
+                layers = 1;
                 break;
-            case texture::TileMode::Pitch:
-                size = static_cast<size_t>(guest.tileConfig.pitch) * dimensions.height;
+            case vk::ImageViewType::e2DArray:
+                layers = std::max(guest.layerCount, 1U);
+                break;
+            case vk::ImageViewType::eCube:
+                layers = 6;
                 break;
             default:
-                size = format.GetSize(dimensions);
-                break;
+                return; // 1D, 3D and cube arrays aren't handled by GlTexture yet
         }
+
+        if (!GetGlFormat(guest.format->vkFormat)) {
+            std::scoped_lock lock{mutex};
+            if (std::ranges::find(reportedFormats, guest.format->vkFormat) == reportedFormats.end()) {
+                reportedFormats.push_back(guest.format->vkFormat);
+                LOGINF("OpenGL ES gallery: the texture format {} isn't handled by the OpenGL ES backend yet", vk::to_string(guest.format->vkFormat));
+            }
+            return;
+        }
+
+        GuestTexture copy{guest};
+        size_t size{static_cast<size_t>(copy.GetLayerStride()) * layers};
         if (size == 0 || size > MaximumBytes)
             return;
 
-        GalleryEntry entry{.number = 0, .guest = guest};
+        GalleryEntry entry{.number = 0, .guest = std::move(copy)};
         entry.data.resize(size);
 
         // The guest memory of a texture can be split in several mappings, they are joined in order
@@ -78,267 +84,6 @@ namespace skyline::gpu::gl {
     }
 
     namespace {
-        /**
-         * @brief What the gallery has after decoding a texture: either RGBA8 pixels or blocks that the driver decodes itself
-         */
-        struct DecodedImage {
-            u32 width{}, height{};
-            std::vector<u8> pixels;
-            u32 compressedFormat{}; //!< 0 when 'pixels' is RGBA8, otherwise the OpenGL ES compressed internal format
-            std::string description;
-        };
-
-        constexpr u32 AstcBase{0x93B0}; // GL_COMPRESSED_RGBA_ASTC_4x4_KHR, the 14 block sizes follow in this order: 4x4 5x4 5x5 6x5 6x6 8x5 8x6 8x8 10x5 10x6 10x8 10x10 12x10 12x12
-        constexpr u32 AstcSrgbBase{0x93D0}; // GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
-
-        /**
-         * @return The index of the ASTC block size (see AstcBase), -1 if it isn't ASTC
-         */
-        i32 AstcIndex(vk::Format vkFormat, bool &srgb) {
-            constexpr std::array<std::pair<vk::Format, vk::Format>, 14> formats{{
-                {vk::Format::eAstc4x4UnormBlock, vk::Format::eAstc4x4SrgbBlock},
-                {vk::Format::eAstc5x4UnormBlock, vk::Format::eAstc5x4SrgbBlock},
-                {vk::Format::eAstc5x5UnormBlock, vk::Format::eAstc5x5SrgbBlock},
-                {vk::Format::eAstc6x5UnormBlock, vk::Format::eAstc6x5SrgbBlock},
-                {vk::Format::eAstc6x6UnormBlock, vk::Format::eAstc6x6SrgbBlock},
-                {vk::Format::eAstc8x5UnormBlock, vk::Format::eAstc8x5SrgbBlock},
-                {vk::Format::eAstc8x6UnormBlock, vk::Format::eAstc8x6SrgbBlock},
-                {vk::Format::eAstc8x8UnormBlock, vk::Format::eAstc8x8SrgbBlock},
-                {vk::Format::eAstc10x5UnormBlock, vk::Format::eAstc10x5SrgbBlock},
-                {vk::Format::eAstc10x6UnormBlock, vk::Format::eAstc10x6SrgbBlock},
-                {vk::Format::eAstc10x8UnormBlock, vk::Format::eAstc10x8SrgbBlock},
-                {vk::Format::eAstc10x10UnormBlock, vk::Format::eAstc10x10SrgbBlock},
-                {vk::Format::eAstc12x10UnormBlock, vk::Format::eAstc12x10SrgbBlock},
-                {vk::Format::eAstc12x12UnormBlock, vk::Format::eAstc12x12SrgbBlock},
-            }};
-            for (size_t i{}; i < formats.size(); i++) {
-                if (formats[i].first == vkFormat) {
-                    srgb = false;
-                    return static_cast<i32>(i);
-                } else if (formats[i].second == vkFormat) {
-                    srgb = true;
-                    return static_cast<i32>(i);
-                }
-            }
-            return -1;
-        }
-
-        float HalfToFloat(u16 half) {
-            u32 sign{static_cast<u32>(half >> 15) & 1}, exponent{static_cast<u32>((half >> 10) & 0x1F)}, mantissa{half & 0x3FFU};
-            float value;
-            if (exponent == 0)
-                value = std::ldexp(static_cast<float>(mantissa), -24);
-            else if (exponent == 31)
-                value = mantissa ? 0.0f : 65504.0f; // NaN is shown as black and infinity as the largest value
-            else
-                value = std::ldexp(static_cast<float>(mantissa | 0x400U), static_cast<i32>(exponent) - 25);
-            return sign ? -value : value;
-        }
-
-        /**
-         * @brief Converts an unsigned float with a 5 bit exponent and 'mantissaBits' bits of mantissa (the 10 and 11 bit floats of B10G11R11)
-         */
-        float UnpackSmallFloat(u32 bits, u32 mantissaBits) {
-            u32 mantissaMask{(1U << mantissaBits) - 1}, exponent{bits >> mantissaBits}, mantissa{bits & mantissaMask};
-            if (exponent == 0)
-                return std::ldexp(static_cast<float>(mantissa), -14 - static_cast<i32>(mantissaBits));
-            if (exponent == 31)
-                return mantissa ? 0.0f : 65504.0f;
-            return std::ldexp(1.0f + static_cast<float>(mantissa) / static_cast<float>(1U << mantissaBits), static_cast<i32>(exponent) - 15);
-        }
-
-        u8 ToByte(float value) {
-            return static_cast<u8>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-        }
-
-        /**
-         * @brief Takes the guest layout of the first mip level and layer to linear rows of blocks and converts what comes out to something that can be shown
-         */
-        bool Decode(const GalleryEntry &entry, DecodedImage &image) {
-            const auto &guest{entry.guest};
-            const auto &format{*guest.format};
-            GuestTexture level{guest};
-            level.dimensions.depth = 1;
-            u32 width{level.dimensions.width}, height{level.dimensions.height};
-
-            std::vector<u8> linear(format.GetSize(level.dimensions));
-            auto *input{const_cast<u8 *>(entry.data.data())};
-            switch (guest.tileConfig.mode) {
-                case texture::TileMode::Block:
-                    texture::CopyBlockLinearToLinear(level, input, linear.data());
-                    break;
-                case texture::TileMode::Pitch:
-                    texture::CopyPitchLinearToLinear(level, input, linear.data());
-                    break;
-                default:
-                    std::memcpy(linear.data(), input, std::min(linear.size(), entry.data.size()));
-                    break;
-            }
-
-            image.width = width;
-            image.height = height;
-            image.description = vk::to_string(format.vkFormat);
-
-            // The decoders write whole blocks, the buffers are padded to a multiple of the block so a texture that isn't one can't write out of them
-            size_t paddedPixels{static_cast<size_t>((width + 3) & ~3U) * ((height + 3) & ~3U)};
-            auto rgba{[&](size_t bytesPerPixel) { image.pixels.assign(std::max<size_t>(paddedPixels * bytesPerPixel, size_t{width} * height * 4), 0); }};
-
-            bool srgb;
-            if (auto astc{AstcIndex(format.vkFormat, srgb)}; astc >= 0) {
-                // The driver of the device decodes ASTC on its own, the blocks are given to it as they are
-                image.compressedFormat = (srgb ? AstcSrgbBase : AstcBase) + static_cast<u32>(astc);
-                image.pixels = std::move(linear);
-                image.description += " (ASTC, decoded by the driver)";
-                return true;
-            }
-
-            switch (format.vkFormat) {
-                case vk::Format::eR8G8B8A8Unorm:
-                case vk::Format::eR8G8B8A8Srgb:
-                    image.pixels = std::move(linear);
-                    return true;
-
-                case vk::Format::eB8G8R8A8Unorm:
-                case vk::Format::eB8G8R8A8Srgb:
-                    image.pixels = std::move(linear);
-                    for (size_t i{}; i + 3 < image.pixels.size(); i += 4)
-                        std::swap(image.pixels[i], image.pixels[i + 2]);
-                    return true;
-
-                case vk::Format::eR8Unorm: {
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++)
-                        std::memset(&image.pixels[i * 4], linear[i], 3), image.pixels[i * 4 + 3] = 255;
-                    return true;
-                }
-
-                case vk::Format::eR8G8Unorm: {
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        image.pixels[i * 4 + 0] = linear[i * 2];
-                        image.pixels[i * 4 + 1] = linear[i * 2 + 1];
-                        image.pixels[i * 4 + 2] = 0;
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                case vk::Format::eA2B10G10R10UnormPack32: {
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        u32 value;
-                        std::memcpy(&value, &linear[i * 4], 4);
-                        image.pixels[i * 4 + 0] = static_cast<u8>(((value >> 0) & 0x3FF) >> 2);
-                        image.pixels[i * 4 + 1] = static_cast<u8>(((value >> 10) & 0x3FF) >> 2);
-                        image.pixels[i * 4 + 2] = static_cast<u8>(((value >> 20) & 0x3FF) >> 2);
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                case vk::Format::eB10G11R11UfloatPack32: {
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        u32 value;
-                        std::memcpy(&value, &linear[i * 4], 4);
-                        image.pixels[i * 4 + 0] = ToByte(UnpackSmallFloat(value & 0x7FF, 6));
-                        image.pixels[i * 4 + 1] = ToByte(UnpackSmallFloat((value >> 11) & 0x7FF, 6));
-                        image.pixels[i * 4 + 2] = ToByte(UnpackSmallFloat((value >> 22) & 0x3FF, 5));
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                case vk::Format::eR16G16B16A16Sfloat: {
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        for (size_t c{}; c < 3; c++) {
-                            u16 half;
-                            std::memcpy(&half, &linear[i * 8 + c * 2], 2);
-                            image.pixels[i * 4 + c] = ToByte(HalfToFloat(half));
-                        }
-                        u16 alpha;
-                        std::memcpy(&alpha, &linear[i * 8 + 6], 2);
-                        image.pixels[i * 4 + 3] = ToByte(HalfToFloat(alpha));
-                    }
-                    return true;
-                }
-
-                case vk::Format::eBc1RgbaUnormBlock:
-                case vk::Format::eBc1RgbaSrgbBlock:
-                    rgba(4);
-                    bcn::DecodeBc1(linear.data(), image.pixels.data(), width, height, true);
-                    return true;
-
-                case vk::Format::eBc2UnormBlock:
-                case vk::Format::eBc2SrgbBlock:
-                    rgba(4);
-                    bcn::DecodeBc2(linear.data(), image.pixels.data(), width, height);
-                    return true;
-
-                case vk::Format::eBc3UnormBlock:
-                case vk::Format::eBc3SrgbBlock:
-                    rgba(4);
-                    bcn::DecodeBc3(linear.data(), image.pixels.data(), width, height);
-                    return true;
-
-                case vk::Format::eBc7UnormBlock:
-                case vk::Format::eBc7SrgbBlock:
-                    rgba(4);
-                    bcn::DecodeBc7(linear.data(), image.pixels.data(), width, height);
-                    return true;
-
-                case vk::Format::eBc4UnormBlock:
-                case vk::Format::eBc4SnormBlock: {
-                    std::vector<u8> decoded(std::max<size_t>(paddedPixels, size_t{width} * height), 0);
-                    bool isSigned{format.vkFormat == vk::Format::eBc4SnormBlock};
-                    bcn::DecodeBc4(linear.data(), decoded.data(), width, height, isSigned);
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        u8 value{isSigned ? static_cast<u8>(std::max<i32>(static_cast<i8>(decoded[i]), 0) * 2) : decoded[i]};
-                        std::memset(&image.pixels[i * 4], value, 3);
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                case vk::Format::eBc5UnormBlock:
-                case vk::Format::eBc5SnormBlock: {
-                    std::vector<u8> decoded(std::max<size_t>(paddedPixels * 2, size_t{width} * height * 2), 0);
-                    bool isSigned{format.vkFormat == vk::Format::eBc5SnormBlock};
-                    bcn::DecodeBc5(linear.data(), decoded.data(), width, height, isSigned);
-                    image.pixels.resize(size_t{width} * height * 4);
-                    auto convert{[isSigned](u8 value) -> u8 { return isSigned ? static_cast<u8>(std::max<i32>(static_cast<i8>(value), 0) * 2) : value; }};
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        image.pixels[i * 4 + 0] = convert(decoded[i * 2]);
-                        image.pixels[i * 4 + 1] = convert(decoded[i * 2 + 1]);
-                        image.pixels[i * 4 + 2] = 0;
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                case vk::Format::eBc6HUfloatBlock:
-                case vk::Format::eBc6HSfloatBlock: {
-                    std::vector<u8> decoded(std::max<size_t>(paddedPixels * 8, size_t{width} * height * 8), 0);
-                    bcn::DecodeBc6(linear.data(), decoded.data(), width, height, format.vkFormat == vk::Format::eBc6HSfloatBlock);
-                    image.pixels.resize(size_t{width} * height * 4);
-                    for (size_t i{}; i < size_t{width} * height; i++) {
-                        for (size_t c{}; c < 3; c++) {
-                            u16 half;
-                            std::memcpy(&half, &decoded[i * 8 + c * 2], 2);
-                            image.pixels[i * 4 + c] = ToByte(HalfToFloat(half));
-                        }
-                        image.pixels[i * 4 + 3] = 255;
-                    }
-                    return true;
-                }
-
-                default:
-                    return false;
-            }
-        }
-
         u32 CompileShader(GLenum type, const char *source) {
             u32 shader{glCreateShader(type)};
             glShaderSource(shader, 1, &source, nullptr);
@@ -372,14 +117,16 @@ void main() {
         constexpr const char *fragmentSource{R"(#version 320 es
 precision highp float;
 uniform sampler2D uTexture;
+uniform float uSrgb; // 1.0 for sRGB textures: the sampler gives linear values and the screen isn't sRGB
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
     // The alpha of the texture is shown over a checkerboard, so masks and transparent parts of the UI textures can be told apart from black and white pixels
     vec4 texel = texture(uTexture, vUv);
+    vec3 color = uSrgb > 0.5 ? pow(texel.rgb, vec3(1.0 / 2.2)) : texel.rgb;
     vec2 cell = floor(gl_FragCoord.xy / 8.0);
     vec3 background = vec3(mix(0.25, 0.45, mod(cell.x + cell.y, 2.0)));
-    fragColor = vec4(mix(background, texel.rgb, texel.a), 1.0);
+    fragColor = vec4(mix(background, color, clamp(texel.a, 0.0, 1.0)), 1.0);
 }
 )"};
 
@@ -404,57 +151,44 @@ void main() {
 
         rectLocation = glGetUniformLocation(program, "uRect");
         textureLocation = glGetUniformLocation(program, "uTexture");
-        LOGINF("OpenGL ES: the texture gallery shows the textures of the game (decoded here), a program of GLSL ES 3.20 was compiled and linked");
+        srgbLocation = glGetUniformLocation(program, "uSrgb");
+        LOGINF("OpenGL ES: the texture gallery shows the textures of the game (uploaded by the OpenGL ES texture code), a program of GLSL ES 3.20 was compiled and linked");
     }
 
     GalleryView::~GalleryView() {
         for (auto &slot : slots)
-            if (slot.texture)
-                glDeleteTextures(1, &slot.texture);
+            slot.texture.reset(); // Needs the context, which is current while the view is destroyed
         if (program)
             glDeleteProgram(program);
     }
 
     void GalleryView::Show(const GalleryEntry &entry) {
-        DecodedImage image;
-        if (!Decode(entry, image)) {
-            LOGINF("OpenGL ES gallery: texture #{} {}x{} {} isn't handled by the gallery", entry.number, entry.guest.dimensions.width, entry.guest.dimensions.height, vk::to_string(entry.guest.format->vkFormat));
+        std::unique_ptr<GlTexture> texture;
+        try {
+            texture = std::make_unique<GlTexture>(entry.guest);
+            texture->Upload(entry.data.data());
+        } catch (const exception &e) {
+            LOGINF("OpenGL ES gallery: texture #{} {}x{} {} couldn't be uploaded: {}", entry.number, entry.guest.dimensions.width, entry.guest.dimensions.height, vk::to_string(entry.guest.format->vkFormat), e.what());
             return;
         }
 
         size_t slotIndex{nextSlot};
-        auto &slot{slots[slotIndex]};
         nextSlot = (nextSlot + 1) % slots.size();
-        if (slot.texture)
-            glDeleteTextures(1, &slot.texture);
 
-        glGenTextures(1, &slot.texture);
-        glBindTexture(GL_TEXTURE_2D, slot.texture);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        const char *shown{texture->Target() != GL_TEXTURE_2D ? ", uploaded but not shown (array or cube)" : texture->Format().isInteger ? ", uploaded but not shown (integer format)" : ""};
+        LOGINF("OpenGL ES gallery: slot {} (row {}, column {}) <- texture #{} {}x{} {}, {} level(s), {} layer(s), tiling: {}{}", slotIndex, slotIndex / Columns, slotIndex % Columns, entry.number, texture->Width(), texture->Height(),
+               vk::to_string(entry.guest.format->vkFormat), texture->Levels(), texture->Layers(),
+               entry.guest.tileConfig.mode == texture::TileMode::Block ? "block linear" : entry.guest.tileConfig.mode == texture::TileMode::Pitch ? "pitch" : "linear", shown);
 
-        if (image.compressedFormat) {
-            glCompressedTexImage2D(GL_TEXTURE_2D, 0, image.compressedFormat, static_cast<GLsizei>(image.width), static_cast<GLsizei>(image.height), 0, static_cast<GLsizei>(entry.guest.format->GetSize(image.width, image.height)), image.pixels.data());
-        } else {
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(image.width), static_cast<GLsizei>(image.height), 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
-        }
-
-        if (auto error{glGetError()}; error != GL_NO_ERROR)
-            throw exception("Uploading the texture #{} ({}x{} {}) to OpenGL ES failed: error 0x{:X}", entry.number, image.width, image.height, image.description, error);
-
-        slot.width = image.width;
-        slot.height = image.height;
-        LOGINF("OpenGL ES gallery: slot {} (row {}, column {}) <- texture #{} {}x{} {}, tiling: {}", slotIndex, slotIndex / Columns, slotIndex % Columns, entry.number, image.width, image.height, image.description, entry.guest.tileConfig.mode == texture::TileMode::Block ? "block linear" : entry.guest.tileConfig.mode == texture::TileMode::Pitch ? "pitch" : "linear");
+        slots[slotIndex].texture = std::move(texture);
+        slots[slotIndex].shownLevel = ~0U;
     }
 
     void GalleryView::Draw(i32 width, i32 height, u64 frame) {
-        constexpr size_t DecodesPerFrame{2};
+        constexpr size_t UploadsPerFrame{2};
 
         GalleryEntry entry;
-        for (size_t i{}; i < DecodesPerFrame && TextureGallery::Get().TakePending(entry); i++)
+        for (size_t i{}; i < UploadsPerFrame && TextureGallery::Get().TakePending(entry); i++)
             Show(entry);
 
         glViewport(0, 0, width, height);
@@ -469,20 +203,30 @@ void main() {
         constexpr float Padding{0.02f}; // In normalized device coordinates, so it is a fraction of the cell
         float cellWidth{2.0f / Columns}, cellHeight{2.0f / Rows};
         for (size_t i{}; i < slots.size(); i++) {
-            const auto &slot{slots[i]};
-            if (!slot.texture || !slot.width || !slot.height)
+            auto &slot{slots[i]};
+            if (!slot.texture || slot.texture->Target() != GL_TEXTURE_2D || slot.texture->Format().isInteger)
                 continue;
 
+            // The level that is shown changes over time, the image is stretched to the size of the first level so the levels can be compared
+            u32 level{static_cast<u32>((frame / FramesPerLevel + i) % slot.texture->Levels())};
+            glBindTexture(GL_TEXTURE_2D, slot.texture->Name());
+            if (level != slot.shownLevel) {
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, static_cast<GLint>(level));
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(level));
+                slot.shownLevel = level;
+            }
+
+            float textureWidth{static_cast<float>(slot.texture->Width())}, textureHeight{static_cast<float>(slot.texture->Height())};
             float column{static_cast<float>(i % Columns)}, row{static_cast<float>(i / Columns)};
             float cellX{-1.0f + column * cellWidth}, cellY{1.0f - (row + 1.0f) * cellHeight};
 
             // The texture is scaled to fit in the cell without changing its aspect ratio (in pixels, not in normalized device coordinates)
             float cellPixelsWidth{static_cast<float>(width) / Columns * (1.0f - Padding * 2)}, cellPixelsHeight{static_cast<float>(height) / Rows * (1.0f - Padding * 2)};
-            float scale{std::min(cellPixelsWidth / static_cast<float>(slot.width), cellPixelsHeight / static_cast<float>(slot.height))};
-            float drawWidth{static_cast<float>(slot.width) * scale / static_cast<float>(width) * 2.0f}, drawHeight{static_cast<float>(slot.height) * scale / static_cast<float>(height) * 2.0f};
+            float scale{std::min(cellPixelsWidth / textureWidth, cellPixelsHeight / textureHeight)};
+            float drawWidth{textureWidth * scale / static_cast<float>(width) * 2.0f}, drawHeight{textureHeight * scale / static_cast<float>(height) * 2.0f};
             float x0{cellX + (cellWidth - drawWidth) / 2.0f}, y0{cellY + (cellHeight - drawHeight) / 2.0f};
 
-            glBindTexture(GL_TEXTURE_2D, slot.texture);
+            glUniform1f(srgbLocation, slot.texture->Format().isSrgb ? 1.0f : 0.0f);
             glUniform4f(rectLocation, x0, y0, x0 + drawWidth, y0 + drawHeight);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }

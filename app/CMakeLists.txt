@@ -269,6 +269,11 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/gpu/presentation_engine.cpp
         ${source_DIR}/skyline/gpu/gl/egl_context.cpp
         ${source_DIR}/skyline/gpu/gl/texture_gallery.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_format.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_texture.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_guest_memory.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_texture_cache.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_buffer_cache.cpp
         ${source_DIR}/skyline/gpu/shader_manager.cpp
         ${source_DIR}/skyline/gpu/pipeline_cache_manager.cpp
         ${source_DIR}/skyline/gpu/graphics_pipeline_assembler.cpp
