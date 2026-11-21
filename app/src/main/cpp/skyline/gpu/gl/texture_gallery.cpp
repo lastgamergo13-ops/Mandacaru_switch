@@ -21,7 +21,7 @@ namespace skyline::gpu::gl {
 
     void TextureGallery::Submit(const GuestTexture &guest) {
         constexpr u32 MinimumSize{16}; // The 1x1 and 4x4 textures of a game aren't worth looking at
-        constexpr size_t MaximumBytes{8 * 1024 * 1024};
+        constexpr size_t MaximumBytes{4 * 1024 * 1024};
 
         if (!guest.format || guest.dimensions.width < MinimumSize || guest.dimensions.height < MinimumSize)
             return;
@@ -135,6 +135,18 @@ namespace skyline::gpu::gl {
             return sign ? -value : value;
         }
 
+        /**
+         * @brief Converts an unsigned float with a 5 bit exponent and 'mantissaBits' bits of mantissa (the 10 and 11 bit floats of B10G11R11)
+         */
+        float UnpackSmallFloat(u32 bits, u32 mantissaBits) {
+            u32 mantissaMask{(1U << mantissaBits) - 1}, exponent{bits >> mantissaBits}, mantissa{bits & mantissaMask};
+            if (exponent == 0)
+                return std::ldexp(static_cast<float>(mantissa), -14 - static_cast<i32>(mantissaBits));
+            if (exponent == 31)
+                return mantissa ? 0.0f : 65504.0f;
+            return std::ldexp(1.0f + static_cast<float>(mantissa) / static_cast<float>(1U << mantissaBits), static_cast<i32>(exponent) - 15);
+        }
+
         u8 ToByte(float value) {
             return static_cast<u8>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
         }
@@ -224,6 +236,19 @@ namespace skyline::gpu::gl {
                     return true;
                 }
 
+                case vk::Format::eB10G11R11UfloatPack32: {
+                    image.pixels.resize(size_t{width} * height * 4);
+                    for (size_t i{}; i < size_t{width} * height; i++) {
+                        u32 value;
+                        std::memcpy(&value, &linear[i * 4], 4);
+                        image.pixels[i * 4 + 0] = ToByte(UnpackSmallFloat(value & 0x7FF, 6));
+                        image.pixels[i * 4 + 1] = ToByte(UnpackSmallFloat((value >> 11) & 0x7FF, 6));
+                        image.pixels[i * 4 + 2] = ToByte(UnpackSmallFloat((value >> 22) & 0x3FF, 5));
+                        image.pixels[i * 4 + 3] = 255;
+                    }
+                    return true;
+                }
+
                 case vk::Format::eR16G16B16A16Sfloat: {
                     image.pixels.resize(size_t{width} * height * 4);
                     for (size_t i{}; i < size_t{width} * height; i++) {
@@ -232,7 +257,9 @@ namespace skyline::gpu::gl {
                             std::memcpy(&half, &linear[i * 8 + c * 2], 2);
                             image.pixels[i * 4 + c] = ToByte(HalfToFloat(half));
                         }
-                        image.pixels[i * 4 + 3] = 255;
+                        u16 alpha;
+                        std::memcpy(&alpha, &linear[i * 8 + 6], 2);
+                        image.pixels[i * 4 + 3] = ToByte(HalfToFloat(alpha));
                     }
                     return true;
                 }
@@ -348,7 +375,11 @@ uniform sampler2D uTexture;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
-    fragColor = vec4(texture(uTexture, vUv).rgb, 1.0);
+    // The alpha of the texture is shown over a checkerboard, so masks and transparent parts of the UI textures can be told apart from black and white pixels
+    vec4 texel = texture(uTexture, vUv);
+    vec2 cell = floor(gl_FragCoord.xy / 8.0);
+    vec3 background = vec3(mix(0.25, 0.45, mod(cell.x + cell.y, 2.0)));
+    fragColor = vec4(mix(background, texel.rgb, texel.a), 1.0);
 }
 )"};
 
@@ -391,7 +422,8 @@ void main() {
             return;
         }
 
-        auto &slot{slots[nextSlot]};
+        size_t slotIndex{nextSlot};
+        auto &slot{slots[slotIndex]};
         nextSlot = (nextSlot + 1) % slots.size();
         if (slot.texture)
             glDeleteTextures(1, &slot.texture);
@@ -415,7 +447,7 @@ void main() {
 
         slot.width = image.width;
         slot.height = image.height;
-        LOGINF("OpenGL ES gallery: texture #{} {}x{} {}, tiling: {}", entry.number, image.width, image.height, image.description, entry.guest.tileConfig.mode == texture::TileMode::Block ? "block linear" : entry.guest.tileConfig.mode == texture::TileMode::Pitch ? "pitch" : "linear");
+        LOGINF("OpenGL ES gallery: slot {} (row {}, column {}) <- texture #{} {}x{} {}, tiling: {}", slotIndex, slotIndex / Columns, slotIndex % Columns, entry.number, image.width, image.height, image.description, entry.guest.tileConfig.mode == texture::TileMode::Block ? "block linear" : entry.guest.tileConfig.mode == texture::TileMode::Pitch ? "pitch" : "linear");
     }
 
     void GalleryView::Draw(i32 width, i32 height, u64 frame) {

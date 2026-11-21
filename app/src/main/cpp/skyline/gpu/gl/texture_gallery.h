@@ -26,7 +26,7 @@ namespace skyline::gpu::gl {
      */
     class TextureGallery {
       private:
-        static constexpr size_t MaxPending{24}; //!< The oldest textures that weren't decoded are dropped past this
+        static constexpr size_t MaxPending{8}; //!< The oldest textures that weren't decoded are dropped past this (they are copies of guest memory, so it's kept small)
 
         std::atomic<bool> enabled{};
         std::mutex mutex;
