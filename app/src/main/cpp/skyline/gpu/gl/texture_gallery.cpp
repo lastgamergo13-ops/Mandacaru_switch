@@ -124,7 +124,7 @@ namespace skyline::gpu::gl {
         }
 
         float HalfToFloat(u16 half) {
-            u32 sign{static_cast<u32>(half >> 15) & 1}, exponent{(half >> 10) & 0x1F}, mantissa{half & 0x3FFU};
+            u32 sign{static_cast<u32>(half >> 15) & 1}, exponent{static_cast<u32>((half >> 10) & 0x1F)}, mantissa{half & 0x3FFU};
             float value;
             if (exponent == 0)
                 value = std::ldexp(static_cast<float>(mantissa), -24);
