@@ -82,7 +82,12 @@ namespace skyline::gpu::gl {
     };
 
     class GlFermi2D final : public IFermi2DBackend {
+      private:
+        soc::gm20b::ChannelContext &channelCtx;
+
       public:
+        GlFermi2D(soc::gm20b::ChannelContext &channelCtx) : channelCtx{channelCtx} {}
+
         void Blit(const Surface &srcSurface, const Surface &dstSurface, float srcRectX, float srcRectY, u32 dstRectWidth, u32 dstRectHeight, u32 dstRectX, u32 dstRectY, float duDx, float dvDy, SampleModeOrigin sampleOrigin, bool resolve, SampleModeFilter filter) override;
     };
 

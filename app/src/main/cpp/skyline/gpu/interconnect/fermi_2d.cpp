@@ -14,7 +14,7 @@ namespace skyline::gpu::interconnect {
     using IOVA = soc::gm20b::IOVA;
     using MemoryLayout = skyline::soc::gm20b::engine::fermi2d::type::MemoryLayout;
 
-    std::pair<gpu::GuestTexture, bool> Fermi2D::GetGuestTexture(const Surface &surface, u32 oobReadStart, u32 oobReadWidth) {
+    std::pair<gpu::GuestTexture, bool> Fermi2D::GetGuestTexture(soc::gm20b::ChannelContext &channelCtx, const Surface &surface, u32 oobReadStart, u32 oobReadWidth) {
         auto determineFormat = [&](Surface::SurfaceFormat format) -> skyline::gpu::texture::Format {
             #define FORMAT_CASE(fermiFmt, skFmt, fmtType) \
                 case Surface::SurfaceFormat::fermiFmt ## fmtType: \
@@ -130,11 +130,11 @@ namespace skyline::gpu::interconnect {
         u32 oobReadWidth{static_cast<u32>(duDx * static_cast<float>(dstRectWidth))};
 
         // TODO: When we support MSAA perform a resolve operation rather than blit when the `resolve` flag is set.
-        auto [srcGuestTexture, srcWentOob]{GetGuestTexture(srcSurface, oobReadStart, oobReadWidth)};
+        auto [srcGuestTexture, srcWentOob]{GetGuestTexture(channelCtx, srcSurface, oobReadStart, oobReadWidth)};
         if (srcWentOob)
             centredSrcRectX = 0.0f;
 
-        auto [dstGuestTexture, dstWentOob]{GetGuestTexture(dstSurface)};
+        auto [dstGuestTexture, dstWentOob]{GetGuestTexture(channelCtx, dstSurface)};
 
         // A surface whose GPU address isn't mapped resolves to a null host mapping, creating a texture from it used to throw and kill the whole emulator, hardware just ignores the access
         auto isUnmapped{[](const GuestTexture &texture) {

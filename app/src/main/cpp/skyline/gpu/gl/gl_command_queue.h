@@ -9,12 +9,14 @@
 
 namespace skyline::gpu::gl {
     class GlRenderTargetCache;
+    class GlTextureCache;
 
     /**
      * @brief What a command that runs on the OpenGL ES thread can use
      */
     struct GlRenderContext {
         GlRenderTargetCache &renderTargets;
+        GlTextureCache &textures; //!< The textures that the guest CPU writes (uploaded from the guest memory)
     };
 
     /**

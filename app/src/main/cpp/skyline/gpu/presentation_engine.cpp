@@ -18,6 +18,7 @@
 #include "gl/texture_gallery.h"
 #include "gl/gl_command_queue.h"
 #include "gl/gl_render_target_cache.h"
+#include "gl/gl_texture_cache.h"
 #include <GLES3/gl32.h>
 #include "graphics_api.h"
 
@@ -470,6 +471,7 @@ namespace skyline::gpu {
         if (!egl || eglContextGeneration != eglWindowGeneration) {
             gallery.reset(); // The previous context (if any) is current on this thread, the objects of the gallery and the render targets are deleted with it and the context is destroyed before the one for the new window is created
             renderTargets.reset();
+            textures.reset();
             egl.reset();
             egl = std::make_unique<gl::EglContext>(window);
             egl->MakeCurrent();
@@ -478,10 +480,11 @@ namespace skyline::gpu {
             LOGINF("OpenGL ES: the presentation thread created its context ({})", gl::EglContext::QueryInfo().version);
             gallery = std::make_unique<gl::GalleryView>();
             renderTargets = std::make_unique<gl::GlRenderTargetCache>();
+            textures = std::make_unique<gl::GlTextureCache>(state);
         }
 
         // What the guest asked the OpenGL ES backend to do since the last frame runs here, on the thread that owns the context
-        gl::GlRenderContext renderContext{*renderTargets};
+        gl::GlRenderContext renderContext{*renderTargets, *textures};
         gl::GlCommandQueue::Get().Drain(renderContext);
 
         auto [width, height]{egl->GetSize()};

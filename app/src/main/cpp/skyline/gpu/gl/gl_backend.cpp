@@ -6,7 +6,11 @@
 #include <common.h>
 #include <soc/gm20b/channel.h>
 #include <gpu/interconnect/maxwell_3d/packed_pipeline_state.h>
+#include <algorithm>
+#include <cmath>
+#include <gpu/interconnect/fermi_2d.h>
 #include "gl_command_queue.h"
+#include "gl_texture_cache.h"
 #include "gl_render_target_cache.h"
 #include "gl_backend.h"
 
@@ -184,6 +188,88 @@ namespace skyline::gpu::gl {
         if (resolve)
             stats.resolveBlits++;
         stats.Tick();
+
+        // Same as the Vulkan interconnect: the blit samples from the centre so the rectangle is adjusted when the origin is the corner
+        float centredSrcRectX{sampleOrigin == SampleModeOrigin::Corner ? srcRectX - 0.5f : srcRectX};
+        float centredSrcRectY{sampleOrigin == SampleModeOrigin::Corner ? srcRectY - 0.5f : srcRectY};
+
+        u32 oobReadStart{static_cast<u32>(centredSrcRectX)};
+        u32 oobReadWidth{static_cast<u32>(duDx * static_cast<float>(dstRectWidth))};
+
+        auto [srcGuestTexture, srcWentOob]{interconnect::Fermi2D::GetGuestTexture(channelCtx, srcSurface, oobReadStart, oobReadWidth)};
+        if (srcWentOob)
+            centredSrcRectX = 0.0f;
+        auto [dstGuestTexture, dstWentOob]{interconnect::Fermi2D::GetGuestTexture(channelCtx, dstSurface)};
+
+        // A surface whose address isn't mapped is ignored, the hardware does the same
+        auto isUnmapped{[](const GuestTexture &texture) {
+            return texture.mappings.empty() || std::ranges::any_of(texture.mappings, [](const auto &mapping) { return mapping.data() == nullptr; });
+        }};
+        if (isUnmapped(srcGuestTexture) || isUnmapped(dstGuestTexture)) {
+            LOGW("OpenGL ES backend: skipping a 2D blit that uses an unmapped surface");
+            return;
+        }
+
+        // The source rectangle can be flipped (negative scale), glBlitFramebuffer flips when the end is before the start
+        auto toInt{[](float value) { return static_cast<GLint>(std::lround(value)); }};
+        struct BlitParameters {
+            GLint srcX0, srcY0, srcX1, srcY1;
+            GLint dstX0, dstY0, dstX1, dstY1;
+            bool linear;
+        } parameters{
+            toInt(centredSrcRectX), toInt(centredSrcRectY), toInt(centredSrcRectX + duDx * static_cast<float>(dstRectWidth)), toInt(centredSrcRectY + dvDy * static_cast<float>(dstRectHeight)),
+            static_cast<GLint>(dstRectX), static_cast<GLint>(dstRectY), static_cast<GLint>(dstRectX + dstRectWidth), static_cast<GLint>(dstRectY + dstRectHeight),
+            filter == SampleModeFilter::Bilinear,
+        };
+
+        GlCommandQueue::Get().Push([src = std::move(srcGuestTexture), dst = std::move(dstGuestTexture), parameters](GlRenderContext &context) {
+            // A format that the OpenGL ES backend doesn't handle is reported (once per format) and the blit is skipped, so the next unhandled thing shows up in the same log
+            for (const auto *guest : {&src, &dst}) {
+                if (!GetGlFormat(guest->format->vkFormat)) {
+                    static std::vector<vk::Format> reported;
+                    if (std::ranges::find(reported, guest->format->vkFormat) == reported.end()) {
+                        reported.push_back(guest->format->vkFormat);
+                        LOGINF("OpenGL ES backend: a 2D blit with the format {} is skipped, the format isn't handled yet", vk::to_string(guest->format->vkFormat));
+                    }
+                    return;
+                }
+            }
+
+            // The destination is written by the GPU, so it is a render target. The source is one if the GPU wrote it before, otherwise its contents are the guest memory
+            auto *dstTexture{context.renderTargets.FindOrCreate(dst)};
+            auto *srcTexture{context.renderTargets.Find(src)};
+            std::shared_ptr<GlTexture> uploadedSrc;
+            if (!srcTexture) {
+                uploadedSrc = context.textures.FindOrCreate(src);
+                srcTexture = uploadedSrc.get();
+            }
+            if (!dstTexture || !srcTexture || srcTexture == dstTexture)
+                return;
+
+            GLuint srcFramebuffer{};
+            bool temporarySrcFramebuffer{!uploadedSrc ? false : true};
+            if (temporarySrcFramebuffer) {
+                glGenFramebuffers(1, &srcFramebuffer);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
+                glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srcTexture->Name(), 0);
+            } else {
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, context.renderTargets.Framebuffer(*srcTexture));
+            }
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context.renderTargets.Framebuffer(*dstTexture));
+
+            glDisable(GL_SCISSOR_TEST);
+            glBlitFramebuffer(parameters.srcX0, parameters.srcY0, parameters.srcX1, parameters.srcY1,
+                              parameters.dstX0, parameters.dstY0, parameters.dstX1, parameters.dstY1,
+                              GL_COLOR_BUFFER_BIT, parameters.linear ? GL_LINEAR : GL_NEAREST);
+
+            if (temporarySrcFramebuffer) {
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+                glDeleteFramebuffers(1, &srcFramebuffer);
+            }
+
+            if (auto error{glGetError()}; error != GL_NO_ERROR)
+                throw exception("The OpenGL ES blit of a 2D engine copy failed: error 0x{:X}", error);
+        });
     }
 
     void GlMaxwellDma::Copy(span<u8> dstMapping, span<u8> srcMapping) {

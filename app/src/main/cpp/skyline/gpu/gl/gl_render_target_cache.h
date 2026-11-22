@@ -41,6 +41,11 @@ namespace skyline::gpu::gl {
         GlTexture *FindOrCreate(const GuestTexture &guest);
 
         /**
+         * @return The render target that was created for a guest texture, nullptr if there isn't one
+         */
+        GlTexture *Find(const GuestTexture &guest);
+
+        /**
          * @return A framebuffer with the texture as the first color attachment
          * @note Throws skyline::exception if the framebuffer isn't complete
          */

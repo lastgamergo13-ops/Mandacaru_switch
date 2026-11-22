@@ -51,6 +51,13 @@ namespace skyline::gpu::gl {
         return entries.back()->texture.get();
     }
 
+    GlTexture *GlRenderTargetCache::Find(const GuestTexture &guest) {
+        for (auto &entry : entries)
+            if (Matches(entry->guest, guest))
+                return entry->texture.get();
+        return nullptr;
+    }
+
     u32 GlRenderTargetCache::Framebuffer(GlTexture &texture) {
         for (auto &entry : entries) {
             if (entry->texture.get() != &texture)

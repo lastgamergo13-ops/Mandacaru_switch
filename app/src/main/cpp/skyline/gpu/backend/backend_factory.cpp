@@ -18,7 +18,7 @@ namespace skyline::gpu {
         auto vulkan{std::make_unique<interconnect::Fermi2D>(*state.gpu, channelCtx)};
         if (!UsesOpenGl(state))
             return vulkan;
-        return std::make_unique<gl::TeeFermi2D>(std::move(vulkan), std::make_unique<gl::GlFermi2D>());
+        return std::make_unique<gl::TeeFermi2D>(std::move(vulkan), std::make_unique<gl::GlFermi2D>(channelCtx));
     }
 
     std::unique_ptr<IMaxwellDmaBackend> MakeMaxwellDmaBackend(const DeviceState &state, soc::gm20b::ChannelContext &channelCtx) {

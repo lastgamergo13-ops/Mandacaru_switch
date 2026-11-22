@@ -34,9 +34,13 @@ namespace skyline::gpu::interconnect {
         soc::gm20b::ChannelContext &channelCtx;
         gpu::interconnect::CommandExecutor &executor;
 
-        std::pair<gpu::GuestTexture, bool> GetGuestTexture(const Surface &surface, u32 oobReadStart = 0, u32 oobReadWidth = 0);
-
       public:
+        /**
+         * @brief Describes a surface of the Fermi 2D engine as a guest texture (the OpenGL ES backend uses it too)
+         * @return The texture and if the address was moved to emulate an out of bounds read that wraps around to the next line
+         */
+        static std::pair<gpu::GuestTexture, bool> GetGuestTexture(soc::gm20b::ChannelContext &channelCtx, const Surface &surface, u32 oobReadStart = 0, u32 oobReadWidth = 0);
+
         Fermi2D(GPU &gpu, soc::gm20b::ChannelContext &channelCtx);
 
         void Blit(const Surface &srcSurface, const Surface &dstSurface, float srcRectX, float srcRectY, u32 dstRectWidth, u32 dstRectHeight, u32 dstRectX, u32 dstRectY, float duDx, float dvDy, SampleModeOrigin sampleOrigin, bool resolve, SampleModeFilter filter) override;
