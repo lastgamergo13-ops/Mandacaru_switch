@@ -101,7 +101,8 @@ namespace skyline::gpu::gl {
 
         /**
          * @brief Uploads the pending textures (a few per call, so a frame isn't held for long) and draws the grid with a white bar at the bottom that moves with every frame
+         * @param overlay If the grid is drawn over what is on the screen, in the top 30% of it (the screen isn't cleared), instead of on the whole screen
          */
-        void Draw(i32 width, i32 height, u64 frame);
+        void Draw(i32 width, i32 height, u64 frame, bool overlay = false);
     };
 }

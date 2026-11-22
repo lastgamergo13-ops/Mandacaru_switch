@@ -109,7 +109,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         auto vulkan{std::make_unique<gpu::interconnect::maxwell3d::Maxwell3D>(*state.gpu, channelCtx, state.process->trap, state.process->memory, dirtyManager, MakeEngineRegisters(registers))};
         if (!gpu::UsesOpenGl(state))
             return vulkan;
-        return std::make_unique<gpu::gl::TeeMaxwell3D>(std::move(vulkan), std::make_unique<gpu::gl::GlMaxwell3D>());
+        return std::make_unique<gpu::gl::TeeMaxwell3D>(std::move(vulkan), std::make_unique<gpu::gl::GlMaxwell3D>(channelCtx, gpu::gl::GlMaxwell3DRegisters{*registers.colorTargets, *registers.ctSelect, *registers.surfaceClip, *registers.clearSurfaceControl, *registers.clearRect, registers.scissors[0], registers.viewportClips[0], *registers.colorClearValue}));
     }
 
     Maxwell3D::Maxwell3D(const DeviceState &state, ChannelContext &channelCtx, MacroState &macroState)

@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <chrono>
+#include <cstring>
+#include <GLES3/gl32.h>
 #include <common.h>
+#include <soc/gm20b/channel.h>
+#include <gpu/interconnect/maxwell_3d/packed_pipeline_state.h>
+#include "gl_command_queue.h"
+#include "gl_render_target_cache.h"
 #include "gl_backend.h"
 
 namespace skyline::gpu::gl {
@@ -44,13 +50,101 @@ namespace skyline::gpu::gl {
     void GlMaxwell3D::Clear(ClearSurface &clearSurface) {
         auto &stats{GlStats::Get()};
         stats.clears++;
-        if (clearSurface.rEnable || clearSurface.gEnable || clearSurface.bEnable || clearSurface.aEnable)
+        bool clearsColor{clearSurface.rEnable || clearSurface.gEnable || clearSurface.bEnable || clearSurface.aEnable};
+        if (clearsColor)
             stats.colorClears++;
         if (clearSurface.zEnable)
             stats.depthClears++;
         if (clearSurface.stencilEnable)
             stats.stencilClears++;
         stats.Tick();
+
+        if (!clearsColor)
+            return; // Depth and stencil clears aren't handled yet (there are no depth render targets in the OpenGL ES backend)
+
+        // The rectangle of the clear is the surface clip, cut by what the clear is told to respect (the same as the Vulkan interconnect does)
+        i32 left{registers.surfaceClip.horizontal.x}, top{registers.surfaceClip.vertical.y};
+        i32 right{left + registers.surfaceClip.horizontal.width}, bottom{top + registers.surfaceClip.vertical.height};
+        auto intersect{[&](i32 otherLeft, i32 otherTop, i32 otherRight, i32 otherBottom) {
+            left = std::max(left, otherLeft);
+            top = std::max(top, otherTop);
+            right = std::min(right, otherRight);
+            bottom = std::min(bottom, otherBottom);
+        }};
+
+        const auto &control{registers.clearSurfaceControl};
+        if (control.useClearRect)
+            intersect(registers.clearRect.horizontal.xMin, registers.clearRect.vertical.yMin, registers.clearRect.horizontal.xMax, registers.clearRect.vertical.yMax);
+        if (control.useScissor0 && registers.scissor0.enable)
+            intersect(registers.scissor0.horizontal.xMin, registers.scissor0.vertical.yMin, registers.scissor0.horizontal.xMax, registers.scissor0.vertical.yMax);
+        if (control.useViewportClip0)
+            intersect(registers.viewportClip0.horizontal.x0, registers.viewportClip0.vertical.y0, registers.viewportClip0.horizontal.x0 + registers.viewportClip0.horizontal.width, registers.viewportClip0.vertical.y0 + registers.viewportClip0.vertical.height);
+        if (right <= left || bottom <= top)
+            return;
+
+        // The render target that the clear is for, described the way the Vulkan interconnect does (see ColorRenderTargetState::Flush)
+        const auto &target{registers.colorTargets[registers.ctSelect[clearSurface.mrtSelect]]};
+        if (target.format == engine::ColorTarget::Format::Disabled)
+            return;
+
+        GuestTexture guest{};
+        {
+            auto packed{std::make_unique<gpu::interconnect::maxwell3d::PackedPipelineState>()};
+            packed->SetColorRenderTargetFormat(0, target.format);
+            guest.format = packed->GetColorRenderTargetFormat(0);
+        }
+        guest.aspect = vk::ImageAspectFlagBits::eColor;
+        guest.baseArrayLayer = target.layerOffset;
+
+        bool thirdDimensionDefinesArraySize{target.memory.thirdDimensionControl == engine::TargetMemory::ThirdDimensionControl::ThirdDimensionDefinesArraySize};
+        guest.layerCount = thirdDimensionDefinesArraySize ? target.thirdDimension : 1;
+        guest.viewType = target.thirdDimension > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
+
+        u32 depth{thirdDimensionDefinesArraySize ? 1U : target.thirdDimension};
+        if (target.memory.layout == engine::TargetMemory::Layout::Pitch) {
+            guest.dimensions = texture::Dimensions{target.width / guest.format->bpb, target.height, depth};
+            guest.tileConfig = texture::TileConfig{.mode = texture::TileMode::Pitch, .pitch = target.width};
+        } else {
+            guest.dimensions = texture::Dimensions{target.width, target.height, depth};
+            guest.tileConfig = texture::TileConfig{.mode = texture::TileMode::Block, .blockHeight = target.memory.BlockHeight(), .blockDepth = target.memory.BlockDepth()};
+        }
+        guest.layerStride = (guest.baseArrayLayer > 1 || guest.layerCount > 1) ? target.ArrayPitch() : 0;
+
+        auto mappings{channelCtx.asCtx->gmmu.TranslateRange(target.offset, guest.GetSize())};
+        guest.mappings.assign(mappings.begin(), mappings.end());
+        if (!guest.MappingsValid())
+            return;
+
+        if (guest.tileConfig.mode == texture::TileMode::Block) {
+            // The dimensions of a render target are aligned to the block linear layout and the surface clip has the unaligned ones, the texture is created with the unaligned ones when the layout is the same
+            u32 underlyingLayerSize{guest.CalculateLayerSize()};
+            texture::Dimensions underlyingDimensions{guest.dimensions};
+            guest.dimensions = texture::Dimensions{static_cast<u32>(registers.surfaceClip.horizontal.width + registers.surfaceClip.horizontal.x), static_cast<u32>(registers.surfaceClip.vertical.height + registers.surfaceClip.vertical.y), guest.dimensions.depth};
+            if (guest.CalculateLayerSize() != underlyingLayerSize)
+                guest.dimensions = underlyingDimensions;
+        }
+
+        std::array<float, 4> color;
+        std::memcpy(color.data(), registers.colorClearValue.data(), sizeof(color));
+
+        struct ClearParameters {
+            i32 x, y, width, height;
+            bool red, green, blue, alpha;
+        } parameters{left, top, right - left, bottom - top, clearSurface.rEnable, clearSurface.gEnable, clearSurface.bEnable, clearSurface.aEnable};
+
+        GlCommandQueue::Get().Push([guest = std::move(guest), color, parameters](GlRenderContext &context) {
+            auto *texture{context.renderTargets.FindOrCreate(guest)};
+            if (!texture)
+                return;
+
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context.renderTargets.Framebuffer(*texture));
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(parameters.x, parameters.y, parameters.width, parameters.height); // The rows of a guest texture are stored from the top, the same as the rows of the framebuffer of the texture, so there is no flip here
+            glColorMask(parameters.red, parameters.green, parameters.blue, parameters.alpha);
+            glClearBufferfv(GL_COLOR, 0, color.data());
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glDisable(GL_SCISSOR_TEST);
+        });
     }
 
     void GlMaxwell3D::Draw(DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices) {

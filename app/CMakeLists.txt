@@ -275,6 +275,8 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/gpu/gl/gl_texture_cache.cpp
         ${source_DIR}/skyline/gpu/gl/gl_buffer_cache.cpp
         ${source_DIR}/skyline/gpu/gl/gl_backend.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_command_queue.cpp
+        ${source_DIR}/skyline/gpu/gl/gl_render_target_cache.cpp
         ${source_DIR}/skyline/gpu/backend/backend_factory.cpp
         ${source_DIR}/skyline/gpu/shader_manager.cpp
         ${source_DIR}/skyline/gpu/pipeline_cache_manager.cpp

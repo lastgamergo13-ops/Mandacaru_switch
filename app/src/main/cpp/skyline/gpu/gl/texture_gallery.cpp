@@ -184,17 +184,21 @@ void main() {
         slots[slotIndex].shownLevel = ~0U;
     }
 
-    void GalleryView::Draw(i32 width, i32 height, u64 frame) {
+    void GalleryView::Draw(i32 width, i32 height, u64 frame, bool overlay) {
         constexpr size_t UploadsPerFrame{2};
 
         GalleryEntry entry;
         for (size_t i{}; i < UploadsPerFrame && TextureGallery::Get().TakePending(entry); i++)
             Show(entry);
 
-        glViewport(0, 0, width, height);
+        // The grid fits in a region of the screen: all of it, or the top 30% when it's drawn over a frame
+        i32 regionY{overlay ? height - height * 3 / 10 : 0}, regionHeight{overlay ? height * 3 / 10 : height};
+        glViewport(0, regionY, width, regionHeight);
         glDisable(GL_SCISSOR_TEST);
-        glClearColor(0.08f, 0.08f, 0.08f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        if (!overlay) {
+            glClearColor(0.08f, 0.08f, 0.08f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
 
         glUseProgram(program);
         glUniform1i(textureLocation, 0);
@@ -221,9 +225,9 @@ void main() {
             float cellX{-1.0f + column * cellWidth}, cellY{1.0f - (row + 1.0f) * cellHeight};
 
             // The texture is scaled to fit in the cell without changing its aspect ratio (in pixels, not in normalized device coordinates)
-            float cellPixelsWidth{static_cast<float>(width) / Columns * (1.0f - Padding * 2)}, cellPixelsHeight{static_cast<float>(height) / Rows * (1.0f - Padding * 2)};
+            float cellPixelsWidth{static_cast<float>(width) / Columns * (1.0f - Padding * 2)}, cellPixelsHeight{static_cast<float>(regionHeight) / Rows * (1.0f - Padding * 2)};
             float scale{std::min(cellPixelsWidth / textureWidth, cellPixelsHeight / textureHeight)};
-            float drawWidth{textureWidth * scale / static_cast<float>(width) * 2.0f}, drawHeight{textureHeight * scale / static_cast<float>(height) * 2.0f};
+            float drawWidth{textureWidth * scale / static_cast<float>(width) * 2.0f}, drawHeight{textureHeight * scale / static_cast<float>(regionHeight) * 2.0f};
             float x0{cellX + (cellWidth - drawWidth) / 2.0f}, y0{cellY + (cellHeight - drawHeight) / 2.0f};
 
             glUniform1f(srgbLocation, slot.texture->Format().isSrgb ? 1.0f : 0.0f);

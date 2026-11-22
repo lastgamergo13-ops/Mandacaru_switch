@@ -16,6 +16,9 @@
 #include "texture/format.h"
 #include "gl/egl_context.h"
 #include "gl/texture_gallery.h"
+#include "gl/gl_command_queue.h"
+#include "gl/gl_render_target_cache.h"
+#include <GLES3/gl32.h>
 #include "graphics_api.h"
 
 extern jint Fps;
@@ -465,7 +468,8 @@ namespace skyline::gpu {
 
         // Any failure here is NOT handled on purpose (no fallback to Vulkan, the frames aren't dropped): the exception ends the emulator so it's clear what the OpenGL ES backend is missing
         if (!egl || eglContextGeneration != eglWindowGeneration) {
-            gallery.reset(); // The previous context (if any) is current on this thread, the objects of the gallery are deleted with it and the context is destroyed before the one for the new window is created
+            gallery.reset(); // The previous context (if any) is current on this thread, the objects of the gallery and the render targets are deleted with it and the context is destroyed before the one for the new window is created
+            renderTargets.reset();
             egl.reset();
             egl = std::make_unique<gl::EglContext>(window);
             egl->MakeCurrent();
@@ -473,10 +477,32 @@ namespace skyline::gpu {
             eglContextGeneration = eglWindowGeneration;
             LOGINF("OpenGL ES: the presentation thread created its context ({})", gl::EglContext::QueryInfo().version);
             gallery = std::make_unique<gl::GalleryView>();
+            renderTargets = std::make_unique<gl::GlRenderTargetCache>();
         }
 
+        // What the guest asked the OpenGL ES backend to do since the last frame runs here, on the thread that owns the context
+        gl::GlRenderContext renderContext{*renderTargets};
+        gl::GlCommandQueue::Get().Drain(renderContext);
+
         auto [width, height]{egl->GetSize()};
-        gallery->Draw(width, height, glFrameCounter++);
+
+        // If the OpenGL ES backend rendered to the buffer that is presented, that is what is shown (with the gallery over it), otherwise the gallery is
+        gl::GlTexture *presented{};
+        if (frame.textureView && frame.textureView->texture->guest && !frame.textureView->texture->guest->mappings.empty())
+            presented = renderTargets->FindByAddress(frame.textureView->texture->guest->mappings.front().data());
+
+        if (presented) {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glDisable(GL_SCISSOR_TEST);
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            // The first row of a guest texture is its top and the first row of the framebuffer is its bottom, so the image is flipped when it's copied to the screen
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderTargets->Framebuffer(*presented));
+            glBlitFramebuffer(0, 0, static_cast<GLint>(presented->Width()), static_cast<GLint>(presented->Height()), 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+        gallery->Draw(width, height, glFrameCounter++, presented != nullptr);
         egl->SwapBuffers();
     }
 }

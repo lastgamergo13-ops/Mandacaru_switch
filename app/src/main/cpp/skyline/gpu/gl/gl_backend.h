@@ -4,9 +4,16 @@
 
 #include <atomic>
 #include <memory>
+#include <array>
 #include <gpu/backend/backend_interfaces.h>
 
+namespace skyline::soc::gm20b {
+    struct ChannelContext;
+}
+
 namespace skyline::gpu::gl {
+    namespace engine = soc::gm20b::engine::maxwell3d::type;
+
     /**
      * @brief What the guest asked the OpenGL ES backend to do, counted since the last report: it is written to the log once per second so what the game does (draws, clears, blits, copies) is known
      * @note This is the first stage of the OpenGL ES backend (item E12, phase 3): it only counts. The calls are also executed by the Vulkan interconnect (see the Tee classes) so the game keeps running
@@ -33,8 +40,28 @@ namespace skyline::gpu::gl {
         void Tick();
     };
 
+    /**
+     * @brief The registers of the Maxwell 3D engine that the OpenGL ES backend reads (references to the registers of the engine)
+     */
+    struct GlMaxwell3DRegisters {
+        const std::array<engine::ColorTarget, engine::ColorTargetCount> &colorTargets;
+        const engine::CtSelect &ctSelect;
+        const engine::SurfaceClip &surfaceClip;
+        const engine::ClearSurfaceControl &clearSurfaceControl;
+        const engine::ClearRect &clearRect;
+        const engine::Scissor &scissor0;
+        const engine::ViewportClip &viewportClip0;
+        const std::array<u32, 4> &colorClearValue;
+    };
+
     class GlMaxwell3D final : public IMaxwell3DBackend {
+      private:
+        soc::gm20b::ChannelContext &channelCtx;
+        GlMaxwell3DRegisters registers;
+
       public:
+        GlMaxwell3D(soc::gm20b::ChannelContext &channelCtx, const GlMaxwell3DRegisters &registers) : channelCtx{channelCtx}, registers{registers} {}
+
         void LoadConstantBuffer(span<u32> data, u32 offset) override;
 
         void BindConstantBuffer(ShaderStage stage, u32 index, bool enable) override;
