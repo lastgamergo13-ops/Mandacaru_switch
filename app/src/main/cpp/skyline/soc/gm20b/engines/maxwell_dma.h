@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <memory>
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/interconnect/maxwell_dma.h>
 #include "engine.h"
 
@@ -22,7 +24,7 @@ namespace skyline::soc::gm20b::engine {
       private:
         host1x::SyncpointSet &syncpoints;
         ChannelContext &channelCtx;
-        gpu::interconnect::MaxwellDma interconnect;
+        std::unique_ptr<gpu::IMaxwellDmaBackend> interconnect;
         std::vector<u8> copyCache;
 
         void HandleMethod(u32 method, u32 argument);

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <gpu/backend/backend_interfaces.h>
 #include <soc/gm20b/gmmu.h>
 
 namespace skyline::gpu {
@@ -20,7 +21,7 @@ namespace skyline::gpu::interconnect {
     /**
      * @brief Handles translating I2M operations to Vulkan
      */
-    class Inline2Memory {
+    class Inline2Memory : public IInline2MemoryBackend {
       private:
         using IOVA = soc::gm20b::IOVA;
 
@@ -33,6 +34,6 @@ namespace skyline::gpu::interconnect {
       public:
         Inline2Memory(GPU &gpu, soc::gm20b::ChannelContext &channelCtx);
 
-        void Upload(IOVA dst, span<u8> src);
+        void Upload(IOVA dst, span<u8> src) override;
     };
 }

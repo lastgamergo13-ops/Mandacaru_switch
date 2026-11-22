@@ -4,6 +4,8 @@
 #pragma once
 
 #include <common.h>
+#include <memory>
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/interconnect/inline2memory.h>
 #include "engine.h"
 
@@ -19,7 +21,7 @@ namespace skyline::soc::gm20b::engine {
       private:
         std::vector<u32> buffer; //!< Temporary buffer to hold data being currently uploaded
         u32 writeOffset{}; //!< Current write offset in words into `buffer`
-        gpu::interconnect::Inline2Memory interconnect;
+        std::unique_ptr<gpu::IInline2MemoryBackend> interconnect;
         ChannelContext &channelCtx;
 
       public:

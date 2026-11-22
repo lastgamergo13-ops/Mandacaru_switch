@@ -4,6 +4,8 @@
 
 #include <boost/preprocessor/repeat.hpp>
 #include <gpu/interconnect/command_executor.h>
+#include <gpu/backend/backend_factory.h>
+#include <gpu/gl/gl_backend.h>
 #include <soc/gm20b/channel.h>
 #include <soc.h>
 #include "maxwell/types.h"
@@ -77,22 +79,22 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
                 return false;
             case Registers::RenderEnable::Mode::Conditional:
                 // TODO: Use indirect draws to emulate conditional rendering with queries, for now just ignore such cases as they would decrease performance anyway by forcing a CPU sync
-                if (interconnect.QueryPresentAtAddress(u64{registers.renderEnable->offset}))
+                if (interconnect->QueryPresentAtAddress(u64{registers.renderEnable->offset}))
                     return true;
 
                 return channelCtx.asCtx->gmmu.Read<u32>(registers.renderEnable->offset) != 0;
             case Registers::RenderEnable::Mode::RenderIfEqual:
                 // TODO: See above
-                if (interconnect.QueryPresentAtAddress(u64{registers.renderEnable->offset}) ||
-                    interconnect.QueryPresentAtAddress(u64{registers.renderEnable->offset + 16}))
+                if (interconnect->QueryPresentAtAddress(u64{registers.renderEnable->offset}) ||
+                    interconnect->QueryPresentAtAddress(u64{registers.renderEnable->offset + 16}))
                     return true;
 
                 return channelCtx.asCtx->gmmu.Read<u32>(registers.renderEnable->offset) ==
                     channelCtx.asCtx->gmmu.Read<u32>(registers.renderEnable->offset + 16);
             case Registers::RenderEnable::Mode::RenderIfNotEqual:
                 // TODO: See above
-                if (interconnect.QueryPresentAtAddress(u64{registers.renderEnable->offset}) ||
-                    interconnect.QueryPresentAtAddress(u64{registers.renderEnable->offset + 16}))
+                if (interconnect->QueryPresentAtAddress(u64{registers.renderEnable->offset}) ||
+                    interconnect->QueryPresentAtAddress(u64{registers.renderEnable->offset + 16}))
                     return true;
 
                 return channelCtx.asCtx->gmmu.Read<u32>(registers.renderEnable->offset) !=
@@ -103,12 +105,19 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
     }
 
 
+    static std::unique_ptr<gpu::IMaxwell3DBackend> MakeInterconnect(const DeviceState &state, ChannelContext &channelCtx, gpu::interconnect::DirtyManager &dirtyManager, const Maxwell3D::Registers &registers) {
+        auto vulkan{std::make_unique<gpu::interconnect::maxwell3d::Maxwell3D>(*state.gpu, channelCtx, state.process->trap, state.process->memory, dirtyManager, MakeEngineRegisters(registers))};
+        if (!gpu::UsesOpenGl(state))
+            return vulkan;
+        return std::make_unique<gpu::gl::TeeMaxwell3D>(std::move(vulkan), std::make_unique<gpu::gl::GlMaxwell3D>());
+    }
+
     Maxwell3D::Maxwell3D(const DeviceState &state, ChannelContext &channelCtx, MacroState &macroState)
         : MacroEngineBase{macroState},
           syncpoints{state.soc->host1x.syncpoints},
           i2m{state, channelCtx},
           dirtyManager{registers},
-          interconnect{*state.gpu, channelCtx, state.process->trap, state.process->memory, dirtyManager, MakeEngineRegisters(registers)},
+          interconnect{MakeInterconnect(state, channelCtx, dirtyManager, registers)},
           channelCtx{channelCtx} {
         channelCtx.executor.AddFlushCallback([this]() { FlushEngineState(); });
         InitializeRegisters();
@@ -119,7 +128,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
             return;
 
         if (CheckRenderEnable())
-            interconnect.Draw(ApplyTopologyOverride(registers.begin->op), *registers.streamOutputEnable, true, static_cast<u32>(indices.size()), 0, 1,
+            interconnect->Draw(ApplyTopologyOverride(registers.begin->op), *registers.streamOutputEnable, true, static_cast<u32>(indices.size()), 0, 1,
                               *registers.globalBaseVertexIndex, *registers.globalBaseInstanceIndex, indices);
     }
 
@@ -127,7 +136,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         if (batchEnableState.drawActive) {
             batchEnableState.drawActive = false;
             if (CheckRenderEnable())
-                interconnect.Draw(deferredDraw.drawTopology, *registers.streamOutputEnable, deferredDraw.indexed, deferredDraw.drawCount, deferredDraw.drawFirst, deferredDraw.instanceCount, deferredDraw.drawBaseVertex, deferredDraw.drawBaseInstance);
+                interconnect->Draw(deferredDraw.drawTopology, *registers.streamOutputEnable, deferredDraw.indexed, deferredDraw.drawCount, deferredDraw.drawFirst, deferredDraw.instanceCount, deferredDraw.drawBaseVertex, deferredDraw.drawBaseInstance);
             deferredDraw.instanceCount = 1;
         }
     }
@@ -165,8 +174,8 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
                     default:
                         // When a method other than constant buffer update is called submit our submit the previously built-up update as a batch
                         registers.raw[method] = origRegisterValue;
-                        interconnect.DisableQuickConstantBufferBind();
-                        interconnect.LoadConstantBuffer(batchLoadConstantBuffer.buffer, batchLoadConstantBuffer.startOffset);
+                        interconnect->DisableQuickConstantBufferBind();
+                        interconnect->LoadConstantBuffer(batchLoadConstantBuffer.buffer, batchLoadConstantBuffer.startOffset);
                         batchEnableState.constantBufferActive = false;
                         batchLoadConstantBuffer.Reset();
                         registers.raw[method] = argument;
@@ -268,7 +277,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
             })
 
             ENGINE_CASE(clearReportValue, {
-                interconnect.ResetCounter(clearReportValue.type);
+                interconnect->ResetCounter(clearReportValue.type);
             })
 
             ENGINE_CASE(syncpointAction, {
@@ -281,7 +290,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
 
             ENGINE_CASE(clearSurface, {
                 if (CheckRenderEnable())
-                    interconnect.Clear(clearSurface);
+                    interconnect->Clear(clearSurface);
             })
 
             ENGINE_CASE(begin, {
@@ -442,7 +451,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
                                 break;
                             case type::SemaphoreInfo::CounterType::SamplesPassed:
                                 // Return a fake result for now
-                                interconnect.Query({registers.semaphore->address}, info.counterType,
+                                interconnect->Query({registers.semaphore->address}, info.counterType,
                                                    registers.semaphore->info.structureSize == type::SemaphoreInfo::StructureSize::FourWords ?
                                                    GetGpuTimeTicks() : std::optional<u64>{});
                                 break;
@@ -487,7 +496,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
 
             #define PIPELINE_CALLBACKS(z, idx, data)                                                                                         \
                 ENGINE_ARRAY_STRUCT_CASE(bindGroups, idx, constantBuffer, {                                                                  \
-                    interconnect.BindConstantBuffer(static_cast<type::ShaderStage>(idx), constantBuffer.shaderSlot, constantBuffer.valid);   \
+                    interconnect->BindConstantBuffer(static_cast<type::ShaderStage>(idx), constantBuffer.shaderSlot, constantBuffer.valid);   \
                 })
 
             BOOST_PP_REPEAT(5, PIPELINE_CALLBACKS, 0)
@@ -521,12 +530,12 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         FlushDeferredDraw();
 
         if (batchEnableState.constantBufferActive) {
-            interconnect.LoadConstantBuffer(batchLoadConstantBuffer.buffer, batchLoadConstantBuffer.startOffset);
+            interconnect->LoadConstantBuffer(batchLoadConstantBuffer.buffer, batchLoadConstantBuffer.startOffset);
             batchEnableState.constantBufferActive = false;
             batchLoadConstantBuffer.Reset();
         }
 
-        interconnect.DisableQuickConstantBufferBind();
+        interconnect->DisableQuickConstantBufferBind();
     }
 
     __attribute__((always_inline)) void Maxwell3D::CallMethod(u32 method, u32 argument) {
@@ -563,7 +572,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         registers.globalBaseInstanceIndex = globalBaseInstanceIndex;
         registers.vertexArrayStart = vertexArrayStart;
         if (CheckRenderEnable())
-            interconnect.Draw(topology, *registers.streamOutputEnable, false, vertexArrayCount, vertexArrayStart, instanceCount, 0, globalBaseInstanceIndex);
+            interconnect->Draw(topology, *registers.streamOutputEnable, false, vertexArrayCount, vertexArrayStart, instanceCount, 0, globalBaseInstanceIndex);
         registers.globalBaseInstanceIndex = 0;
     }
 
@@ -571,14 +580,14 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         FlushEngineState();
         auto topology{static_cast<type::DrawTopology>(drawTopology)};
         if (CheckRenderEnable())
-            interconnect.Draw(topology, *registers.streamOutputEnable, true, indexBufferCount, indexBufferFirst, instanceCount, globalBaseVertexIndex, globalBaseInstanceIndex);
+            interconnect->Draw(topology, *registers.streamOutputEnable, true, indexBufferCount, indexBufferFirst, instanceCount, globalBaseVertexIndex, globalBaseInstanceIndex);
     }
 
     void Maxwell3D::DrawIndexedIndirect(u32 drawTopology, span<u8> indirectBuffer, u32 count, u32 stride) {
         FlushEngineState();
         auto topology{static_cast<type::DrawTopology>(drawTopology)};
         if (CheckRenderEnable())
-            interconnect.DrawIndirect(topology, *registers.streamOutputEnable, true, indirectBuffer, count, stride);
+            interconnect->DrawIndirect(topology, *registers.streamOutputEnable, true, indirectBuffer, count, stride);
     }
 
 }

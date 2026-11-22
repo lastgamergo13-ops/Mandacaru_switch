@@ -8,13 +8,14 @@
 #include <soc.h>
 #include <soc/gm20b/channel.h>
 #include <soc/gm20b/gmmu.h>
+#include <gpu/backend/backend_factory.h>
 #include "maxwell_dma.h"
 
 namespace skyline::soc::gm20b::engine {
     MaxwellDma::MaxwellDma(const DeviceState &state, ChannelContext &channelCtx)
         : channelCtx{channelCtx},
           syncpoints{state.soc->host1x.syncpoints},
-          interconnect{*state.gpu, channelCtx},
+          interconnect{gpu::MakeMaxwellDmaBackend(state, channelCtx)},
           copyCache() {}
 
     __attribute__((always_inline)) void MaxwellDma::CallMethod(u32 method, u32 argument) {
@@ -151,7 +152,7 @@ namespace skyline::soc::gm20b::engine {
                     (registers.remapComponents->dstW == Registers::RemapComponents::Swizzle::ConstA) &&
                     (registers.remapComponents->ComponentSize() == 4)) {
                     for (auto mapping : dstMappings)
-                        interconnect.Clear(mapping, *registers.remapConstA);
+                        interconnect->Clear(mapping, *registers.remapConstA);
                 } else {
                     LOGW("Remapped DMA copies are unimplemented!");
                 }
@@ -187,7 +188,7 @@ namespace skyline::soc::gm20b::engine {
                 } else if (srcMappings.size() != 1 || dstMappings.size() != 1) [[unlikely]] {
                     channelCtx.asCtx->gmmu.Copy(u64{*registers.offsetOut}, u64{*registers.offsetIn}, *registers.lineLengthIn);
                 } else {
-                    interconnect.Copy(dstMappings.front(), srcMappings.front());
+                    interconnect->Copy(dstMappings.front(), srcMappings.front());
                 }
             }
         }

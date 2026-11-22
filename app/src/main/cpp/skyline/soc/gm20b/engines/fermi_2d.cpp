@@ -3,13 +3,14 @@
 // Copyright © 2022 Ryujinx Team and Contributors (https://github.com/Ryujinx/)
 
 #include <soc.h>
+#include <gpu/backend/backend_factory.h>
 #include "fermi_2d.h"
 
 namespace skyline::soc::gm20b::engine::fermi2d {
     Fermi2D::Fermi2D(const DeviceState &state, ChannelContext &channelCtx, MacroState &macroState)
         : MacroEngineBase{macroState},
           syncpoints{state.soc->host1x.syncpoints},
-          interconnect{*state.gpu, channelCtx},
+          interconnect{gpu::MakeFermi2DBackend(state, channelCtx)},
           channelCtx{channelCtx} {}
 
     void Fermi2D::HandleMethod(u32 method, u32 argument) {
@@ -56,7 +57,7 @@ namespace skyline::soc::gm20b::engine::fermi2d {
                 duDx = dvDy = 1.0f;
             }
 
-            interconnect.Blit(src, dst,
+            interconnect->Blit(src, dst,
                               srcX, srcY,
                               pixelsFromMemory.dstWidth, pixelsFromMemory.dstHeight,
                               pixelsFromMemory.dstX0, pixelsFromMemory.dstY0,

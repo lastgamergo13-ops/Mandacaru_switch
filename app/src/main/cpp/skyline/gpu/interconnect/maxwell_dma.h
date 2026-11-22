@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <gpu/backend/backend_interfaces.h>
 #include <soc/gm20b/gmmu.h>
 
 namespace skyline::gpu {
@@ -20,7 +21,7 @@ namespace skyline::gpu::interconnect {
     /**
      * @brief Handles translating Maxwell DMA operations to Vulkan
      */
-    class MaxwellDma {
+    class MaxwellDma : public IMaxwellDmaBackend {
       private:
         GPU &gpu;
         soc::gm20b::ChannelContext &channelCtx;
@@ -29,8 +30,8 @@ namespace skyline::gpu::interconnect {
       public:
         MaxwellDma(GPU &gpu, soc::gm20b::ChannelContext &channelCtx);
 
-        void Copy(span<u8> dstMapping, span<u8> srcMapping);
+        void Copy(span<u8> dstMapping, span<u8> srcMapping) override;
 
-        void Clear(span<u8> mapping, u32 value);
+        void Clear(span<u8> mapping, u32 value) override;
     };
 }

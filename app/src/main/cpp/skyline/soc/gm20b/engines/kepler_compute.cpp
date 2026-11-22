@@ -4,6 +4,8 @@
 #include <soc.h>
 #include <soc/gm20b/channel.h>
 #include "kepler_compute/qmd.h"
+#include <gpu/backend/backend_factory.h>
+#include <gpu/gl/gl_backend.h>
 #include "kepler_compute.h"
 
 namespace skyline::soc::gm20b::engine {
@@ -15,12 +17,19 @@ namespace skyline::soc::gm20b::engine {
         };
     }
 
+    static std::unique_ptr<gpu::IKeplerComputeBackend> MakeInterconnect(const DeviceState &state, ChannelContext &channelCtx, gpu::interconnect::DirtyManager &dirtyManager, const KeplerCompute::Registers &registers) {
+        auto vulkan{std::make_unique<gpu::interconnect::kepler_compute::KeplerCompute>(*state.gpu, channelCtx, state.process->trap, state.process->memory, dirtyManager, MakeEngineRegisters(registers))};
+        if (!gpu::UsesOpenGl(state))
+            return vulkan;
+        return std::make_unique<gpu::gl::TeeKeplerCompute>(std::move(vulkan), std::make_unique<gpu::gl::GlKeplerCompute>());
+    }
+
     KeplerCompute::KeplerCompute(const DeviceState &state, ChannelContext &channelCtx)
         : syncpoints{state.soc->host1x.syncpoints},
           channelCtx{channelCtx},
           i2m{state, channelCtx},
           dirtyManager{registers},
-          interconnect{*state.gpu, channelCtx, state.process->trap, state.process->memory, dirtyManager, MakeEngineRegisters(registers)} {}
+          interconnect{MakeInterconnect(state, channelCtx, dirtyManager, registers)} {}
 
     __attribute__((always_inline)) void KeplerCompute::CallMethod(u32 method, u32 argument) {
         LOGV("Called method in Kepler compute: 0x{:X} args: 0x{:X}", method, argument);
@@ -39,7 +48,7 @@ namespace skyline::soc::gm20b::engine {
                 i2m.LoadInlineData(*registers.i2m, argument);
             })
             ENGINE_CASE(sendSignalingPcasB, {
-                interconnect.Dispatch(channelCtx.asCtx->gmmu.Read<kepler_compute::QMD>(registers.sendPcas->QmdAddress()));
+                interconnect->Dispatch(channelCtx.asCtx->gmmu.Read<kepler_compute::QMD>(registers.sendPcas->QmdAddress()));
             })
             ENGINE_STRUCT_CASE(reportSemaphore, action, {
                 throw exception("Compute semaphores are unimplemented!");

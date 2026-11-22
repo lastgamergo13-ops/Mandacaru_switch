@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/texture/texture.h>
 #include <soc/gm20b/gmmu.h>
 #include <soc/gm20b/engines/fermi/types.h>
@@ -22,7 +23,7 @@ namespace skyline::gpu::interconnect {
     /**
      * @brief Handles translating Fermi 2D engine blit operations to Vulkan
      */
-    class Fermi2D {
+    class Fermi2D : public IFermi2DBackend {
       private:
         using IOVA = soc::gm20b::IOVA;
         using Surface = skyline::soc::gm20b::engine::fermi2d::type::Surface;
@@ -38,6 +39,6 @@ namespace skyline::gpu::interconnect {
       public:
         Fermi2D(GPU &gpu, soc::gm20b::ChannelContext &channelCtx);
 
-        void Blit(const Surface &srcSurface, const Surface &dstSurface, float srcRectX, float srcRectY, u32 dstRectWidth, u32 dstRectHeight, u32 dstRectX, u32 dstRectY, float duDx, float dvDy, SampleModeOrigin sampleOrigin, bool resolve, SampleModeFilter filter);
+        void Blit(const Surface &srcSurface, const Surface &dstSurface, float srcRectX, float srcRectY, u32 dstRectWidth, u32 dstRectHeight, u32 dstRectX, u32 dstRectY, float duDx, float dvDy, SampleModeOrigin sampleOrigin, bool resolve, SampleModeFilter filter) override;
     };
 }

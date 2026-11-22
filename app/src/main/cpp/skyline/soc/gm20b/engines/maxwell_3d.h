@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <memory>
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/interconnect/maxwell_3d/maxwell_3d.h>
 #include <soc/host1x/syncpoint.h>
 #include "engine.h"
@@ -24,7 +26,7 @@ namespace skyline::soc::gm20b::engine::maxwell3d {
         host1x::SyncpointSet &syncpoints;
         Inline2MemoryBackend i2m;
         gpu::interconnect::DirtyManager dirtyManager;
-        gpu::interconnect::maxwell3d::Maxwell3D interconnect;
+        std::unique_ptr<gpu::IMaxwell3DBackend> interconnect; //!< The Vulkan interconnect, together with the OpenGL ES backend when the user chose OpenGL ES
 
         union BatchEnableState {
             u8 raw{};

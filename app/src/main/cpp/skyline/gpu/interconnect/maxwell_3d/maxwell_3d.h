@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/descriptor_allocator.h>
 #include <gpu/interconnect/common/samplers.h>
 #include <gpu/interconnect/common/textures.h>
@@ -17,7 +18,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
     /**
      * @brief The core Maxwell 3D interconnect object, directly accessed by the engine code to perform rendering operations
      */
-    class Maxwell3D {
+    class Maxwell3D : public IMaxwell3DBackend {
       public:
         struct ClearEngineRegisters {
             const engine::Scissor &scissor0;
@@ -92,31 +93,31 @@ namespace skyline::gpu::interconnect::maxwell3d {
         /**
          * @brief Loads the given data into the constant buffer pointed by the constant buffer selector starting at the given offset
          */
-        void LoadConstantBuffer(span<u32> data, u32 offset);
+        void LoadConstantBuffer(span<u32> data, u32 offset) override;
 
         /**
          * @brief Binds the constant buffer selector to the given pipeline stage
          */
-        void BindConstantBuffer(engine::ShaderStage stage, u32 index, bool enable);
+        void BindConstantBuffer(engine::ShaderStage stage, u32 index, bool enable) override;
 
         /**
          * @note See ConstantBuffers::DisableQuickBind
          */
-        void DisableQuickConstantBufferBind();
+        void DisableQuickConstantBufferBind() override;
 
-        void Clear(engine::ClearSurface &clearSurface);
+        void Clear(engine::ClearSurface &clearSurface) override;
 
         /**
          * @param hostIndices If non-empty the draw is indexed using these 32-bit indices (supplied by the CPU, e.g. by inline index methods) instead of the guest index buffer; `indexed`, `first` and `count` are overridden accordingly (count must equal hostIndices.size())
          */
-        void Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices = {});
+        void Draw(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, u32 count, u32 first, u32 instanceCount, u32 vertexOffset, u32 firstInstance, span<u32> hostIndices = {}) override;
 
-        void DrawIndirect(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, span<u8> indirectBuffer, u32 count, u32 stride);
+        void DrawIndirect(engine::DrawTopology topology, bool transformFeedbackEnable, bool indexed, span<u8> indirectBuffer, u32 count, u32 stride) override;
 
-        void Query(soc::gm20b::IOVA address, engine::SemaphoreInfo::CounterType type, std::optional<u64> timestamp);
+        void Query(soc::gm20b::IOVA address, engine::SemaphoreInfo::CounterType type, std::optional<u64> timestamp) override;
 
-        void ResetCounter(engine::ClearReportValue::Type type);
+        void ResetCounter(engine::ClearReportValue::Type type) override;
 
-        bool QueryPresentAtAddress(soc::gm20b::IOVA address);
+        bool QueryPresentAtAddress(soc::gm20b::IOVA address) override;
     };
 }

@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <memory>
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/interconnect/kepler_compute/kepler_compute.h>
 #include "engine.h"
 #include "inline2memory.h"
@@ -22,7 +24,7 @@ namespace skyline::soc::gm20b::engine {
         ChannelContext &channelCtx;
         Inline2MemoryBackend i2m;
         gpu::interconnect::DirtyManager dirtyManager;
-        gpu::interconnect::kepler_compute::KeplerCompute interconnect;
+        std::unique_ptr<gpu::IKeplerComputeBackend> interconnect;
 
         void HandleMethod(u32 method, u32 argument);
 

@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <memory>
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/interconnect/fermi_2d.h>
 #include "engine.h"
 
@@ -18,7 +20,7 @@ namespace skyline::soc::gm20b::engine::fermi2d {
     class Fermi2D : public MacroEngineBase {
       private:
         host1x::SyncpointSet &syncpoints;
-        gpu::interconnect::Fermi2D interconnect;
+        std::unique_ptr<gpu::IFermi2DBackend> interconnect;
         ChannelContext &channelCtx;
 
         /**

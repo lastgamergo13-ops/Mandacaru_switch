@@ -3,11 +3,12 @@
 
 #include <gpu/texture/layout.h>
 #include <soc/gm20b/channel.h>
+#include <gpu/backend/backend_factory.h>
 #include "inline2memory.h"
 
 namespace skyline::soc::gm20b::engine {
     Inline2MemoryBackend::Inline2MemoryBackend(const DeviceState &state, ChannelContext &channelCtx)
-        : interconnect{*state.gpu, channelCtx},
+        : interconnect{gpu::MakeInline2MemoryBackend(state, channelCtx)},
           channelCtx{channelCtx} {}
 
     void Inline2MemoryBackend::LaunchDma(Inline2MemoryBackend::RegisterState &state) {
@@ -26,7 +27,7 @@ namespace skyline::soc::gm20b::engine {
 
             auto srcBuffer{span{buffer}.cast<u8>()};
             for (u32 line{}, pitchOffset{}; line < state.lineCount; ++line, pitchOffset += state.pitchOut)
-                interconnect.Upload(u64{state.offsetOut + pitchOffset}, srcBuffer.subspan(state.lineLengthIn * line, state.lineLengthIn));
+                interconnect->Upload(u64{state.offsetOut + pitchOffset}, srcBuffer.subspan(state.lineLengthIn * line, state.lineLengthIn));
 
         } else {
             channelCtx.executor.Submit();

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <gpu/backend/backend_interfaces.h>
 #include <gpu/descriptor_allocator.h>
 #include <gpu/interconnect/common/samplers.h>
 #include <gpu/interconnect/common/textures.h>
@@ -14,7 +15,7 @@ namespace skyline::gpu::interconnect::kepler_compute {
     /**
      * @brief The core Kepler Compute interconnect object, directly accessed by the engine code to perform compute dispatches
      */
-    class KeplerCompute {
+    class KeplerCompute : public IKeplerComputeBackend {
       public:
         /**
          * @brief The full set of register state used by the GPU interconnect
@@ -43,6 +44,6 @@ namespace skyline::gpu::interconnect::kepler_compute {
         /**
          * @brief Performs a compute dispatch using the given QMD
          */
-        void Dispatch(const QMD &qmd);
+        void Dispatch(const QMD &qmd) override;
     };
 }
