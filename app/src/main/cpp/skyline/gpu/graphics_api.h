@@ -5,6 +5,7 @@
 #include <common.h>
 #include <common/settings.h>
 #include "gl/texture_gallery.h"
+#include "gl/gl_shader_test.h"
 
 namespace skyline::gpu {
     /**
@@ -22,6 +23,7 @@ namespace skyline::gpu {
             case GraphicsApi::OpenGL:
                 LOGW("Graphics API: OpenGL ES (chosen by the user, experimental): the game isn't rendered yet (it still renders with Vulkan), the screen shows the textures of the game decoded by the OpenGL ES code, and there is no fallback to Vulkan if it fails");
                 gl::TextureGallery::Get().Enable(); // The textures are copied from the start of the game
+                gl::GlShaderTest::Get().Enable(); // The GLSL of the shaders is made and compiled from the start of the game
                 return GraphicsApi::OpenGL;
 
             case GraphicsApi::Automatic:

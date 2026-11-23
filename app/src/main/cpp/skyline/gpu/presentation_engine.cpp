@@ -17,6 +17,7 @@
 #include "gl/egl_context.h"
 #include "gl/texture_gallery.h"
 #include "gl/gl_command_queue.h"
+#include "gl/gl_shader_test.h"
 #include "gl/gl_render_target_cache.h"
 #include "gl/gl_texture_cache.h"
 #include <GLES3/gl32.h>
@@ -486,6 +487,7 @@ namespace skyline::gpu {
         // What the guest asked the OpenGL ES backend to do since the last frame runs here, on the thread that owns the context
         gl::GlRenderContext renderContext{*renderTargets, *textures};
         gl::GlCommandQueue::Get().Drain(renderContext);
+        gl::GlShaderTest::Get().Process(); // Compiles some of the GLSL that was made for the shaders of the game
 
         auto [width, height]{egl->GetSize()};
 
