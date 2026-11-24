@@ -10,7 +10,6 @@
 #include <shader_compiler/common/log.h>
 #include <shader_compiler/frontend/maxwell/translate_program.h>
 #include <shader_compiler/backend/spirv/emit_spirv.h>
-#include <shader_compiler/backend/glsl/emit_glsl.h>
 #include <vulkan/vulkan_raii.hpp>
 #include "shader_manager.h"
 
@@ -31,6 +30,8 @@ namespace Shader::Log {
 }
 
 namespace skyline::gpu {
+    static thread_local std::vector<u32> lastSpirv; //!< The SPIR-V of the last shader that CompileShader made on this thread (see ShaderManager::LastSpirv)
+
     void ShaderManager::LoadShaderReplacements(std::string_view replacementDir) {
         std::filesystem::path replacementDirPath{replacementDir};
         if (std::filesystem::exists(replacementDirPath)) {
@@ -135,32 +136,6 @@ namespace skyline::gpu {
             .max_subgroup_size = traits.subgroupSize,
             .has_broken_spirv_vector_access_chain = traits.quirks.brokenSpirvVectorAccessChain,
             .disable_subgroup_shuffle = *state.settings->disableSubgroupShuffle,
-            .fix_bloom_effects = *state.settings->fixBloomEffects,
-        };
-
-        // The GLSL backend is for OpenGL ES 3.2: only what that version always has is on, everything that needs an extension or a feature of desktop OpenGL is off
-        glProfile = Shader::Profile{
-            .supported_spirv = 0,
-            .unified_descriptor_binding = false,
-            .support_descriptor_aliasing = false,
-            .support_int8 = false,
-            .support_int16 = false,
-            .support_int64 = false,
-            .support_vertex_instance_id = true,
-            .support_float_controls = false,
-            .support_vote = false,
-            .support_viewport_index_layer_non_geometry = false,
-            .support_typeless_image_loads = false,
-            .support_demote_to_helper_invocation = false,
-            .support_int64_atomics = false,
-            .support_derivative_control = false,
-            .support_geometry_shader_passthrough = false,
-            .support_native_ndc = false,
-            .warp_size_potentially_larger_than_guest = true,
-            .lower_left_origin_mode = false,
-            .need_declared_frag_colors = false,
-            .max_subgroup_size = 32,
-            .disable_subgroup_shuffle = true,
             .fix_bloom_effects = *state.settings->fixBloomEffects,
         };
 
@@ -476,6 +451,7 @@ namespace skyline::gpu {
 
         auto spirvEmitted{Shader::Backend::SPIRV::EmitSPIRV(profile, runtimeInfo, program, bindings)};
         auto spirv{ProcessShaderBinary(true, hash, span<u32>{spirvEmitted}.cast<u8>()).cast<u32>()};
+        lastSpirv.assign(spirv.begin(), spirv.end());
 
         vk::ShaderModuleCreateInfo createInfo{
             .pCode = spirv.data(),
@@ -494,9 +470,8 @@ namespace skyline::gpu {
         return module;
     }
 
-    std::string ShaderManager::EmitGlsl(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings) {
-        std::scoped_lock lock{poolMutex};
-        return Shader::Backend::GLSL::EmitGLSL(glProfile, runtimeInfo, program, bindings);
+    const std::vector<u32> &ShaderManager::LastSpirv() {
+        return lastSpirv;
     }
 
     void ShaderManager::DumpFailedModule(vk::ShaderModule module) {

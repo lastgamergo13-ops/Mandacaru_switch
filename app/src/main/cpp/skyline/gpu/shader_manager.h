@@ -31,7 +31,6 @@ namespace skyline::gpu {
         GPU &gpu;
         Shader::HostTranslateInfo hostTranslateInfo;
         Shader::Profile profile;
-        Shader::Profile glProfile; //!< The profile for the GLSL backend, only used by the OpenGL ES backend (item E12)
         Shader::ObjectPool<Shader::Maxwell::Flow::Block> flowBlockPool;
         Shader::ObjectPool<Shader::IR::Inst> instructionPool;
         Shader::ObjectPool<Shader::IR::Block> blockPool;
@@ -106,10 +105,9 @@ namespace skyline::gpu {
         vk::ShaderModule CompileShader(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings, u64 hash = 0);
 
         /**
-         * @brief Makes the GLSL of a program with the GLSL backend of the compiler, for the OpenGL ES backend (the source is for desktop OpenGL, see gl::GlShaderTest::AdaptToEs)
-         * @note It must be called after CompileShader: that one converts the legacy attributes of the program, and this one has to find the program the same way
+         * @return The SPIR-V of the last shader that CompileShader made on the calling thread, the OpenGL ES backend makes its GLSL from it (item E12)
          */
-        std::string EmitGlsl(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings);
+        static const std::vector<u32> &LastSpirv();
 
         void ResetPools();
     };

@@ -30,6 +30,9 @@ namespace skyline::gpu::gl {
     }
 
     std::string GlShaderTest::AdaptToEs(const std::string &source) {
+        if (source.starts_with("#version 320 es"))
+            return source; // SPIRV-Cross already makes GLSL ES 3.20 with its own precisions
+
         // Every sampler and image type needs a precision in OpenGL ES (the ones that have a default are only the first few), declared once at the top
         constexpr const char *Header{
             "#version 320 es\n"

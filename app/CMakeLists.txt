@@ -185,6 +185,9 @@ add_subdirectory("libraries/range")
 # Sirit
 add_subdirectory("libraries/sirit")
 
+# SPIRV-Cross (only the GLSL backend): GLSL ES for the OpenGL ES backend is made from the SPIR-V of the shader compiler
+add_subdirectory("libraries/spirv-cross")
+
 # libadrenotools
 add_subdirectory("libraries/adrenotools")
 
@@ -276,6 +279,7 @@ add_library(skyline SHARED
         ${source_DIR}/skyline/gpu/gl/gl_buffer_cache.cpp
         ${source_DIR}/skyline/gpu/gl/gl_backend.cpp
         ${source_DIR}/skyline/gpu/gl/gl_shader_test.cpp
+        ${source_DIR}/skyline/gpu/gl/spirv_to_glsl.cpp
         ${source_DIR}/skyline/gpu/gl/gl_command_queue.cpp
         ${source_DIR}/skyline/gpu/gl/gl_render_target_cache.cpp
         ${source_DIR}/skyline/gpu/backend/backend_factory.cpp
@@ -530,7 +534,7 @@ target_compile_options(skyline PRIVATE -Wall -Wno-unknown-attributes -Wno-c++20-
 
 target_link_libraries(skyline PRIVATE shader_recompiler audio_core)
 # EGL and OpenGL ES 3.2 for the OpenGL ES backend (item E12), only used when the user picks OpenGL ES as the graphics API
-target_link_libraries(skyline PRIVATE EGL GLESv3)
+target_link_libraries(skyline PRIVATE EGL GLESv3 spirv_cross_glsl)
 # Align the ELF segments to 16 KB so the library can be loaded on devices that use 16 KB memory pages (Android 15+), harmless on 4 KB devices
 target_link_options(skyline PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries_system(skyline android perfetto fmt lz4_static libzstd_static tzcode vkma mbedcrypto opus Boost::intrusive Boost::container Boost::preprocessor Boost::regex range-v3 adrenotools tsl::robin_map)

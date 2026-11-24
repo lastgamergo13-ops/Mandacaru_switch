@@ -15,6 +15,7 @@
 #include "graphics_pipeline_state_accessor.h"
 #include "pipeline_manager.h"
 #include <gpu/gl/gl_shader_test.h>
+#include <gpu/gl/spirv_to_glsl.h>
 #include "soc/gm20b/engines/maxwell/types.h"
 
 namespace skyline::gpu::interconnect::maxwell3d {
@@ -261,10 +262,10 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                                   programs[i].info};
 
             if (gl::GlShaderTest::Get().IsEnabled()) {
-                // The OpenGL ES backend makes the GLSL of the same program and has it compiled by the driver to see what works (see gl::GlShaderTest)
+                // The OpenGL ES backend makes GLSL ES from the SPIR-V of the same program (SPIRV-Cross) and has it compiled by the driver to see what works (see gl::GlShaderTest)
                 auto glStage{shaderStages[i - (i >= 1 ? 1 : 0)].stage};
                 try {
-                    gl::GlShaderTest::Get().Submit(glStage, packedState.shaderHashes[i], gpu.shader->EmitGlsl(runtimeInfo, programs[i], glBindings));
+                    gl::GlShaderTest::Get().Submit(glStage, packedState.shaderHashes[i], gl::ConvertSpirvToGlslEs(ShaderManager::LastSpirv(), glBindings));
                 } catch (const std::exception &e) {
                     // A GLSL backend that can't handle a shader is a result of this test, it must not stop the pipeline that Vulkan is making
                     gl::GlShaderTest::Get().SubmitEmitFailure(glStage, packedState.shaderHashes[i], e.what());
