@@ -8,6 +8,9 @@
 #include <gpu/interconnect/maxwell_3d/packed_pipeline_state.h>
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <vector>
+#include <fmt/format.h>
 #include <gpu/interconnect/fermi_2d.h>
 #include "gl_command_queue.h"
 #include "gl_texture_cache.h"
@@ -235,6 +238,14 @@ namespace skyline::gpu::gl {
                 }
             }
 
+            // Errors of earlier commands would be taken for errors of the blit, so they are written to the log (once) and cleared
+            if (auto stale{glGetError()}; stale != GL_NO_ERROR) {
+                static bool reportedStale{};
+                if (!std::exchange(reportedStale, true))
+                    LOGW("OpenGL ES backend: error 0x{:X} was pending before a 2D blit (from an earlier command)", stale);
+                while (glGetError() != GL_NO_ERROR) {}
+            }
+
             // The destination is written by the GPU, so it is a render target. The source is one if the GPU wrote it before, otherwise its contents are the guest memory
             auto *dstTexture{context.renderTargets.FindOrCreate(dst)};
             auto *srcTexture{context.renderTargets.Find(src)};
@@ -246,29 +257,64 @@ namespace skyline::gpu::gl {
             if (!dstTexture || !srcTexture || srcTexture == dstTexture)
                 return;
 
-            GLuint srcFramebuffer{};
-            bool temporarySrcFramebuffer{!uploadedSrc ? false : true};
-            if (temporarySrcFramebuffer) {
-                glGenFramebuffers(1, &srcFramebuffer);
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
-                glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srcTexture->Name(), 0);
+            // Describes the blit for the log of a failure or of a skip
+            auto describe{[&]() {
+                return fmt::format("source {}x{} {} (target 0x{:X}, {} level(s), {} layer(s)){} -> destination {}x{} {} (target 0x{:X}), source rectangle ({}, {}) to ({}, {}), destination rectangle ({}, {}) to ({}, {}), {}",
+                                   srcTexture->Width(), srcTexture->Height(), vk::to_string(src.format->vkFormat), srcTexture->Target(), srcTexture->Levels(), srcTexture->Layers(), uploadedSrc ? " from the guest memory" : " render target",
+                                   dstTexture->Width(), dstTexture->Height(), vk::to_string(dst.format->vkFormat), dstTexture->Target(),
+                                   parameters.srcX0, parameters.srcY0, parameters.srcX1, parameters.srcY1, parameters.dstX0, parameters.dstY0, parameters.dstX1, parameters.dstY1, parameters.linear ? "linear" : "nearest");
+            }};
+            auto skip{[&](const char *reason) {
+                static std::vector<std::string> reported;
+                std::string message{fmt::format("{}: {}", reason, describe())};
+                if (std::ranges::find(reported, reason) == reported.end() && reported.size() < 16) {
+                    reported.push_back(reason);
+                    LOGINF("OpenGL ES backend: a 2D blit is skipped, {}", message);
+                }
+            }};
+
+            // glBlitFramebuffer wants both sides to be of the same kind (integer or not), and can't filter integers and 32-bit floats
+            const auto &srcFormat{srcTexture->Format()}, &dstFormat{dstTexture->Format()};
+            if (srcFormat.isInteger != dstFormat.isInteger)
+                return skip("one side is an integer format and the other isn't");
+
+            auto isFloat32{[](u32 internalFormat) { return internalFormat == GL_R32F || internalFormat == GL_RG32F || internalFormat == GL_RGBA32F; }};
+            GLenum filter{parameters.linear && !srcFormat.isInteger && !isFloat32(srcFormat.internalFormat) ? static_cast<GLenum>(GL_LINEAR) : static_cast<GLenum>(GL_NEAREST)};
+
+            // A source that was uploaded has no framebuffer: a temporary one is made, with the layer of the array if the texture is one
+            GLuint temporaryFramebuffer{};
+            if (uploadedSrc) {
+                glGenFramebuffers(1, &temporaryFramebuffer);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, temporaryFramebuffer);
+                if (srcTexture->Target() == GL_TEXTURE_2D)
+                    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, srcTexture->Name(), 0);
+                else
+                    glFramebufferTextureLayer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, srcTexture->Name(), 0, 0);
+
+                if (glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+                    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+                    glDeleteFramebuffers(1, &temporaryFramebuffer);
+                    while (glGetError() != GL_NO_ERROR) {}
+                    return skip("the source can't be read through a framebuffer");
+                }
             } else {
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, context.renderTargets.Framebuffer(*srcTexture));
             }
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context.renderTargets.Framebuffer(*dstTexture));
+            glReadBuffer(GL_COLOR_ATTACHMENT0);
 
             glDisable(GL_SCISSOR_TEST);
             glBlitFramebuffer(parameters.srcX0, parameters.srcY0, parameters.srcX1, parameters.srcY1,
                               parameters.dstX0, parameters.dstY0, parameters.dstX1, parameters.dstY1,
-                              GL_COLOR_BUFFER_BIT, parameters.linear ? GL_LINEAR : GL_NEAREST);
+                              GL_COLOR_BUFFER_BIT, filter);
 
-            if (temporarySrcFramebuffer) {
+            auto error{glGetError()};
+            if (temporaryFramebuffer) {
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-                glDeleteFramebuffers(1, &srcFramebuffer);
+                glDeleteFramebuffers(1, &temporaryFramebuffer);
             }
-
-            if (auto error{glGetError()}; error != GL_NO_ERROR)
-                throw exception("The OpenGL ES blit of a 2D engine copy failed: error 0x{:X}", error);
+            if (error != GL_NO_ERROR)
+                throw exception("The OpenGL ES blit of a 2D engine copy failed with error 0x{:X}: {}", error, describe());
         });
     }
 
