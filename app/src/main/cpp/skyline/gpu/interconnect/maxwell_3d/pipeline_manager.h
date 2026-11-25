@@ -213,6 +213,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         };
 
         PackedPipelineState sourcePackedState;
+        u64 glPipelineId{}; //!< The id that the OpenGL ES backend knows the pipeline by (see gl::GlShaderTest), 0 if it doesn't
 
       private:
         std::vector<CachedMappedBufferView> storageBufferViews;

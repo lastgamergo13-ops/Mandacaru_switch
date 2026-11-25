@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <GLES3/gl32.h>
+#include <fmt/format.h>
 #include "gl_shader_test.h"
 
 namespace skyline::gpu::gl {
@@ -15,18 +16,16 @@ namespace skyline::gpu::gl {
         enabled.store(true, std::memory_order_relaxed);
     }
 
-    void GlShaderTest::Submit(vk::ShaderStageFlagBits stage, u64 hash, std::string source) {
+    void GlShaderTest::SubmitPipeline(u64 pipelineId, std::vector<StageSource> stages) {
         std::scoped_lock lock{mutex};
         if (pending.size() >= MaxPending)
-            pending.pop_front(); // The newest shaders are the ones that matter, the thread that compiles can't keep up with a game that creates many
-        pending.push_back({stage, hash, std::move(source), {}});
+            pending.pop_front(); // The newest pipelines are the ones that matter, the thread that compiles can't keep up with a game that creates many
+        pending.push_back({pipelineId, std::move(stages)});
     }
 
-    void GlShaderTest::SubmitEmitFailure(vk::ShaderStageFlagBits stage, u64 hash, std::string error) {
-        std::scoped_lock lock{mutex};
-        if (pending.size() >= MaxPending)
-            pending.pop_front();
-        pending.push_back({stage, hash, {}, std::move(error)});
+    u32 GlShaderTest::GetProgram(u64 pipelineId) const {
+        auto it{programs.find(pipelineId)};
+        return it != programs.end() ? it->second : 0;
     }
 
     std::string GlShaderTest::AdaptToEs(const std::string &source) {
@@ -72,19 +71,26 @@ namespace skyline::gpu::gl {
         return adapted;
     }
 
-    void GlShaderTest::Compile(const Pending &shader) {
-        if (!shader.emitError.empty()) {
-            failed++;
-            errorCounts["GLSL backend: " + shader.emitError.substr(0, 150)]++;
+    void GlShaderTest::CountError(const std::string &log) {
+        // The key of the summary is the first error without the position ("0:123(45): error: ..." -> "error: ...")
+        size_t firstError{log.find("rror")};
+        std::string key{firstError == std::string::npos ? log.substr(0, 120) : log.substr(firstError, std::min<size_t>(log.find('\n', firstError) - firstError, 160))};
+        errorCounts[key]++;
+    }
+
+    u32 GlShaderTest::Compile(u64 pipelineId, const StageSource &stage) {
+        if (!stage.emitError.empty()) {
+            failedShaders++;
+            errorCounts["GLSL conversion: " + stage.emitError.substr(0, 150)]++;
             if (loggedFailures < MaxLoggedFailures) {
                 loggedFailures++;
-                LOGINF("OpenGL ES shader {:016X} ({}): the GLSL backend of the compiler failed: {}", shader.hash, vk::to_string(shader.stage), shader.emitError.substr(0, 400));
+                LOGINF("OpenGL ES pipeline {}: the GLSL of the shader {:016X} ({}) couldn't be made: {}", pipelineId, stage.hash, vk::to_string(stage.stage), stage.emitError.substr(0, 400));
             }
-            return;
+            return 0;
         }
 
         GLenum type;
-        switch (shader.stage) {
+        switch (stage.stage) {
             case vk::ShaderStageFlagBits::eVertex:
                 type = GL_VERTEX_SHADER;
                 break;
@@ -101,10 +107,10 @@ namespace skyline::gpu::gl {
                 type = GL_FRAGMENT_SHADER;
                 break;
             default:
-                return;
+                return 0;
         }
 
-        std::string adapted{AdaptToEs(shader.source)};
+        std::string adapted{AdaptToEs(stage.source)};
         const char *text{adapted.c_str()};
         GLuint name{glCreateShader(type)};
         glShaderSource(name, 1, &text, nullptr);
@@ -113,41 +119,89 @@ namespace skyline::gpu::gl {
         GLint status{};
         glGetShaderiv(name, GL_COMPILE_STATUS, &status);
         if (status) {
-            compiled++;
-        } else {
-            failed++;
-            GLint length{};
-            glGetShaderiv(name, GL_INFO_LOG_LENGTH, &length);
-            std::string log(static_cast<size_t>(std::max(length, 1)), '\0');
-            glGetShaderInfoLog(name, length, nullptr, log.data());
+            compiledShaders++;
+            return name;
+        }
 
-            // The key of the summary is the first error without the position ("0:123(45): error: ..." -> "error: ...")
-            size_t firstError{log.find("error")};
-            std::string key{firstError == std::string::npos ? log.substr(0, 120) : log.substr(firstError, std::min<size_t>(log.find('\n', firstError) - firstError, 160))};
-            errorCounts[key]++;
+        failedShaders++;
+        GLint length{};
+        glGetShaderiv(name, GL_INFO_LOG_LENGTH, &length);
+        std::string log(static_cast<size_t>(std::max(length, 1)), '\0');
+        glGetShaderInfoLog(name, length, nullptr, log.data());
+        CountError(log);
 
-            if (loggedFailures < MaxLoggedFailures) {
-                loggedFailures++;
+        if (loggedFailures < MaxLoggedFailures) {
+            loggedFailures++;
 
-                // The line of the source that has the first error: the log has "0:<line>" and the source has the header that AdaptToEs adds
-                std::string line;
-                size_t colon{log.find("0:")};
-                if (colon != std::string::npos) {
-                    size_t lineNumber{static_cast<size_t>(std::strtoul(log.c_str() + colon + 2, nullptr, 10))};
-                    size_t start{};
-                    for (size_t i{1}; i < lineNumber && start != std::string::npos; i++) {
-                        start = adapted.find('\n', start);
-                        if (start != std::string::npos)
-                            start++;
-                    }
+            // The line of the source that has the first error: the log has "0:<line>"
+            std::string line;
+            size_t colon{log.find("0:")};
+            if (colon != std::string::npos) {
+                size_t lineNumber{static_cast<size_t>(std::strtoul(log.c_str() + colon + 2, nullptr, 10))};
+                size_t start{};
+                for (size_t i{1}; i < lineNumber && start != std::string::npos; i++) {
+                    start = adapted.find('\n', start);
                     if (start != std::string::npos)
-                        line = adapted.substr(start, std::min<size_t>(adapted.find('\n', start) - start, 240));
+                        start++;
                 }
-
-                LOGINF("OpenGL ES shader {:016X} ({}) failed to compile: {} | line: {}", shader.hash, vk::to_string(shader.stage), log.substr(0, 400), line);
+                if (start != std::string::npos)
+                    line = adapted.substr(start, std::min<size_t>(adapted.find('\n', start) - start, 240));
             }
+
+            LOGINF("OpenGL ES pipeline {}: shader {:016X} ({}) failed to compile: {} | line: {}", pipelineId, stage.hash, vk::to_string(stage.stage), log.substr(0, 400), line);
         }
         glDeleteShader(name);
+        return 0;
+    }
+
+    void GlShaderTest::Link(const Pending &pipeline) {
+        std::vector<GLuint> shaders;
+        bool allCompiled{true};
+        for (const auto &stage : pipeline.stages) {
+            if (auto shader{Compile(pipeline.pipelineId, stage)})
+                shaders.push_back(shader);
+            else
+                allCompiled = false;
+        }
+
+        if (!allCompiled || shaders.empty()) {
+            failedPrograms++;
+            for (auto shader : shaders)
+                glDeleteShader(shader);
+            return;
+        }
+
+        GLuint program{glCreateProgram()};
+        for (auto shader : shaders)
+            glAttachShader(program, shader);
+        glLinkProgram(program);
+        for (auto shader : shaders) {
+            glDetachShader(program, shader);
+            glDeleteShader(shader);
+        }
+
+        GLint status{};
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+        if (status) {
+            linkedPrograms++;
+            programs[pipeline.pipelineId] = program;
+            return;
+        }
+
+        failedPrograms++;
+        GLint length{};
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+        std::string log(static_cast<size_t>(std::max(length, 1)), '\0');
+        glGetProgramInfoLog(program, length, nullptr, log.data());
+        CountError("link: " + log);
+        if (loggedFailures < MaxLoggedFailures) {
+            loggedFailures++;
+            std::string stages;
+            for (const auto &stage : pipeline.stages)
+                stages += fmt::format("{}{}", stages.empty() ? "" : ", ", vk::to_string(stage.stage));
+            LOGINF("OpenGL ES pipeline {} ({}) failed to link: {}", pipeline.pipelineId, stages, log.substr(0, 400));
+        }
+        glDeleteProgram(program);
     }
 
     void GlShaderTest::LogSummary() {
@@ -156,10 +210,10 @@ namespace skyline::gpu::gl {
             return;
         lastSummaryMs = nowMs;
 
-        if (compiled + failed == 0)
+        if (compiledShaders + failedShaders + linkedPrograms + failedPrograms == 0)
             return;
 
-        LOGINF("OpenGL ES shaders so far: {} compiled, {} failed", compiled, failed);
+        LOGINF("OpenGL ES shaders so far: {} compiled, {} failed; pipelines: {} linked, {} failed", compiledShaders, failedShaders, linkedPrograms, failedPrograms);
 
         // The most common errors first
         std::vector<std::pair<std::string, u64>> sorted(errorCounts.begin(), errorCounts.end());
@@ -169,18 +223,18 @@ namespace skyline::gpu::gl {
     }
 
     void GlShaderTest::Process() {
-        constexpr size_t CompilesPerCall{4};
+        constexpr size_t PipelinesPerCall{2};
 
-        for (size_t i{}; i < CompilesPerCall; i++) {
-            Pending shader;
+        for (size_t i{}; i < PipelinesPerCall; i++) {
+            Pending pipeline;
             {
                 std::scoped_lock lock{mutex};
                 if (pending.empty())
                     break;
-                shader = std::move(pending.front());
+                pipeline = std::move(pending.front());
                 pending.pop_front();
             }
-            Compile(shader);
+            Link(pipeline);
         }
 
         LogSummary();
