@@ -144,7 +144,8 @@ namespace skyline::gpu::gl {
             if (!texture)
                 return;
 
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context.renderTargets.Framebuffer(*texture));
+            GLuint framebuffer{context.renderTargets.Framebuffer(*texture)};
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
             glEnable(GL_SCISSOR_TEST);
             glScissor(parameters.x, parameters.y, parameters.width, parameters.height); // The rows of a guest texture are stored from the top, the same as the rows of the framebuffer of the texture, so there is no flip here
             glColorMask(parameters.red, parameters.green, parameters.blue, parameters.alpha);
@@ -281,6 +282,10 @@ namespace skyline::gpu::gl {
             auto isFloat32{[](u32 internalFormat) { return internalFormat == GL_R32F || internalFormat == GL_RG32F || internalFormat == GL_RGBA32F; }};
             GLenum filter{parameters.linear && !srcFormat.isInteger && !isFloat32(srcFormat.internalFormat) ? static_cast<GLenum>(GL_LINEAR) : static_cast<GLenum>(GL_NEAREST)};
 
+            // The framebuffers of the render targets are looked up first: making one binds the draw framebuffer
+            GLuint dstFramebuffer{context.renderTargets.Framebuffer(*dstTexture)};
+            GLuint srcFramebuffer{uploadedSrc ? 0 : context.renderTargets.Framebuffer(*srcTexture)};
+
             // A source that was uploaded has no framebuffer: a temporary one is made, with the layer of the array if the texture is one
             GLuint temporaryFramebuffer{};
             if (uploadedSrc) {
@@ -298,9 +303,9 @@ namespace skyline::gpu::gl {
                     return skip("the source can't be read through a framebuffer");
                 }
             } else {
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, context.renderTargets.Framebuffer(*srcTexture));
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, srcFramebuffer);
             }
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context.renderTargets.Framebuffer(*dstTexture));
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dstFramebuffer);
             glReadBuffer(GL_COLOR_ATTACHMENT0);
 
             glDisable(GL_SCISSOR_TEST);

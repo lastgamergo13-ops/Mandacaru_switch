@@ -31,6 +31,7 @@ namespace skyline::gpu {
         GPU &gpu;
         Shader::HostTranslateInfo hostTranslateInfo;
         Shader::Profile profile;
+        Shader::Profile glSpirvProfile; //!< The profile of the SPIR-V that is made for the OpenGL ES backend
         Shader::ObjectPool<Shader::Maxwell::Flow::Block> flowBlockPool;
         Shader::ObjectPool<Shader::IR::Inst> instructionPool;
         Shader::ObjectPool<Shader::IR::Block> blockPool;
@@ -105,9 +106,11 @@ namespace skyline::gpu {
         vk::ShaderModule CompileShader(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings, u64 hash = 0);
 
         /**
-         * @return The SPIR-V of the last shader that CompileShader made on the calling thread, the OpenGL ES backend makes its GLSL from it (item E12)
+         * @brief Makes the SPIR-V of a program for the OpenGL ES backend (item E12), which converts it to GLSL ES: with the features that OpenGL ES 3.2 doesn't have off (descriptor aliasing, 8, 16 and 64 bit
+         *        types, voting, derivative control...) so the constant buffers are arrays of 4 words, which is a layout that an OpenGL ES uniform block can have
+         * @note It must be called after CompileShader: that one converts the legacy attributes of the program, and this one has to find the program the same way
          */
-        static const std::vector<u32> &LastSpirv();
+        std::vector<u32> EmitSpirvForGl(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings);
 
         void ResetPools();
     };

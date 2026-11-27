@@ -244,6 +244,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
         bool hasGeometry{packedState.shaderHashes[stageIdx(PipelineStage::Geometry)] && !programs[stageIdx(PipelineStage::Geometry)].is_geometry_passthrough};
         Shader::Backend::Bindings bindings{};
         std::vector<gl::GlShaderTest::StageSource> glStages; // The stages of the pipeline for the OpenGL ES backend
+        Shader::Backend::Bindings glSpirvBindings{}; // The bindings of the SPIR-V that is made for the OpenGL ES backend (all kinds of resources in one sequence)
         Shader::Backend::Bindings glBindings{}; // The bindings of the GLSL of the OpenGL ES backend, they are counted by type and not all together like the ones of SPIR-V
         Shader::IR::Program *lastProgram{};
 
@@ -266,7 +267,7 @@ namespace skyline::gpu::interconnect::maxwell3d {
                 // The OpenGL ES backend makes GLSL ES from the SPIR-V of the same program (SPIRV-Cross), the stages of the pipeline are compiled and linked by the driver (see gl::GlShaderTest)
                 auto glStage{shaderStages[i - (i >= 1 ? 1 : 0)].stage};
                 try {
-                    glStages.push_back({glStage, packedState.shaderHashes[i], gl::ConvertSpirvToGlslEs(ShaderManager::LastSpirv(), glBindings), {}});
+                    glStages.push_back({glStage, packedState.shaderHashes[i], gl::ConvertSpirvToGlslEs(gpu.shader->EmitSpirvForGl(runtimeInfo, programs[i], glSpirvBindings), glBindings), {}});
                 } catch (const std::exception &e) {
                     // A shader that can't be converted is a result of this test, it must not stop the pipeline that Vulkan is making
                     glStages.push_back({glStage, packedState.shaderHashes[i], {}, e.what()});

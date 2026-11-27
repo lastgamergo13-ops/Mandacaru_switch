@@ -47,6 +47,7 @@ namespace skyline::gpu::gl {
 
         /**
          * @return A framebuffer with the texture as the first color attachment
+         * @note The draw framebuffer binding may be changed (to the new framebuffer, if it had to be made), the read binding isn't
          * @note Throws skyline::exception if the framebuffer isn't complete
          */
         u32 Framebuffer(GlTexture &texture);

@@ -497,13 +497,14 @@ namespace skyline::gpu {
             presented = renderTargets->FindByAddress(frame.textureView->texture->guest->mappings.front().data());
 
         if (presented) {
+            GLuint presentedFramebuffer{renderTargets->Framebuffer(*presented)}; // First: making it binds the draw framebuffer
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
             glDisable(GL_SCISSOR_TEST);
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
 
             // The first row of a guest texture is its top and the first row of the framebuffer is its bottom, so the image is flipped when it's copied to the screen
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, renderTargets->Framebuffer(*presented));
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, presentedFramebuffer);
             glBlitFramebuffer(0, 0, static_cast<GLint>(presented->Width()), static_cast<GLint>(presented->Height()), 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }

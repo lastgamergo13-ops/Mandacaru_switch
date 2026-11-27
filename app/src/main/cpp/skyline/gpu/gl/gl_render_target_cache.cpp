@@ -64,14 +64,15 @@ namespace skyline::gpu::gl {
                 continue;
 
             if (!entry->framebuffer) {
+                // Only the draw binding is used to make it (and it's left bound to the new framebuffer): binding both would change the read framebuffer that the caller may have bound already
                 glGenFramebuffers(1, &entry->framebuffer);
-                glBindFramebuffer(GL_FRAMEBUFFER, entry->framebuffer);
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, entry->framebuffer);
                 if (texture.Target() == GL_TEXTURE_2D)
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.Name(), 0);
+                    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture.Name(), 0);
                 else
-                    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texture.Name(), 0, 0);
+                    glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texture.Name(), 0, 0);
 
-                auto status{glCheckFramebufferStatus(GL_FRAMEBUFFER)};
+                auto status{glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER)};
                 if (status != GL_FRAMEBUFFER_COMPLETE)
                     throw exception("The OpenGL ES framebuffer of a render target ({}x{} {}) isn't complete: 0x{:X}", texture.Width(), texture.Height(), vk::to_string(texture.Guest().format->vkFormat), status);
             }

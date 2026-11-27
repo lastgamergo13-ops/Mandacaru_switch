@@ -30,8 +30,6 @@ namespace Shader::Log {
 }
 
 namespace skyline::gpu {
-    static thread_local std::vector<u32> lastSpirv; //!< The SPIR-V of the last shader that CompileShader made on this thread (see ShaderManager::LastSpirv)
-
     void ShaderManager::LoadShaderReplacements(std::string_view replacementDir) {
         std::filesystem::path replacementDirPath{replacementDir};
         if (std::filesystem::exists(replacementDirPath)) {
@@ -138,6 +136,31 @@ namespace skyline::gpu {
             .disable_subgroup_shuffle = *state.settings->disableSubgroupShuffle,
             .fix_bloom_effects = *state.settings->fixBloomEffects,
         };
+
+        // The SPIR-V for the OpenGL ES backend: what OpenGL ES 3.2 doesn't have is off. Without descriptor aliasing a constant buffer is an array of vectors of 4 words, which is what an OpenGL ES uniform block
+        // can have (with aliasing the words would be an array with a stride of 4 bytes and SPIRV-Cross couldn't express it)
+        glSpirvProfile = profile;
+        glSpirvProfile.supported_spirv = 0x00010000U;
+        glSpirvProfile.support_descriptor_aliasing = false;
+        glSpirvProfile.support_int8 = false;
+        glSpirvProfile.support_int16 = false;
+        glSpirvProfile.support_int64 = false;
+        glSpirvProfile.support_float_controls = false;
+        glSpirvProfile.support_vote = false;
+        glSpirvProfile.support_viewport_index_layer_non_geometry = false;
+        glSpirvProfile.support_typeless_image_loads = false;
+        glSpirvProfile.support_sampled_image_array_nonuniform_indexing = false;
+        glSpirvProfile.support_storage_image_array_nonuniform_indexing = false;
+        glSpirvProfile.support_uniform_texel_buffer_array_nonuniform_indexing = false;
+        glSpirvProfile.support_storage_texel_buffer_array_nonuniform_indexing = false;
+        glSpirvProfile.support_demote_to_helper_invocation = false;
+        glSpirvProfile.support_int64_atomics = false;
+        glSpirvProfile.support_derivative_control = false;
+        glSpirvProfile.has_broken_spirv_position_input = false;
+        glSpirvProfile.has_broken_spirv_subgroup_mask_vector_extract_dynamic = false;
+        glSpirvProfile.has_broken_spirv_subgroup_shuffle = false;
+        glSpirvProfile.has_broken_spirv_vector_access_chain = false;
+        glSpirvProfile.disable_subgroup_shuffle = true;
 
         Shader::Settings::values = {
             #ifdef NDEBUG
@@ -451,7 +474,6 @@ namespace skyline::gpu {
 
         auto spirvEmitted{Shader::Backend::SPIRV::EmitSPIRV(profile, runtimeInfo, program, bindings)};
         auto spirv{ProcessShaderBinary(true, hash, span<u32>{spirvEmitted}.cast<u8>()).cast<u32>()};
-        lastSpirv.assign(spirv.begin(), spirv.end());
 
         vk::ShaderModuleCreateInfo createInfo{
             .pCode = spirv.data(),
@@ -470,8 +492,9 @@ namespace skyline::gpu {
         return module;
     }
 
-    const std::vector<u32> &ShaderManager::LastSpirv() {
-        return lastSpirv;
+    std::vector<u32> ShaderManager::EmitSpirvForGl(const Shader::RuntimeInfo &runtimeInfo, Shader::IR::Program &program, Shader::Backend::Bindings &bindings) {
+        std::scoped_lock lock{poolMutex};
+        return Shader::Backend::SPIRV::EmitSPIRV(glSpirvProfile, runtimeInfo, program, bindings);
     }
 
     void ShaderManager::DumpFailedModule(vk::ShaderModule module) {
